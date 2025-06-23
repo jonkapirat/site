@@ -65,7 +65,7 @@
          * med initiala slumpmässiga former och färger. Ritar sedan hela rutnätet.
          */
         function initializeGrid() {
-            squareSize = 200; // Fasta 80x80 pixlar
+            squareSize = 80; // Fasta 80x80 pixlar
 
             cols = ceil(width / squareSize);
             rows = ceil(height / squareSize);
@@ -296,61 +296,205 @@
         }
 
         /**
-         * p5.js funktion som körs automatiskt när webbläsarfönstret ändrar storlek.
-         * Ser till att canvas alltid fyller fönstret och ritar om rutnätet.
+         * Hjälpfunktion för att få färgen på en specifik sida av en form.
+         * Tar hänsyn till formens rotation. Returnerar p5.Color objekt eller null
+         * om sidan inte är en enkel, solid kant.
+         * @param {object} cellData - Objekt som beskriver formen (shapeType, rotationAngle, färger).
+         * @param {number} targetSideAngle - Vinkeln för den sida vi vill kontrollera (0=Topp, 90=Höger, 180=Botten, 270=Vänster).
+         * @returns {p5.Color|null} Färgen på sidan, eller null om den inte matchar kriterierna.
          */
-        function windowResized() {
-            resizeCanvas(windowWidth, windowHeight);
-            initializeGrid(); // Återskapa rutnätet med nya dimensioner
+        function getSideColorFromCellData(cellData, targetSideAngle) {
+            // Beräkna vilken av formens "ursprungliga" sidor som vetter mot targetSideAngle efter rotation.
+            // Ex: Om formen är roterad 90 grader och vi tittar på dess 'top' (0), så tittar vi egentligen på dess 'original Left' (270).
+            let effectiveSideAngle = (targetSideAngle - cellData.rotationAngle + 360) % 360;
+
+            switch (cellData.shapeType) {
+                case 0: // Cirkel: Ingen rak sida att matcha mot.
+                case 3: // Linsform: Inga raka sidor att matcha mot.
+                    return null; 
+                case 1: // Rätvinklig triangel: Original Top (0) och Left (270) är raka sidor.
+                    if (effectiveSideAngle === 0 || effectiveSideAngle === 270) {
+                        return cellData.color;
+                    }
+                    return null;
+                case 2: // Halvcirkel (ensam): Original raka sidan är Bottom (180).
+                    if (effectiveSideAngle === 180) {
+                        return cellData.color;
+                    }
+                    return null;
+                case 4: // Två rektanglar: Original Left (270) och Right (90) är raka sidor.
+                    if (effectiveSideAngle === 270) { // Original Vänster
+                        return cellData.colors[0];
+                    } else if (effectiveSideAngle === 90) { // Original Höger
+                        return cellData.colors[1];
+                    }
+                    return null;
+                case 5: // Fem rektanglar: Original Left (270) och Right (90) är raka sidor (kantfärgerna).
+                    if (effectiveSideAngle === 270) { // Original Vänster (första remsan)
+                        return cellData.fiveRectColors[0];
+                    } else if (effectiveSideAngle === 90) { // Original Höger (sista remsan)
+                        return cellData.fiveRectColors[1];
+                    }
+                    return null;
+                case 6: // Två trianglar (delad diagonalt): Alla 4 sidor är raka.
+                    // Original: Top/Right (0/90) är färg 0, Bottom/Left (180/270) är färg 1.
+                    if (effectiveSideAngle === 0 || effectiveSideAngle === 90) {
+                        return cellData.triangleColors[0];
+                    } else if (effectiveSideAngle === 180 || effectiveSideAngle === 270) {
+                        return cellData.triangleColors[1];
+                    }
+                    return null;
+                case 7: // Två halvcirklar (raka sidor utåt): Original Top (0) och Bottom (180) är raka.
+                    if (effectiveSideAngle === 0) { // Original Top
+                        return cellData.halfCircleColors[0];
+                    } else if (effectiveSideAngle === 180) { // Original Bottom
+                        return cellData.halfCircleColors[1];
+                    }
+                    return null;
+            }
+            return null; // Fallback om formtypen inte hanteras eller sidan inte är rak
         }
+
 
         /**
          * p5.js funktion som körs när musen dras.
-         * Ändrar formen och färgen på den berörda kvadraten.
+         * Ändrar formen och färgen på den berörda kvadraten baserat på grannar.
          */
         function mouseDragged() {
             if (mouseX >= 0 && mouseX < width && mouseY >= 0 && mouseY < height) {
                 let targetCol = floor(mouseX / squareSize);
                 let targetRow = floor(mouseY / squareSize);
 
-                if (gridState[targetCol] && gridState[targetCol][targetRow]) {
-                    let newShapeType = floor(random(8)); // Nu 0-7 för de 8 formerna
-                    let newRotationAngle = floor(random(4)) * 90; 
-                    
-                    let newCellColor = random(bauhausColors); // Standardfärg för enkelformerna
-                    let newRectColors = []; // För form 4 (två rektanglar)
-                    let newFiveRectColors = []; // För form 5 (fem rektanglar)
-                    let newTriangleColors = []; // För form 6 (två trianglar)
-                    let newHalfCircleColors = []; // För form 7 (två halvcirklar)
+                if (targetCol >= 0 && targetCol < cols && targetRow >= 0 && targetRow < rows) {
+                    let bestMatchCandidate = null;
+                    let highestScore = -1;
+                    let candidatesWithHighestScore = []; // För att hantera oavgjorda resultat
 
-                    if (newShapeType === 4) {
-                        newRectColors.push(random(bauhausColors));
-                        newRectColors.push(random(bauhausColors));
-                    } else if (newShapeType === 5) {
-                        let color1 = random(bauhausColors);
-                        let color2 = random(bauhausColors);
-                        while (color1.toString() === color2.toString() && bauhausColors.length > 1) {
-                            color2 = random(bauhausColors);
+                    let allPossibleShapes = [];
+                    // Generera alla möjliga formtyper (0-7) med alla 4 rotationer (0, 90, 180, 270)
+                    // Och tilldela slumpmässigt färger för flervärgade former för varje kandidat
+                    for (let sType = 0; sType < 8; sType++) {
+                        for (let rAngle = 0; rAngle < 360; rAngle += 90) {
+                            let tempCellData = {
+                                shapeType: sType,
+                                rotationAngle: rAngle,
+                                // Tilldela nya slumpmässiga färger för varje kandidat
+                                color: random(bauhausColors),
+                                colors: [random(bauhausColors), random(bauhausColors)],
+                                fiveRectColors: [random(bauhausColors), random(bauhausColors)],
+                                triangleColors: [random(bauhausColors), random(bauhausColors)],
+                                halfCircleColors: [random(bauhausColors), random(bauhausColors)]
+                            };
+                            // Säkerställ att färgerna för flerdelsformer är unika om möjligt
+                            if (sType === 5) { // Fem rektanglar
+                                while (tempCellData.fiveRectColors[0].toString() === tempCellData.fiveRectColors[1].toString() && bauhausColors.length > 1) {
+                                    tempCellData.fiveRectColors[1] = random(bauhausColors);
+                                }
+                            }
+                            if (sType === 4) { // Två rektanglar
+                                while (tempCellData.colors[0].toString() === tempCellData.colors[1].toString() && bauhausColors.length > 1) {
+                                    tempCellData.colors[1] = random(bauhausColors);
+                                }
+                            }
+                            if (sType === 6) { // Två trianglar
+                                 while (tempCellData.triangleColors[0].toString() === tempCellData.triangleColors[1].toString() && bauhausColors.length > 1) {
+                                    tempCellData.triangleColors[1] = random(bauhausColors);
+                                }
+                            }
+                            if (sType === 7) { // Två halvcirklar
+                                while (tempCellData.halfCircleColors[0].toString() === tempCellData.halfCircleColors[1].toString() && bauhausColors.length > 1) {
+                                    tempCellData.halfCircleColors[1] = random(bauhausColors);
+                                }
+                            }
+
+                            allPossibleShapes.push(tempCellData);
                         }
-                        newFiveRectColors.push(color1);
-                        newFiveRectColors.push(color2);
-                    } else if (newShapeType === 6) {
-                        newTriangleColors.push(random(bauhausColors));
-                        newTriangleColors.push(random(bauhausColors));
-                    } else if (newShapeType === 7) {
-                        newHalfCircleColors.push(random(bauhausColors));
-                        newHalfCircleColors.push(random(bauhausColors));
                     }
 
-                    gridState[targetCol][targetRow] = {
-                        shapeType: newShapeType,
-                        rotationAngle: newRotationAngle,
-                        color: newCellColor, // Används för enkelformerna
-                        colors: newRectColors, // Används för dubbelrektangel-formen
-                        fiveRectColors: newFiveRectColors, // Används för femrektangel-formen
-                        triangleColors: newTriangleColors, // Används för delad triangel-formen
-                        halfCircleColors: newHalfCircleColors // Används för den nya halvcirkel-formen
-                    };
+                    // Utvärdera varje potentiell ny form
+                    for (let i = 0; i < allPossibleShapes.length; i++) {
+                        let candidateShape = allPossibleShapes[i];
+                        let currentMatchScore = 0;
+
+                        // Kontrollera Övre grannen
+                        if (targetRow > 0) {
+                            let neighborCell = gridState[targetCol][targetRow - 1];
+                            let neighborBottomColor = getSideColorFromCellData(neighborCell, 180); // Grannens nedre sida (vetter mot klickad cells topp)
+                            let candidateTopColor = getSideColorFromCellData(candidateShape, 0);   // Kandidatens övre sida
+
+                            if (neighborBottomColor && candidateTopColor && neighborBottomColor.toString() === candidateTopColor.toString()) {
+                                currentMatchScore++;
+                            }
+                        }
+                        // Kontrollera Höger granne
+                        if (targetCol < cols - 1) {
+                            let neighborCell = gridState[targetCol + 1][targetRow];
+                            let neighborLeftColor = getSideColorFromCellData(neighborCell, 270); // Grannens vänstra sida (vetter mot klickad cells höger)
+                            let candidateRightColor = getSideColorFromCellData(candidateShape, 90);  // Kandidatens högra sida
+
+                            if (neighborLeftColor && candidateRightColor && neighborLeftColor.toString() === candidateRightColor.toString()) {
+                                currentMatchScore++;
+                            }
+                        }
+                        // Kontrollera Undre grannen
+                        if (targetRow < rows - 1) {
+                            let neighborCell = gridState[targetCol][targetRow + 1];
+                            let neighborTopColor = getSideColorFromCellData(neighborCell, 0);     // Grannens övre sida (vetter mot klickad cells botten)
+                            let candidateBottomColor = getSideColorFromCellData(candidateShape, 180); // Kandidatens undre sida
+
+                            if (neighborTopColor && candidateBottomColor && neighborTopColor.toString() === candidateBottomColor.toString()) {
+                                currentMatchScore++;
+                            }
+                        }
+                        // Kontrollera Vänster granne
+                        if (targetCol > 0) {
+                            let neighborCell = gridState[targetCol - 1][targetRow];
+                            let neighborRightColor = getSideColorFromCellData(neighborCell, 90); // Grannens högra sida (vetter mot klickad cells vänster)
+                            let candidateLeftColor = getSideColorFromCellData(candidateShape, 270);  // Kandidatens vänstra sida
+
+                            if (neighborRightColor && candidateLeftColor && neighborRightColor.toString() === candidateLeftColor.toString()) {
+                                currentMatchScore++;
+                            }
+                        }
+
+                        if (currentMatchScore > highestScore) {
+                            highestScore = currentMatchScore;
+                            candidatesWithHighestScore = [candidateShape]; // Starta ny lista för denna poäng
+                        } else if (currentMatchScore === highestScore && currentMatchScore > 0) {
+                            // Om oavgjort och poängen är större än 0 (dvs. minst en match), lägg till i listan
+                            candidatesWithHighestScore.push(candidateShape);
+                        }
+                    }
+
+                    // Välj den bästa matchningen från listan över högst poängsatta kandidater
+                    if (candidatesWithHighestScore.length > 0 && highestScore > 0) {
+                        bestMatchCandidate = random(candidatesWithHighestScore);
+                    } else {
+                        // Om ingen match hittades (högsta poäng är 0) eller inga kandidater med >0 poäng, välj en helt slumpmässig
+                        // Detta är fallback om ingen angränsande matchning är möjlig.
+                        let newShapeType = floor(random(8));
+                        let newRotationAngle = floor(random(4)) * 90;
+                        let newCellColor = random(bauhausColors);
+                        let newRectColors = [random(bauhausColors), random(bauhausColors)];
+                        let newFiveRectColors = [random(bauhausColors), random(bauhausColors)];
+                        while (newFiveRectColors[0].toString() === newFiveRectColors[1].toString() && bauhausColors.length > 1) {
+                            newFiveRectColors[1] = random(bauhausColors);
+                        }
+                        let newTriangleColors = [random(bauhausColors), random(bauhausColors)];
+                        let newHalfCircleColors = [random(bauhausColors), random(bauhausColors)];
+
+                        bestMatchCandidate = {
+                            shapeType: newShapeType,
+                            rotationAngle: newRotationAngle,
+                            color: newCellColor,
+                            colors: newRectColors,
+                            fiveRectColors: newFiveRectColors,
+                            triangleColors: newTriangleColors,
+                            halfCircleColors: newHalfCircleColors
+                        };
+                    }
+
+                    gridState[targetCol][targetRow] = bestMatchCandidate;
                 }
             }
             return false; // Förhindra standard webbläsarbeteende
@@ -358,50 +502,143 @@
 
         /**
          * p5.js funktion som körs när en pekning flyttas.
+         * Ändrar formen och färgen på den berörda kvadraten baserat på grannar.
          */
         function touchMoved() {
             if (mouseX >= 0 && mouseX < width && mouseY >= 0 && mouseY < height) {
                 let targetCol = floor(mouseX / squareSize);
                 let targetRow = floor(mouseY / squareSize); 
 
-                if (gridState[targetCol] && gridState[targetCol][targetRow]) {
-                    let newShapeType = floor(random(8)); // Nu 0-7 för de 8 formerna
-                    let newRotationAngle = floor(random(4)) * 90;
-                    
-                    let newCellColor = random(bauhausColors); // Standardfärg för enkelformerna
-                    let newRectColors = []; // För form 4 (två rektanglar)
-                    let newFiveRectColors = []; // För form 5 (fem rektanglar)
-                    let newTriangleColors = []; // För form 6 (två trianglar)
-                    let newHalfCircleColors = []; // För form 7 (två halvcirklar)
+                if (targetCol >= 0 && targetCol < cols && targetRow >= 0 && targetRow < rows) {
+                    let bestMatchCandidate = null;
+                    let highestScore = -1;
+                    let candidatesWithHighestScore = []; // För att hantera oavgjorda resultat
 
-                    if (newShapeType === 4) {
-                        newRectColors.push(random(bauhausColors));
-                        newRectColors.push(random(bauhausColors));
-                    } else if (newShapeType === 5) {
-                        let color1 = random(bauhausColors);
-                        let color2 = random(bauhausColors);
-                        while (color1.toString() === color2.toString() && bauhausColors.length > 1) {
-                            color2 = random(bauhausColors);
+                    let allPossibleShapes = [];
+                    // Generera alla möjliga formtyper (0-7) med alla 4 rotationer (0, 90, 180, 270)
+                    // Och tilldela slumpmässigt färger för flervärgade former för varje kandidat
+                    for (let sType = 0; sType < 8; sType++) {
+                        for (let rAngle = 0; rAngle < 360; rAngle += 90) {
+                            let tempCellData = {
+                                shapeType: sType,
+                                rotationAngle: rAngle,
+                                // Tilldela nya slumpmässiga färger för varje kandidat
+                                color: random(bauhausColors),
+                                colors: [random(bauhausColors), random(bauhausColors)],
+                                fiveRectColors: [random(bauhausColors), random(bauhausColors)],
+                                triangleColors: [random(bauhausColors), random(bauhausColors)],
+                                halfCircleColors: [random(bauhausColors), random(bauhausColors)]
+                            };
+                            // Säkerställ att färgerna för flerdelsformer är unika om möjligt
+                            if (sType === 5) { // Fem rektanglar
+                                while (tempCellData.fiveRectColors[0].toString() === tempCellData.fiveRectColors[1].toString() && bauhausColors.length > 1) {
+                                    tempCellData.fiveRectColors[1] = random(bauhausColors);
+                                }
+                            }
+                            if (sType === 4) { // Två rektanglar
+                                while (tempCellData.colors[0].toString() === tempCellData.colors[1].toString() && bauhausColors.length > 1) {
+                                    tempCellData.colors[1] = random(bauhausColors);
+                                }
+                            }
+                            if (sType === 6) { // Två trianglar
+                                 while (tempCellData.triangleColors[0].toString() === tempCellData.triangleColors[1].toString() && bauhausColors.length > 1) {
+                                    tempCellData.triangleColors[1] = random(bauhausColors);
+                                }
+                            }
+                            if (sType === 7) { // Två halvcirklar
+                                while (tempCellData.halfCircleColors[0].toString() === tempCellData.halfCircleColors[1].toString() && bauhausColors.length > 1) {
+                                    tempCellData.halfCircleColors[1] = random(bauhausColors);
+                                }
+                            }
+
+                            allPossibleShapes.push(tempCellData);
                         }
-                        newFiveRectColors.push(color1);
-                        newFiveRectColors.push(color2);
-                    } else if (newShapeType === 6) {
-                        newTriangleColors.push(random(bauhausColors));
-                        newTriangleColors.push(random(bauhausColors));
-                    } else if (newShapeType === 7) {
-                        newHalfCircleColors.push(random(bauhausColors));
-                        newHalfCircleColors.push(random(bauhausColors));
                     }
 
-                    gridState[targetCol][targetRow] = {
-                        shapeType: newShapeType,
-                        rotationAngle: newRotationAngle,
-                        color: newCellColor, // Används för enkelformerna
-                        colors: newRectColors, // Används för dubbelrektangel-formen
-                        fiveRectColors: newFiveRectColors, // Används för femrektangel-formen
-                        triangleColors: newTriangleColors, // Används för delad triangel-formen
-                        halfCircleColors: newHalfCircleColors // Används för den nya halvcirkel-formen
-                    };
+                    // Utvärdera varje potentiell ny form
+                    for (let i = 0; i < allPossibleShapes.length; i++) {
+                        let candidateShape = allPossibleShapes[i];
+                        let currentMatchScore = 0;
+
+                        // Kontrollera Övre grannen
+                        if (targetRow > 0) {
+                            let neighborCell = gridState[targetCol][targetRow - 1];
+                            let neighborBottomColor = getSideColorFromCellData(neighborCell, 180); // Grannens nedre sida (vetter mot klickad cells topp)
+                            let candidateTopColor = getSideColorFromCellData(candidateShape, 0);   // Kandidatens övre sida
+
+                            if (neighborBottomColor && candidateTopColor && neighborBottomColor.toString() === candidateTopColor.toString()) {
+                                currentMatchScore++;
+                            }
+                        }
+                        // Kontrollera Höger granne
+                        if (targetCol < cols - 1) {
+                            let neighborCell = gridState[targetCol + 1][targetRow];
+                            let neighborLeftColor = getSideColorFromCellData(neighborCell, 270); // Grannens vänstra sida (vetter mot klickad cells höger)
+                            let candidateRightColor = getSideColorFromCellData(candidateShape, 90);  // Kandidatens högra sida
+
+                            if (neighborLeftColor && candidateRightColor && neighborLeftColor.toString() === candidateRightColor.toString()) {
+                                currentMatchScore++;
+                            }
+                        }
+                        // Kontrollera Undre grannen
+                        if (targetRow < rows - 1) {
+                            let neighborCell = gridState[targetCol][targetRow + 1];
+                            let neighborTopColor = getSideColorFromCellData(neighborCell, 0);     // Grannens övre sida (vetter mot klickad cells botten)
+                            let candidateBottomColor = getSideColorFromCellData(candidateShape, 180); // Kandidatens undre sida
+
+                            if (neighborTopColor && candidateBottomColor && neighborTopColor.toString() === candidateBottomColor.toString()) {
+                                currentMatchScore++;
+                            }
+                        }
+                        // Kontrollera Vänster granne
+                        if (targetCol > 0) {
+                            let neighborCell = gridState[targetCol - 1][targetRow];
+                            let neighborRightColor = getSideColorFromCellData(neighborCell, 90); // Grannens högra sida (vetter mot klickad cells vänster)
+                            let candidateLeftColor = getSideColorFromCellData(candidateShape, 270);  // Kandidatens vänstra sida
+
+                            if (neighborRightColor && candidateLeftColor && neighborRightColor.toString() === candidateLeftColor.toString()) {
+                                currentMatchScore++;
+                            }
+                        }
+
+                        if (currentMatchScore > highestScore) {
+                            highestScore = currentMatchScore;
+                            candidatesWithHighestScore = [candidateShape]; // Starta ny lista för denna poäng
+                        } else if (currentMatchScore === highestScore && currentMatchScore > 0) {
+                            // Om oavgjort och poängen är större än 0 (dvs. minst en match), lägg till i listan
+                            candidatesWithHighestScore.push(candidateShape);
+                        }
+                    }
+
+                    // Välj den bästa matchningen från listan över högst poängsatta kandidater
+                    if (candidatesWithHighestScore.length > 0 && highestScore > 0) {
+                        bestMatchCandidate = random(candidatesWithHighestScore);
+                    } else {
+                        // Om ingen match hittades (högsta poäng är 0) eller inga kandidater med >0 poäng, välj en helt slumpmässig
+                        // Detta är fallback om ingen angränsande matchning är möjlig.
+                        let newShapeType = floor(random(8));
+                        let newRotationAngle = floor(random(4)) * 90;
+                        let newCellColor = random(bauhausColors);
+                        let newRectColors = [random(bauhausColors), random(bauhausColors)];
+                        let newFiveRectColors = [random(bauhausColors), random(bauhausColors)];
+                        while (newFiveRectColors[0].toString() === newFiveRectColors[1].toString() && bauhausColors.length > 1) {
+                            newFiveRectColors[1] = random(bauhausColors);
+                        }
+                        let newTriangleColors = [random(bauhausColors), random(bauhausColors)];
+                        let newHalfCircleColors = [random(bauhausColors), random(bauhausColors)];
+
+                        bestMatchCandidate = {
+                            shapeType: newShapeType,
+                            rotationAngle: newRotationAngle,
+                            color: newCellColor,
+                            colors: newRectColors,
+                            fiveRectColors: newFiveRectColors,
+                            triangleColors: newTriangleColors,
+                            halfCircleColors: newHalfCircleColors
+                        };
+                    }
+
+                    gridState[targetCol][targetRow] = bestMatchCandidate;
                 }
             }
             return false;
