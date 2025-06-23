@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Typing App</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400&family=Open+Sans:wght@400&family=Lato:wght@400&family=Montserrat:wght@400&family=Source+Sans+Pro:wght@400&family=Raleway:wght@400&family=PT+Sans:wght@400&family=Lora:wght@400&family=Nunito:wght@400&family=Ubuntu:wght@400&family=Playfair+Display:wght@400&family=Merriweather:wght@400&family=Dancing+Script:wght@400&family=Pacifico:wght@400&family=Lobster:wght@400&family=Comfortaa:wght@400&family=Quicksand:wght@400&family=Fredoka+One:wght@400&family=Bangers:wght@400&family=Creepster:wght@400&family=Orbitron:wght@400&family=Russo+One:wght@400&family=Kalam:wght@400&family=Satisfy:wght@400&family=Great+Vibes:wght@400&family=Sacramento:wght@400&family=Amatic+SC:wght@400&family=Caveat:wght@400&family=Indie+Flower:wght@400&family=Shadows+Into+Light:wght@400&family=Permanent+Marker:wght@400&family=Righteous:wght@400&family=Fjalla+One:wght@400&family=Anton:wght@400&family=Bebas+Neue:wght@400&family=Alfa+Slab+One:wght@400&family=Bungee:wght@400&family=Oswald:wght@400&family=Titillium+Web:wght@400&family=Work+Sans:wght@400&family=Poppins:wght@400&family=Muli:wght@400&family=Noto+Sans:wght@400&family=Fira+Sans:wght@400&family=Rubik:wght@400&family=Barlow:wght@400&family=Inter:wght@400&family=Crimson+Text:wght@400&family=Libre+Baskerville:wght@400&family=Cormorant+Garamond:wght@400&family=EB+Garamond:wght@400&family=Spectral:wght@400&family=Old+Standard+TT:wght@400&family=Vollkorn:wght@400&family=Arvo:wght@400&family=Rokkitt:wght@400&family=Slabo+27px:wght@400&family=Crete+Round:wght@400&family=Alegreya:wght@400&family=Domine:wght@400&family=Bitter:wght@400&family=Noticia+Text:wght@400&family=Gentium+Basic:wght@400&family=Neuton:wght@400&family=Crimson+Pro:wght@400&family=Source+Code+Pro:wght@400&family=Fira+Code:wght@400&family=JetBrains+Mono:wght@400&family=Inconsolata:wght@400&family=Space+Mono:wght@400&family=IBM+Plex+Mono:wght@400&family=Courier+Prime:wght@400&family=Anonymous+Pro:wght@400&family=PT+Mono:wght@400&family=Ubuntu+Mono:wght@400&family=Roboto+Mono:wght@400&family=Noto+Sans+Mono:wght@400&family=Overpass+Mono:wght@400&family=Major+Mono+Display:wght@400&family=VT323:wght@400&family=Press+Start+2P:wght@400&family=Exo+2:wght@400&family=Audiowide:wght@400&family=Share+Tech+Mono:wght@400&family=Gruppo:wght@400&family=Electrolize:wght@400&family=Syncopate:wght@400&family=Jura:wght@400&family=Michroma:wght@400&family=Nova+Mono:wght@400&family=Rationale:wght@400&family=Advent+Pro:wght@400&family=Cabin:wght@400&family=Varela+Round:wght@400&family=Nunito+Sans:wght@400&family=Karla:wght@400&family=Hind:wght@400&family=Mukti:wght@400&family=Assistant:wght@400&family=Heebo:wght@400&family=Frank+Ruhl+Libre:wght@400&family=Alef:wght@400&family=Secular+One:wght@400&family=M+PLUS 1p:wght@400&family=Noto+Sans+JP:wght@400&family=Sawarabi+Gothic:wght@400&family=Kosugi+Maru:wght@400&family=Zen+Kaku+Gothic+New:wght@400&family=Noto+Sans+KR:wght@400&family=Do+Hyeon:wght@400&family=Jua:wght@400&family=Gamja+Flower:wght@400&family=Stylish:wght@400&family=Noto+Sans+SC:wght@400&family=Ma+Shan+Zheng:wght@400&family=ZCOOL+XiaoWei:wght@400&family=Liu+Jian+Mao+Cao:wght@400&family=Zhi+Mang+Xing:wght@400" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #fafafa;
+            font-family: Arial, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column; /* Changed to column to stack elements */
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            transition: background-color 0.3s ease;
+        }
+
+        .container {
+            position: relative;
+            text-align: center;
+            flex-grow: 1; /* Allows container to take available space */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%; /* Ensure it takes full width */
+        }
+
+        .text-display {
+            font-size: 220px; /* Default font size */
+            color: #2a2a2a;
+            line-height: 1;
+            white-space: nowrap;
+            position: relative;
+            min-height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            letter-spacing: -7px; /* Default letter spacing from slider */
+            font-weight: 500; /* Default font weight from slider */
+        }
+
+        .letter {
+            display: inline-block;
+            transition: transform 0.05s ease, font-size 0.05s ease; /* Add font-size transition */
+            cursor: pointer;
+        }
+
+        .letter.locked {
+            pointer-events: auto;
+        }
+
+        .background-locked {
+            background-color: #f5f3e8 !important;
+        }
+
+        .cursor {
+            display: inline-block;
+            width: 3px;
+            height: 200px;
+            background-color: #2a2a2a;
+            animation: blink 1s infinite;
+            margin-left: 2px;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+
+        .hidden-input {
+            position: absolute;
+            left: -9999px;
+            opacity: 0;
+        }
+
+        .font-tooltip {
+            position: fixed;
+            font-family: 'Garamond', serif;
+            font-size: 18px; /* Increased font size */
+            color: #2a2a2a;
+            pointer-events: none;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.1s ease;
+            /* Removed background, padding, border-radius, box-shadow */
+        }
+
+        .font-tooltip.show {
+            opacity: 1;
+        }
+
+        .lock-hint {
+            position: fixed; /* Use fixed to position relative to viewport */
+            bottom: 16px; /* 16px padding to the bottom */
+            left: 50%;
+            transform: translateX(-50%); /* Center horizontally */
+            font-family: 'Garamond', serif;
+            font-size: 16px;
+            color: #2a2a2a;
+            opacity: 0.2; /* Almost invisible */
+            transition: opacity 0.3s ease;
+            pointer-events: none; /* Ensure it doesn't interfere with interactions */
+            white-space: nowrap; /* Prevent text wrapping */
+        }
+
+        .lock-hint.hidden {
+            opacity: 0;
+        }
+
+        /* Sliders Styling */
+        .sliders-container {
+            position: fixed;
+            bottom: 50px; /* Adjust position as needed */
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 999;
+            transition: opacity 0.3s ease;
+            padding-bottom: 30px; /* Add some padding to not overlap with lock hint */
+        }
+
+        .sliders-container.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .slider-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-family: 'Garamond', serif;
+            font-size: 14px;
+            color: #2a2a2a;
+            white-space: nowrap;
+            margin-bottom: 4px;
+        }
+
+        input[type="range"] {
+            -webkit-appearance: none; /* Override default look */
+            width: 200px; /* Adjust width as needed */
+            height: 1px; /* Track height (1px thick) */
+            background: rgba(42, 42, 42, 0.05); /* Track color with 5% opacity */
+            outline: none;
+            margin: 0;
+            padding: 0;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; /* Override default look */
+            width: 7px; /* Thumb size */
+            height: 15px; /* Thumb size */
+            background: #2a2a2a; /* Black square, same as text color */
+            cursor: grab;
+            border-radius: 0; /* Square shape */
+            margin-top: -7px; /* Center thumb vertically on track: (thumb_height - track_height) / 2 */
+        }
+
+        /* For Firefox */
+        input[type="range"]::-moz-range-track {
+            width: 200px;
+            height: 1px; /* Track height (1px thick) */
+            background: rgba(42, 42, 42, 0.05); /* Track color with 5% opacity */
+            border-radius: 0;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 7px;
+            height: 15px;
+            background: #2a2a2a;
+            cursor: grab;
+            border-radius: 0;
+            /* Firefox centers thumb vertically automatically */
+        }
+
+        /* For IE/Edge */
+        input[type="range"]::-ms-track {
+            width: 200px;
+            height: 1px; /* Track height (1px thick) */
+            background: transparent; /* Needs to be transparent for thumb to show */
+            border-color: transparent;
+            color: transparent;
+        }
+        input[type="range"]::-ms-fill-lower,
+        input[type="range"]::-ms-fill-upper {
+            background: rgba(42, 42, 42, 0.05); /* Track color with 5% opacity */
+            border-radius: 0;
+        }
+        input[type="range"]::-ms-thumb {
+            width: 7px;
+            height: 15px;
+            background: #2a2a2a;
+            cursor: grab;
+            border-radius: 0;
+            margin-top: 0; /* IE/Edge handles vertical centering differently, sometimes 0 is best */
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="text-display" id="textDisplay">
+            <span class="cursor" id="cursor"></span>
+        </div>
+        <div class="font-tooltip" id="fontTooltip"></div>
+        <input type="text" class="hidden-input" id="hiddenInput" autocomplete="off">
+    </div>
+
+    <div class="sliders-container" id="slidersContainer">
+        <div class="slider-group">
+            <input type="range" id="textSizeSlider" min="20" max="400" value="220">
+        </div>
+        <div class="slider-group">
+            <input type="range" id="fontWeightSlider" min="100" max="900" step="100" value="500">
+        </div>
+        <div class="slider-group">
+            <input type="range" id="letterSpacingSlider" min="-20" max="15" value="-7">
+        </div>
+        <div class="slider-group">
+            <input type="range" id="rotationControlSlider" min="-45" max="45" value="0">
+        </div>
+    </div>
+
+    <div class="lock-hint" id="lockHint">Enter to lock</div>
+
+    <script>
+        const textDisplay = document.getElementById('textDisplay');
+        const cursor = document.getElementById('cursor');
+        const hiddenInput = document.getElementById('hiddenInput');
+        const fontTooltip = document.getElementById('fontTooltip');
+        const lockHint = document.getElementById('lockHint');
+        const slidersContainer = document.getElementById('slidersContainer');
+        const textSizeSlider = document.getElementById('textSizeSlider');
+        const fontWeightSlider = document.getElementById('fontWeightSlider');
+        const letterSpacingSlider = document.getElementById('letterSpacingSlider'); 
+        const rotationControlSlider = document.getElementById('rotationControlSlider'); 
+        
+        // Comprehensive list of Google Fonts
+        const googleFonts = [
+            'Roboto', 'Open Sans', 'Lato', 'Montserrat', 'Source Sans Pro', 'Raleway',
+            'PT Sans', 'Lora', 'Nunito', 'Ubuntu', 'Playfair Display', 'Merriweather',
+            'Dancing Script', 'Pacifico', 'Lobster', 'Comfortaa', 'Quicksand', 'Fredoka One',
+            'Bangers', 'Creepster', 'Orbitron', 'Russo One', 'Kalam', 'Satisfy',
+            'Great Vibes', 'Sacramento', 'Amatic SC', 'Caveat', 'Indie Flower',
+            'Shadows Into Light', 'Permanent Marker', 'Righteous', 'Fjalla One', 'Anton',
+            'Bebas Neue', 'Alfa Slab One', 'Bungee', 'Oswald', 'Titillium Web',
+            'Work Sans', 'Poppins', 'Muli', 'Noto Sans', 'Fira Sans', 'Rubik',
+            'Barlow', 'Inter', 'Crimson Text', 'Libre Baskerville', 'Cormorant Garamond',
+            'EB Garamond', 'Spectral', 'Old Standard TT', 'Vollkorn', 'Arvo',
+            'Rokkitt', 'Slabo 27px', 'Crete Round', 'Alegreya', 'Domine', 'Bitter',
+            'Noticia Text', 'Gentium Basic', 'Neuton', 'Crimson Pro', 'Source Code Pro',
+            'Fira Code', 'JetBrains Mono', 'Inconsolata', 'Space Mono', 'IBM Plex Mono',
+            'Courier Prime', 'Anonymous Pro', 'PT Mono', 'Ubuntu Mono', 'Roboto Mono',
+            'Noto Sans Mono', 'Overpass Mono', 'Major Mono Display', 'VT323', 'Press Start 2P',
+            'Exo 2', 'Audiowide', 'Share Tech Mono', 'Gruppo', 'Electrolize',
+            'Syncopate', 'Jura', 'Michroma', 'Nova Mono', 'Rationale', 'Advent Pro',
+            'Cabin', 'Varela Round', 'Nunito Sans', 'Karla', 'Hind', 'Mukti',
+            'Assistant', 'Heebo', 'Frank Ruhl Libre', 'Alef', 'Secular One',
+            'M PLUS 1p', 'Noto Sans JP', 'Sawarabi Gothic', 'Kosugi Maru', 'Zen Kaku Gothic New',
+            'Noto Sans KR', 'Do Hyeon', 'Jua', 'Gamja Flower', 'Stylish',
+            'Noto Sans SC', 'Ma Shan Zheng', 'ZCOOL XiaoWei', 'Liu Jian Mao Cao', 'Zhi Mang Xing'
+        ];
+
+        let currentText = '';
+        let isLocked = false;
+        let hoverIntervals = new Map();
+        // Store font, base rotation, transform, font size, font weight, and letter spacing for each letter
+        let lockedFonts = new Map(); 
+
+        // Helper function to parse rotation from a transform string
+        function parseRotation(transformString) {
+            const match = transformString.match(/rotate\(([-+]?\d*\.?\d+)(deg)?\)/);
+            return match ? parseFloat(match[1]) : 0;
+        }
+
+        // Helper function to escape XML special characters for text content
+        function escapeXml(unsafe) {
+            return unsafe.replace(/[<>&'"]/g, function (c) {
+                switch (c) {
+                    case '<': return '&lt;';
+                    case '>': return '&gt;';
+                    case '&': return '&amp;';
+                    case '\'': return '&apos;';
+                    case '"': return '&quot;';
+                }
+                return ''; // Should not happen
+            });
+        }
+
+        // Helper function to escape XML special characters for attribute values
+        function escapeXmlAttribute(unsafe) {
+            return unsafe.replace(/[<>&"']/g, function (c) {
+                switch (c) {
+                    case '<': return '&lt;';
+                    case '>': return '&gt;';
+                    case '&': return '&amp;';
+                    case '"': return '&quot;';
+                    case '\'': return '&apos;'; 
+                }
+                return ''; 
+            });
+        }
+
+        // Shuffle array function
+        function shuffle(array) {
+            const shuffled = [...array];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled;
+        }
+
+        // Get random font that's different from current
+        function getRandomFont(currentFont) {
+            const shuffledFonts = shuffle(googleFonts);
+            return shuffledFonts.find(font => font !== currentFont) || shuffledFonts[0];
+        }
+
+        // Focus on the hidden input to capture keyboard events
+        hiddenInput.focus();
+
+        // Keep focus on hidden input when clicking anywhere on the document, if not locked
+        document.addEventListener('click', (e) => {
+            if (!isLocked) {
+                hiddenInput.focus();
+            }
+        });
+
+        // Handle input changes from the hidden input field
+        hiddenInput.addEventListener('input', (e) => {
+            if (!isLocked) {
+                currentText = e.target.value;
+                updateDisplay();
+            }
+        });
+
+        // Handle keydown events for backspace and enter
+        hiddenInput.addEventListener('keydown', (e) => {
+            if (!isLocked) {
+                if (e.key === 'Backspace') {
+                    setTimeout(updateDisplay, 0);
+                } else if (e.key === 'Enter') {
+                    lockText();
+                }
+            }
+        });
+
+        // Slider event listeners
+        textSizeSlider.addEventListener('input', (e) => {
+            const newSliderValue = parseFloat(e.target.value);
+            textDisplay.style.fontSize = `${newSliderValue}px`; // Update overall display size
+
+            textDisplay.querySelectorAll('.letter').forEach((span, index) => {
+                const storedData = lockedFonts.get(index);
+                if (storedData) {
+                    const oldBaseFontSizePx = parseFloat(storedData.baseFontSize);
+                    const currentIndividualSizePx = parseFloat(storedData.fontSize);
+
+                    // Calculate the ratio of change from the old base size to the new slider value
+                    // This ratio will be applied to the letter's current individual size
+                    const ratioChange = newSliderValue / oldBaseFontSizePx;
+                    const newIndividualSizePx = currentIndividualSizePx * ratioChange;
+
+                    span.style.fontSize = `${newIndividualSizePx}px`;
+
+                    // Update both baseFontSize (to track the slider's current setting)
+                    // and fontSize (to store the new scaled individual size)
+                    lockedFonts.set(index, { 
+                        ...storedData, 
+                        baseFontSize: `${newSliderValue}px`, 
+                        fontSize: `${newIndividualSizePx}px` 
+                    });
+                }
+            });
+        });
+
+        fontWeightSlider.addEventListener('input', (e) => {
+            const newWeight = e.target.value;
+            textDisplay.style.fontWeight = newWeight; 
+            textDisplay.querySelectorAll('.letter').forEach((span, index) => {
+                span.style.fontWeight = newWeight;
+                if (lockedFonts.has(index)) {
+                    const storedData = lockedFonts.get(index);
+                    lockedFonts.set(index, { ...storedData, fontWeight: newWeight });
+                }
+            });
+        });
+
+        letterSpacingSlider.addEventListener('input', (e) => {
+            const newLetterSpacing = `${e.target.value}px`;
+            textDisplay.style.letterSpacing = newLetterSpacing;
+            textDisplay.querySelectorAll('.letter').forEach((span, index) => {
+                span.style.letterSpacing = newLetterSpacing;
+                if (lockedFonts.has(index)) {
+                    const storedData = lockedFonts.get(index);
+                    lockedFonts.set(index, { ...storedData, letterSpacing: newLetterSpacing });
+                }
+            });
+        });
+
+        rotationControlSlider.addEventListener('input', (e) => {
+            const additionalRotation = parseFloat(e.target.value);
+            textDisplay.querySelectorAll('.letter').forEach((span, index) => {
+                const storedData = lockedFonts.get(index);
+                if (storedData && storedData.baseRotation !== undefined) {
+                    // Apply the slider's value in the direction of the base rotation
+                    const direction = Math.sign(storedData.baseRotation) || 1; // Default to positive if baseRotation is 0
+                    const combinedRotation = storedData.baseRotation + (direction * additionalRotation);
+                    span.style.transform = `rotate(${combinedRotation}deg)`;
+                    
+                    lockedFonts.set(index, { 
+                        ...storedData, 
+                        transform: `rotate(${combinedRotation}deg)` 
+                    });
+                }
+            });
+        });
+
+        // Updates the display of letters and cursor
+        function updateDisplay() {
+            // Clear all active hover intervals and mousemove listeners BEFORE clearing innerHTML
+            hoverIntervals.forEach(entry => {
+                clearInterval(entry.intervalId);
+                // Ensure the letterSpan is still in the DOM before trying to remove its event listener
+                const letterSpan = textDisplay.querySelector(`[data-index="${entry.index}"]`);
+                if (letterSpan && entry.mouseMoveHandler) {
+                    letterSpan.removeEventListener('mousemove', entry.mouseMoveHandler);
+                }
+            });
+            hoverIntervals.clear(); // Clear the map
+
+            textDisplay.innerHTML = ''; // Now clear the DOM
+            
+            // Show/hide lock hint and sliders based on locked state
+            if (isLocked) {
+                lockHint.classList.add('hidden');
+                slidersContainer.classList.add('hidden');
+            } else {
+                lockHint.classList.remove('hidden');
+                slidersContainer.classList.remove('hidden');
+            }
+
+            // Get current slider values to apply to new letters
+            const currentBaseFontSize = `${textSizeSlider.value}px`; // Renamed to currentBaseFontSize
+            const currentFontWeight = fontWeightSlider.value;
+            const currentLetterSpacing = `${letterSpacingSlider.value}px`;
+            const currentAdditionalRotationSliderValue = parseFloat(rotationControlSlider.value); 
+
+            for (let i = 0; i < currentText.length; i++) {
+                const letterSpan = document.createElement('span');
+                letterSpan.className = isLocked ? 'letter locked' : 'letter';
+                
+                // Use &nbsp; for space characters to ensure they are visible
+                letterSpan.innerHTML = currentText[i] === ' ' ? '&nbsp;' : currentText[i];
+                letterSpan.dataset.index = i; 
+
+                if (isLocked && lockedFonts.has(i)) {
+                    const lockedData = lockedFonts.get(i);
+                    letterSpan.style.fontFamily = lockedData.font;
+                    letterSpan.style.transform = lockedData.transform;
+                    letterSpan.style.fontSize = lockedData.fontSize; // Use stored current size
+                    letterSpan.style.fontWeight = lockedData.fontWeight; 
+                    letterSpan.style.letterSpacing = lockedData.letterSpacing; 
+                } else if (!isLocked) {
+                    if (!lockedFonts.has(i)) { 
+                        const randomFont = getRandomFont('Arial'); 
+                        // Generate a random base rotation from -20 to +20 degrees
+                        const randomBaseRotation = (Math.random() - 0.5) * 40; 
+                        
+                        // Apply additional rotation from slider, respecting the base rotation's direction
+                        const direction = Math.sign(randomBaseRotation) || 1;
+                        const initialCombinedRotation = randomBaseRotation + (direction * currentAdditionalRotationSliderValue);
+
+                        letterSpan.style.fontFamily = `"${randomFont}", sans-serif`;
+                        letterSpan.style.transform = `rotate(${initialCombinedRotation}deg)`;
+                        letterSpan.style.fontSize = currentBaseFontSize; // Initial font size
+                        letterSpan.style.fontWeight = currentFontWeight; 
+                        letterSpan.style.letterSpacing = currentLetterSpacing; 
+
+                        lockedFonts.set(i, { 
+                            font: randomFont, 
+                            baseRotation: randomBaseRotation, // Store base random rotation
+                            transform: `rotate(${initialCombinedRotation}deg)`, // Store current combined transform
+                            baseFontSize: currentBaseFontSize, // Store base font size from slider
+                            fontSize: currentBaseFontSize, // Initial current font size is base
+                            fontWeight: currentFontWeight,
+                            letterSpacing: currentLetterSpacing 
+                        });
+                    } else {
+                        const storedData = lockedFonts.get(i);
+                        // Recalculate transform based on stored baseRotation and current slider value
+                        const direction = Math.sign(storedData.baseRotation) || 1;
+                        const newCombinedRotation = storedData.baseRotation + (direction * currentAdditionalRotationSliderValue);
+
+                        letterSpan.style.fontFamily = storedData.font;
+                        letterSpan.style.transform = `rotate(${newCombinedRotation}deg)`;
+                        letterSpan.style.fontSize = storedData.fontSize; // Use stored current size
+                        letterSpan.style.fontWeight = currentFontWeight; 
+                        letterSpan.style.letterSpacing = currentLetterSpacing; 
+
+                        lockedFonts.set(i, { 
+                            font: storedData.font, 
+                            baseRotation: storedData.baseRotation, // Keep base rotation
+                            transform: `rotate(${newCombinedRotation}deg)`, // Update combined transform
+                            baseFontSize: currentBaseFontSize, // Update base font size from slider
+                            fontSize: storedData.fontSize, // Keep current font size
+                            fontWeight: currentFontWeight,
+                            letterSpacing: currentLetterSpacing 
+                        });
+                    }
+
+                    // Always add hover effects for both font and size when not locked
+                    letterSpan.addEventListener('mouseenter', (e) => {
+                        startHoverEffect(letterSpan, e); // Pass event to capture mouse position
+                    });
+                    
+                    letterSpan.addEventListener('mousemove', (e) => {
+                        // Only handle mousemove for size scaling if not locked
+                        const currentLetterIndex = parseInt(letterSpan.dataset.index); 
+                        if (!isLocked && hoverIntervals.has(currentLetterIndex)) {
+                            const hoverData = hoverIntervals.get(currentLetterIndex);
+                            if (hoverData.mouseMoveHandler) {
+                                hoverData.mouseMoveHandler(e);
+                            }
+                        }
+                    });
+
+                    letterSpan.addEventListener('mouseleave', () => {
+                        stopHoverEffect(letterSpan);
+                    });
+                }
+                
+                // Add hover events for font name tooltip when locked
+                letterSpan.addEventListener('mouseenter', (e) => {
+                    if (isLocked) showFontTooltip(e, letterSpan);
+                });
+                
+                letterSpan.addEventListener('mouseleave', () => {
+                    if (isLocked) hideFontTooltip();
+                });
+                
+                letterSpan.addEventListener('mousemove', (e) => {
+                    if (isLocked) updateTooltipPosition(e);
+                });
+                
+                textDisplay.appendChild(letterSpan);
+            }
+            
+            if (!isLocked) {
+                textDisplay.appendChild(cursor);
+            }
+        }
+
+        // startHoverEffect now takes the event to get initial mouse position
+        function startHoverEffect(letterSpan, initialEvent) {
+            const index = parseInt(letterSpan.dataset.index); 
+            
+            if (hoverIntervals.has(index)) {
+                clearInterval(hoverIntervals.get(index).intervalId);
+                letterSpan.removeEventListener('mousemove', hoverIntervals.get(index).mouseMoveHandler);
+                hoverIntervals.delete(index);
+            }
+            
+            let currentFont = window.getComputedStyle(letterSpan).fontFamily.replace(/['']/g, '').split(',')[0].trim();
+            // Get the current base font size from lockedFonts
+            const baseFontSizePx = parseFloat(lockedFonts.get(index)?.baseFontSize || window.getComputedStyle(letterSpan).fontSize);
+            let currentFontWeight = window.getComputedStyle(letterSpan).fontWeight;
+            let currentLetterSpacing = window.getComputedStyle(letterSpan).letterSpacing;
+            let currentBaseRotation = lockedFonts.get(index)?.baseRotation || parseRotation(window.getComputedStyle(letterSpan).transform);
+
+            // Mousemove handler for dynamic font size scaling
+            const handleMouseMove = (event) => {
+                const rect = letterSpan.getBoundingClientRect();
+                const relativeY = event.clientY - rect.top; // Y position relative to the top of the letter
+                const letterHeight = rect.height;
+                // Normalize Y: 0 at top, 1 at bottom
+                const normalizedY = Math.max(0, Math.min(1, relativeY / letterHeight)); 
+                
+                // Scale factor: 0.5 at bottom (normalizedY=1), 1.5 at top (normalizedY=0)
+                const minScale = 0.5; 
+                const maxScale = 1.5; 
+                const scaleRange = maxScale - minScale;
+                const scaleFactor = minScale + (scaleRange) * (1 - normalizedY); 
+                
+                letterSpan.style.fontSize = `${baseFontSizePx * scaleFactor}px`;
+            };
+
+            // Attach the mousemove listener
+            letterSpan.addEventListener('mousemove', handleMouseMove);
+            // Trigger initial scale based on initial mouse position
+            if (initialEvent) {
+                handleMouseMove(initialEvent);
+            }
+
+
+            // Interval for random font and rotation change
+            const intervalId = setInterval(() => {
+                const randomFont = getRandomFont(currentFont);
+                // New random base rotation on hover, from -20 to +20 degrees
+                const newRandomBaseRotation = (Math.random() - 0.5) * 40; 
+                letterSpan.style.fontFamily = `"${randomFont}", sans-serif`;
+                
+                // Apply the current slider offset to the new random base rotation
+                const currentSliderRotationOffset = parseFloat(rotationControlSlider.value);
+                const direction = Math.sign(newRandomBaseRotation) || 1; // Use the direction of the new random base rotation
+                const combinedRotation = newRandomBaseRotation + (direction * currentSliderRotationOffset);
+                letterSpan.style.transform = `rotate(${combinedRotation}deg)`;
+
+                currentFont = randomFont;
+                currentBaseRotation = newRandomBaseRotation; // Update currentBaseRotation for next interval
+
+                // Update lockedFonts with the current font and the new random transform during hover
+                lockedFonts.set(index, { 
+                    font: currentFont, 
+                    baseRotation: currentBaseRotation, // Store this as the new base rotation
+                    transform: `rotate(${combinedRotation}deg)`, // Store the actual transform applied
+                    baseFontSize: `${baseFontSizePx}px`, // Keep base font size for hover calculation
+                    fontSize: letterSpan.style.fontSize, // Store the current scaled font size
+                    fontWeight: currentFontWeight,
+                    letterSpacing: currentLetterSpacing
+                });
+
+            }, 10);
+            
+            // Store both interval ID and mousemove handler
+            hoverIntervals.set(index, {
+                intervalId: intervalId,
+                mouseMoveHandler: handleMouseMove,
+                index: index // Store index for easier access in cleanup
+            });
+        }
+
+        function stopHoverEffect(letterSpan) {
+            const index = parseInt(letterSpan.dataset.index); 
+            const hoverData = hoverIntervals.get(index);
+            
+            if (hoverData) {
+                clearInterval(hoverData.intervalId); 
+                letterSpan.removeEventListener('mousemove', hoverData.mouseMoveHandler); 
+                hoverIntervals.delete(index); 
+            }
+
+            // The letter should stay at its current scaled size.
+            // Update lockedFonts with the current font size from the DOM.
+            const currentScaledFontSize = window.getComputedStyle(letterSpan).fontSize;
+            const storedData = lockedFonts.get(index);
+            if (storedData) {
+                lockedFonts.set(index, { ...storedData, fontSize: currentScaledFontSize });
+            }
+        }
+
+        function showFontTooltip(event, letterSpan) {
+            const index = parseInt(letterSpan.dataset.index); 
+            const lockedData = lockedFonts.get(index); 
+            const fontName = lockedData ? lockedData.font : 'Unknown Font'; 
+            
+            const cleanFontName = fontName.replace(/['']/g, '').split(',')[0].trim();
+            fontTooltip.textContent = cleanFontName;
+            fontTooltip.classList.add('show');
+            updateTooltipPosition(event);
+        }
+
+        function hideFontTooltip() {
+            fontTooltip.classList.remove('show');
+        }
+
+        function updateTooltipPosition(event) {
+            fontTooltip.style.left = event.clientX + 10 + 'px';
+            fontTooltip.style.top = event.clientY + 20 + 'px';
+        }
+
+        function lockText() {
+            isLocked = true;
+            document.body.classList.add('background-locked'); 
+            
+            const letterSpans = textDisplay.querySelectorAll('.letter');
+            letterSpans.forEach((span, index) => {
+                const computedStyle = window.getComputedStyle(span);
+                const currentFont = computedStyle.fontFamily.replace(/['']/g, '').split(',')[0].trim();
+                const currentTransform = computedStyle.transform; 
+                const currentFontSize = computedStyle.fontSize; 
+                const currentFontWeight = computedStyle.fontWeight; 
+                const currentLetterSpacing = computedStyle.letterSpacing; 
+                
+                // When locked, we store the final computed style, and its rotation as the base
+                const baseRotationAtLock = parseRotation(currentTransform);
+                const baseFontSizeAtLock = parseFloat(lockedFonts.get(index)?.baseFontSize || currentFontSize); // Ensure baseFontSize is stored
+
+                lockedFonts.set(index, { 
+                    font: currentFont, 
+                    baseRotation: baseRotationAtLock, // Store the actual rotation at lock time as base
+                    transform: currentTransform,
+                    baseFontSize: `${baseFontSizeAtLock}px`, // Store the base font size
+                    fontSize: currentFontSize, // Store the current (potentially scaled) font size
+                    fontWeight: currentFontWeight,
+                    letterSpacing: currentLetterSpacing 
+                });
+            });
+            
+            hoverIntervals.forEach(entry => { 
+                clearInterval(entry.intervalId);
+                const letterSpan = textDisplay.querySelector(`[data-index="${entry.index}"]`);
+                if (letterSpan && entry.mouseMoveHandler) {
+                    letterSpan.removeEventListener('mousemove', entry.mouseMoveHandler);
+                }
+            });
+            hoverIntervals.clear();
+            
+            updateDisplay();
+            
+            textDisplay.addEventListener('click', restartApp);
+        }
+
+        function restartApp() {
+            isLocked = false;
+            currentText = '';
+            hiddenInput.value = '';
+            lockedFonts.clear(); 
+            document.body.classList.remove('background-locked'); 
+            fontTooltip.classList.remove('show'); 
+            
+            textDisplay.removeEventListener('click', restartApp);
+            
+            // Reset sliders to default values on restart
+            textSizeSlider.value = 220;
+            textDisplay.style.fontSize = '220px';
+
+            fontWeightSlider.value = 500;
+            textDisplay.style.fontWeight = '500';
+
+            letterSpacingSlider.value = -7; 
+            textDisplay.style.letterSpacing = '-7px';
+
+            rotationControlSlider.value = 0; 
+
+            updateDisplay(); 
+            hiddenInput.focus();
+        }
+
+        // Initialize the display when the script loads
+        updateDisplay();
+
+        // Ensure input stays focused when not locked, for continuous typing
+        setInterval(() => {
+            if (!isLocked && document.activeElement !== hiddenInput) {
+                hiddenInput.focus();
+            }
+        }, 100);
+    </script>
+</body>
+</html>
