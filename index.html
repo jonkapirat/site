@@ -46,7 +46,7 @@
             width: 300px; /* Bredd på menyn */
             height: 100vh;
             background-color: white;
-            z-index: 15; /* Över iframen, under menyknappen */
+            z-index: 15; /* Över iframen, men under menyknappen */
             transition: left 0.3s ease-out; /* Mjuk in/ut-fading */
             padding: 20px;
             box-sizing: border-box; /* Inkludera padding i bredden */
@@ -135,7 +135,7 @@
         <h2>Meny</h2>
         <!-- Länkar till lokala filer -->
         <a href="bau.html">Bau</a>
-        <a href="noise.html">Noise perlin</a>
+        <a href="noise.html">Noise</a>
         
         <!-- Stäng-knapp för menyn -->
         <button id="closeMenuButton" class="close-button">Stäng Meny</button>
@@ -194,6 +194,22 @@
             const initialUrl = menuLinks[0].href; // Hämta URL från den första länken
             contentFrame.src = initialUrl;
             console.log("Initial laddning i iframe:", initialUrl);
+
+            // Lägg till en lyssnare för när iframens innehåll har laddats.
+            // Detta kan vara användbart för att debugga om innehållet laddas korrekt.
+            contentFrame.onload = () => {
+                console.log("Iframen har laddat innehåll från:", contentFrame.src);
+                // Försök att ge iframen fokus för musinteraktioner.
+                // Detta är inte garanterat att lösa alla musproblem, men kan hjälpa.
+                try {
+                    if (contentFrame.contentWindow) {
+                        contentFrame.contentWindow.focus();
+                        console.log("Försökte ge iframen fokus.");
+                    }
+                } catch (e) {
+                    console.warn("Kunde inte ge iframen fokus, troligen pga. cross-origin:", e);
+                }
+            };
         });
     </script>
 </body>
