@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bauhaus-inspirerade Former</title>
+    <!-- Inkludera p5.js-biblioteket -->
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.4.0/lib/p5.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden; /* Dölj scrollbars för att fylla hela fönstret */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh; /* Säkerställ att body tar upp hela viewport-höjden */
+            background-color: rgb(230, 226, 213); /* Ljus beige bakgrund från bilden */
+            font-family: 'Inter', sans-serif; /* Använd Inter som typsnitt */
+        }
+        canvas {
+            display: block; /* Tar bort extra utrymme under canvas */
+            border-radius: 8px; /* Avrundade hörn för canvas */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1); /* Liten skugga för canvas */
+        }
+    </style>
+</head>
+<body>
+    <script>
+        // Globala variabler för p5.js
+        let squareSize; // Storleken på varje kvadrat i rutnätet
+        let cols, rows; // Antal kolumner och rader
+        let bauhausColors; // Array med färger inspirerade av Bauhaus
+        let gridState = []; // Lagrar tillståndet för varje cell (formtyp, rotation, färg(er))
+
+        // Definierar bakgrundsfärgen för canvas för att rensa enskilda celler
+        let CANVAS_BACKGROUND_COLOR; 
+
+        /**
+         * p5.js setup-funktion. Körs en gång när programmet startar.
+         * Här skapas canvas och initiala inställningar görs.
+         */
+        function setup() {
+            createCanvas(windowWidth, windowHeight);
+            angleMode(DEGREES);
+            noStroke();
+            rectMode(CENTER); // Sätt rectMode till CENTER en gång för alla rektanglar
+
+            // Definiera färger inspirerade av den BIFOGADE BILDEN (Kaws-färger).
+            bauhausColors = [
+                color(0, 128, 128),     // Mörkgrön/Teal
+                color(90, 190, 255),    // Ljusblå
+                color(255, 128, 0),     // Orange
+                color(255, 80, 80),     // Laxrosa/Korall
+                color(255, 192, 203)    // Ljusrosa (för att ha fler färger att välja mellan utöver bakgrunden)
+            ];
+
+            // Initiera CANVAS_BACKGROUND_COLOR med den ljusrosa bakgrundsfärgen från den nya bilden
+            CANVAS_BACKGROUND_COLOR = color(255, 230, 230); // Ljusrosa bakgrund
+
+            initializeGrid(); // Initialisera och rita rutnätet
+        }
+
+        /**
+         * Initialiserar rutnätets dimensioner och fyller gridState-arrayen
+         * med initiala slumpmässiga former och färger. Ritar sedan hela rutnätet.
+         */
+        function initializeGrid() {
+            squareSize = 200; // Fasta 80x80 pixlar
+
+            cols = ceil(width / squareSize);
+            rows = ceil(height / squareSize);
+
+            gridState = []; // Rensa tidigare rutnät tillstånd
+
+            for (let i = 0; i < cols; i++) {
+                gridState[i] = [];
+                for (let j = 0; j < rows; j++) {
+                    let shapeType = floor(random(8)); // Nu 0-7 för de 8 formerna
+                    let rotationAngle = floor(random(4)) * 90; // 0, 90, 180, 270
+                    
+                    let cellColor = random(bauhausColors); // Standardfärg för enkelformer
+                    let rectColors = []; // För form 4 (två rektanglar)
+                    let fiveRectColors = []; // För form 5 (FEM rektanglar)
+                    let triangleColors = []; // För form 6 (två trianglar)
+                    let halfCircleColors = []; // För form 7 (två halvcirklar)
+
+                    if (shapeType === 4) {
+                        rectColors.push(random(bauhausColors));
+                        rectColors.push(random(bauhausColors));
+                    } else if (shapeType === 5) { // Ny logik för 5 rektanglar
+                        let color1 = random(bauhausColors);
+                        let color2 = random(bauhausColors);
+                        while (color1.toString() === color2.toString() && bauhausColors.length > 1) { // Använd toString för jämförelse
+                            color2 = random(bauhausColors);
+                        }
+                        fiveRectColors.push(color1);
+                        fiveRectColors.push(color2);
+                    } else if (shapeType === 6) {
+                        triangleColors.push(random(bauhausColors));
+                        triangleColors.push(random(bauhausColors));
+                    } else if (shapeType === 7) {
+                        halfCircleColors.push(random(bauhausColors));
+                        halfCircleColors.push(random(bauhausColors));
+                    }
+
+                    gridState[i][j] = {
+                        shapeType: shapeType,
+                        rotationAngle: rotationAngle,
+                        color: cellColor, // Används för enkelformer
+                        colors: rectColors, // Används för dubbelrektangel-formen
+                        fiveRectColors: fiveRectColors, // Används för femrektangel-formen
+                        triangleColors: triangleColors, // Används för delad triangel-formen
+                        halfCircleColors: halfCircleColors // Används för den nya halvcirkel-formen
+                    };
+                }
+            }
+        }
+
+        /**
+         * Ritar alla celler i rutnätet. Anropas av draw() kontinuerligt.
+         */
+        function drawAllCells() {
+            for (let i = 0; i < cols; i++) {
+                for (let j = 0; j < rows; j++) {
+                    drawCell(i, j); // Rita varje individuell cell
+                }
+            }
+        }
+
+        /**
+         * p5.js draw-funktion. Körs kontinuerligt och uppdaterar canvas.
+         */
+        function draw() {
+            background(CANVAS_BACKGROUND_COLOR); // Rensa hela canvasen varje bildruta
+            drawAllCells(); // Rita om alla celler
+        }
+
+        /**
+         * Ritar en enskild cell vid given kolumn och rad baserat på dess lagrade tillstånd.
+         * @param {number} col - Kolumnindex för cellen.
+         * @param {number} row - Radindex för cellen.
+         */
+        function drawCell(col, row) {
+            let cellData = gridState[col][row];
+            let x = col * squareSize; // X-koordinat för kvadratens övre vänstra hörn
+            let y = row * squareSize; // Y-koordinat för kvadratens övre vänstra hörn
+
+            push(); // Spara nuvarande transformationsmatris
+
+            translate(x + squareSize / 2, y + squareSize / 2); // Flytta till rutans mittpunkt
+            rotate(cellData.rotationAngle); // Applicera cellens rotation
+
+            let shapeDimension = squareSize; // Formen ska fylla hela kvadraten
+            let R = shapeDimension / 2; // Radie (halva sidlängden) för att underlätta positionering
+            
+            switch (cellData.shapeType) {
+                case 0: // Fylld cirkel
+                    fill(cellData.color);
+                    ellipse(0, 0, shapeDimension, shapeDimension); 
+                    break;
+                case 1: // Fylld rätvinklig triangel
+                    fill(cellData.color);
+                    triangle(-R, -R,     // Hörn 1 (övre vänstra, relativt centrum)
+                             R, -R,      // Hörn 2 (övre högra)
+                             -R, R);     // Hörn 3 (nedre vänstra)
+                    break;
+                case 2: // Fylld halvcirkel (ensam, bågen pekar uppåt)
+                    fill(cellData.color);
+                    // Ritar en halvcirkel som fyller övre halvan av kvadraten (när orotaterad).
+                    // Centrera den så att den platta sidan ligger på x-axeln och bågen pekar uppåt.
+                    arc(0, 0, shapeDimension, shapeDimension, 180, 360, PIE); 
+                    break;
+                case 3: // Fylld linsform (baserad på exakt SVG-kod, korrekt skalad och centrerad)
+                    fill(cellData.color);
+                    // Beräkna den faktiska bredden och höjden av SVG-formen från dess koordinater
+                    // Baserat på den senaste SVG-koden:
+                    // MinX: -6.81576, MaxX: 290.815 -> Bredd = 297.63076
+                    // MinY: -6.81534, MaxY: 290.816 -> Höjd = 297.63134
+                    const actualSvgWidth = 297.63076;
+                    const actualSvgHeight = 297.63134;
+
+                    // Beräkna skalningsfaktor för att passa in i shapeDimension (80px)
+                    const scaleFactor = shapeDimension / Math.max(actualSvgWidth, actualSvgHeight);
+
+                    // Beräkna centrum för SVG-formen baserat på dess faktiska gränser
+                    const svgOriginX = 0.578418; // Minsta X i SVG-koordinater
+                    const svgOriginY = -6.81534; // Minsta Y i SVG-koordinater (approx)
+                    const svgMaxX = 290.815; // Max X
+                    const svgMaxY = 290.816; // Max Y
+
+                    const svgWidthCorrected = svgMaxX - svgOriginX; // 290.236582
+                    const svgHeightCorrected = svgMaxY - svgOriginY; // 297.63134
+
+                    const correctedSvgCenterX = svgOriginX + svgWidthCorrected / 2;
+                    const correctedSvgCenterY = svgOriginY + svgHeightCorrected / 2;
+
+
+                    // Hjälpfunktion för att skala och centrera SVG-koordinater
+                    function scaleAndCenter(val, isX) {
+                        if (isX) {
+                            return (val - correctedSvgCenterX) * scaleFactor;
+                        } else {
+                            return (val - correctedSvgCenterY) * scaleFactor;
+                        }
+                    }
+                    
+                    beginShape();
+                    // M212.71 212.711 (Startpunkt)
+                    vertex(scaleAndCenter(212.71, true), scaleAndCenter(212.711, false));
+
+                    // C134.606 290.816 0.578418 283.422 0.578418 283.422
+                    bezierVertex(
+                        scaleAndCenter(134.606, true), scaleAndCenter(290.816, false), // CP1
+                        scaleAndCenter(0.578418, true), scaleAndCenter(283.422, false), // CP2
+                        scaleAndCenter(0.578418, true), scaleAndCenter(283.422, false)  // End Point (Lower Left diagonal point)
+                    );
+
+                    // C0.578418 283.422 -6.81576 149.394 71.2891 71.2895
+                    bezierVertex(
+                        scaleAndCenter(0.578418, true), scaleAndCenter(283.422, false), // CP1 (continuation)
+                        scaleAndCenter(-6.81576, true), scaleAndCenter(149.394, false), // CP2
+                        scaleAndCenter(71.2891, true), scaleAndCenter(71.2895, false)   // End Point (Upper Left diagonal point)
+                    );
+
+                    // C149.394 -6.81534 283.421 0.578841 283.421 0.578841
+                    bezierVertex(
+                        scaleAndCenter(149.394, true), scaleAndCenter(-6.81534, false), // CP1
+                        scaleAndCenter(283.421, true), scaleAndCenter(0.578841, false), // CP2
+                        scaleAndCenter(283.421, true), scaleAndCenter(0.578841, false)  // End Point (Upper Right diagonal point)
+                    );
+
+                    // C283.421 0.578841 290.815 134.606 212.71 212.711Z
+                    bezierVertex(
+                        scaleAndCenter(283.421, true), scaleAndCenter(0.578841, false), // CP1 (continuation)
+                        scaleAndCenter(290.815, true), scaleAndCenter(134.606, false), // CP2
+                        scaleAndCenter(212.71, true), scaleAndCenter(212.711, false)   // End Point (Back to start point)
+                    );
+                    endShape(CLOSE);
+                    break;
+                case 4: // Fyll en kvadrat med 2 rektanglar (40x80px vardera)
+                    // Hälften av kvadratens sidlängd
+                    let rectHalfDim = squareSize / 2; 
+
+                    // Rita första rektangeln
+                    fill(cellData.colors[0]); // Använd den slumpade färgen
+                    rect(-rectHalfDim / 2, 0, rectHalfDim, squareSize); // Vänster halva
+
+                    // Rita andra rektangeln
+                    fill(cellData.colors[1]); // Använd den andra slumpade färgen
+                    rect(rectHalfDim / 2, 0, rectHalfDim, squareSize); // Höger halva
+                    break;
+                case 5: // Fyll en kvadrat med 5 rektanglar
+                    let fiveRectWidth = squareSize / 5; // Bredd för varje rektangel (16px)
+                    let startX = -R + fiveRectWidth / 2; // Start X-position för första rektangelns mittpunkt
+
+                    for (let i = 0; i < 5; i++) {
+                        // Välj färg om vartannat
+                        fill(cellData.fiveRectColors[i % 2]); 
+                        rect(startX + i * fiveRectWidth, 0, fiveRectWidth, squareSize);
+                    }
+                    break;
+                case 6: // Fyll en kvadrat med 2 trianglar (delad diagonalt)
+                    // Triangel 1 (övre vänstra till nedre högra diagonalen)
+                    fill(cellData.triangleColors[0]);
+                    triangle(
+                        -R, -R, // Övre vänstra hörn
+                        R, -R,  // Övre högra hörn
+                        R, R    // Nedre högra hörn
+                    );
+
+                    // Triangel 2 (nedre vänstra till övre högra diagonalen)
+                    fill(cellData.triangleColors[1]);
+                    triangle(
+                        -R, -R, // Övre vänstra hörn (delas med första triangel)
+                        -R, R,  // Nedre vänstra hörn
+                        R, R    // Nedre högra hörn (delas med första triangel)
+                    );
+                    break;
+                case 7: // Fyll en kvadrat med 2 halvcirklar (raka sidor utåt, bågar möts i mitten)
+                    // Halvcirkel 1 (Övre halvan av kvadraten)
+                    fill(cellData.halfCircleColors[0]);
+                    // Centrera cirkeln vid (0, -R). Den har diameter 'shapeDimension'.
+                    // Den raka sidan är därmed vid y = -R (kvadratens överkant).
+                    // Bågen går från 0 till 180 grader.
+                    arc(0, -R, shapeDimension, shapeDimension, 0, 180, PIE); 
+
+                    // Halvcirkel 2 (Undre halvan av kvadraten)
+                    fill(cellData.halfCircleColors[1]);
+                    // Centrera cirkeln vid (0, R). Den har diameter 'shapeDimension'.
+                    // Den raka sidan är därmed vid y = R (kvadratens underkant).
+                    // Bågen går från 180 till 0 (eller 360) grader.
+                    arc(0, R, shapeDimension, shapeDimension, 180, 0, PIE); 
+                    break;
+            }
+            pop(); // Återställ tidigare transformationsmatris
+        }
+
+        /**
+         * p5.js funktion som körs automatiskt när webbläsarfönstret ändrar storlek.
+         * Ser till att canvas alltid fyller fönstret och ritar om rutnätet.
+         */
+        function windowResized() {
+            resizeCanvas(windowWidth, windowHeight);
+            initializeGrid(); // Återskapa rutnätet med nya dimensioner
+        }
+
+        /**
+         * p5.js funktion som körs när musen dras.
+         * Ändrar formen och färgen på den berörda kvadraten.
+         */
+        function mouseDragged() {
+            if (mouseX >= 0 && mouseX < width && mouseY >= 0 && mouseY < height) {
+                let targetCol = floor(mouseX / squareSize);
+                let targetRow = floor(mouseY / squareSize);
+
+                if (gridState[targetCol] && gridState[targetCol][targetRow]) {
+                    let newShapeType = floor(random(8)); // Nu 0-7 för de 8 formerna
+                    let newRotationAngle = floor(random(4)) * 90; 
+                    
+                    let newCellColor = random(bauhausColors); // Standardfärg för enkelformerna
+                    let newRectColors = []; // För form 4 (två rektanglar)
+                    let newFiveRectColors = []; // För form 5 (fem rektanglar)
+                    let newTriangleColors = []; // För form 6 (två trianglar)
+                    let newHalfCircleColors = []; // För form 7 (två halvcirklar)
+
+                    if (newShapeType === 4) {
+                        newRectColors.push(random(bauhausColors));
+                        newRectColors.push(random(bauhausColors));
+                    } else if (newShapeType === 5) {
+                        let color1 = random(bauhausColors);
+                        let color2 = random(bauhausColors);
+                        while (color1.toString() === color2.toString() && bauhausColors.length > 1) {
+                            color2 = random(bauhausColors);
+                        }
+                        newFiveRectColors.push(color1);
+                        newFiveRectColors.push(color2);
+                    } else if (newShapeType === 6) {
+                        newTriangleColors.push(random(bauhausColors));
+                        newTriangleColors.push(random(bauhausColors));
+                    } else if (newShapeType === 7) {
+                        newHalfCircleColors.push(random(bauhausColors));
+                        newHalfCircleColors.push(random(bauhausColors));
+                    }
+
+                    gridState[targetCol][targetRow] = {
+                        shapeType: newShapeType,
+                        rotationAngle: newRotationAngle,
+                        color: newCellColor, // Används för enkelformerna
+                        colors: newRectColors, // Används för dubbelrektangel-formen
+                        fiveRectColors: newFiveRectColors, // Används för femrektangel-formen
+                        triangleColors: newTriangleColors, // Används för delad triangel-formen
+                        halfCircleColors: newHalfCircleColors // Används för den nya halvcirkel-formen
+                    };
+                }
+            }
+            return false; // Förhindra standard webbläsarbeteende
+        }
+
+        /**
+         * p5.js funktion som körs när en pekning flyttas.
+         */
+        function touchMoved() {
+            if (mouseX >= 0 && mouseX < width && mouseY >= 0 && mouseY < height) {
+                let targetCol = floor(mouseX / squareSize);
+                let targetRow = floor(mouseY / squareSize); 
+
+                if (gridState[targetCol] && gridState[targetCol][targetRow]) {
+                    let newShapeType = floor(random(8)); // Nu 0-7 för de 8 formerna
+                    let newRotationAngle = floor(random(4)) * 90;
+                    
+                    let newCellColor = random(bauhausColors); // Standardfärg för enkelformerna
+                    let newRectColors = []; // För form 4 (två rektanglar)
+                    let newFiveRectColors = []; // För form 5 (fem rektanglar)
+                    let newTriangleColors = []; // För form 6 (två trianglar)
+                    let newHalfCircleColors = []; // För form 7 (två halvcirklar)
+
+                    if (newShapeType === 4) {
+                        newRectColors.push(random(bauhausColors));
+                        newRectColors.push(random(bauhausColors));
+                    } else if (newShapeType === 5) {
+                        let color1 = random(bauhausColors);
+                        let color2 = random(bauhausColors);
+                        while (color1.toString() === color2.toString() && bauhausColors.length > 1) {
+                            color2 = random(bauhausColors);
+                        }
+                        newFiveRectColors.push(color1);
+                        newFiveRectColors.push(color2);
+                    } else if (newShapeType === 6) {
+                        newTriangleColors.push(random(bauhausColors));
+                        newTriangleColors.push(random(bauhausColors));
+                    } else if (newShapeType === 7) {
+                        newHalfCircleColors.push(random(bauhausColors));
+                        newHalfCircleColors.push(random(bauhausColors));
+                    }
+
+                    gridState[targetCol][targetRow] = {
+                        shapeType: newShapeType,
+                        rotationAngle: newRotationAngle,
+                        color: newCellColor, // Används för enkelformerna
+                        colors: newRectColors, // Används för dubbelrektangel-formen
+                        fiveRectColors: newFiveRectColors, // Används för femrektangel-formen
+                        triangleColors: newTriangleColors, // Används för delad triangel-formen
+                        halfCircleColors: newHalfCircleColors // Används för den nya halvcirkel-formen
+                    };
+                }
+            }
+            return false;
+        }
+
+        /**
+         * p5.js funktion som körs vid dubbelklick.
+         * Slumpar om och ritar om hela rutnätet.
+         */
+        function doubleClicked() {
+            initializeGrid(); 
+        }
+    </script>
+</body>
+</html>
