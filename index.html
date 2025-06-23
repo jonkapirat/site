@@ -34,7 +34,7 @@
 
         /* Knappens nya position när menyn är aktiv */
         .menu-button.active {
-            left: calc(300px + 20px); /* Sidopanelens bredd + 20px marginal */
+            left: calc(200px + 8px); /* Sidopanelens bredd + 20px marginal */
             transform: rotate(90deg); /* Roterar till ett kryss för att indikera stängning */
         }
 
@@ -56,7 +56,7 @@
             position: fixed;
             top: 0;
             left: -300px; /* Initialt dold, utanför skärmen */
-            width: 300px; /* Bredd på menyn */
+            width: 200px; /* Bredd på menyn */
             height: 100vh;
             background-color: white;
             z-index: 15; /* Över iframen, men under menyknappen */
@@ -75,7 +75,7 @@
         .sidebar h2 {
             margin-top: 0;
             margin-bottom: 20px;
-            font-size: 20px;
+            font-size: 16px;
             color: #333;
         }
 
@@ -83,9 +83,10 @@
         .sidebar a {
             display: block; /* Gör länkarna till block för enklare klickområde */
             padding: 10px 0;
+            font-size: 14px;
             text-decoration: underline; /* Standard understrykning */
             color: blue; /* Standard blå färg */
-            margin-bottom: 5px;
+            /*margin-bottom: 5px; */
         }
         .sidebar a:hover {
             color: darkblue; /* Lätt ändring vid hover */
