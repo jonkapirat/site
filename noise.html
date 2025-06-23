@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Perlin Noise Grid of Circles with Smooth Animated Mouse Interaction</title>
+    <!-- Link to p5.js library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.min.js"></script>
+    <style>
+        /* Ensure the body and html take full height and width, removing default margins */
+        html, body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Hide scrollbars if content exceeds viewport */
+            height: 100%;
+            width: 100%;
+            cursor: none; /* Hide default mouse cursor for a cleaner look */
+        }
+        /* Style the canvas to fill the entire browser window */
+        canvas {
+            display: block; /* Removes extra space below canvas */
+            background-color: #000; /* Fallback background, p5.js will set it */
+        }
+    </style>
+</head>
+<body>
+    <script>
+        // Define variables for noise detail and animation
+        let zoff = 0; // z-offset for Perlin noise (for animation or 3D noise)
+        const circleSpacing = 40; // Distance between the centers of the circles
+
+        // Animation speed for the non-repeating Perlin noise
+        const animationSpeed = 0.01;
+
+        // Mouse interaction parameters
+        const influenceRadius = 150; // Pixels radius around mouse where circles are affected
+        const maxMouseSizeBoost = 20; // Maximum extra size added by mouse influence
+        const minCircleSize = 2; // Minimum size a circle can be (even with noise and no mouse)
+        const maxCircleSize = 60; // Maximum size a circle can be (noise + mouse influence)
+        const smoothingFactor = 0.1; // Controls the inertia/smoothness of size, color, and glow changes (smaller = more inertia)
+
+        // Color and glow parameters
+        let lightBlueColor; // p5.Color object for the attracted state
+        let whiteColor;     // p5.Color object for the default state
+        const maxGlowAlpha = 150; // Max alpha (opacity) for the glowing edge (0-255)
+        const glowBlurExtent = 15; // How much larger the outermost glow circle is than the main circle
+        const numGlowCircles = 10; // Number of concentric circles to create the blur effect (more = smoother)
+
+
+        // A 2D array to store the current state (size, color, glow alpha) of each circle for smooth interpolation
+        let circleStates = [];
+
+        // setup() function: runs once when the sketch starts
+        function setup() {
+            // Create a canvas that fills the entire browser window
+            createCanvas(windowWidth, windowHeight);
+            background(0); // Set the background to black
+            noStroke(); // Do not draw borders around the circles (we want them filled)
+            pixelDensity(1); // Set pixel density to 1 for consistent rendering
+
+            // Initialize p5.Color objects
+            lightBlueColor = color(173, 216, 230); // A standard light blue
+            whiteColor = color(255);             // White
+
+            // Initialize the circleStates array based on the current canvas size
+            initializeCircleStates();
+        }
+
+        /**
+         * Initializes or re-initializes the circleStates array.
+         * This is called in setup and whenever the window is resized.
+         */
+        function initializeCircleStates() {
+            // Determine the number of columns and rows based on current canvas size and spacing
+            // ceil ensures we have enough space for circles even if not perfectly divisible
+            let numCols = ceil(width / circleSpacing);
+            let numRows = ceil(height / circleSpacing);
+
+            // Reset the array
+            circleStates = [];
+            for (let c = 0; c < numCols; c++) {
+                circleStates[c] = [];
+                for (let r = 0; r < numRows; r++) {
+                    // Calculate initial noise-influenced base size
+                    let x = c * circleSpacing + circleSpacing / 2;
+                    let y = r * circleSpacing + circleSpacing / 2;
+                    let initialNoiseValue = noise(x * 0.01, y * 0.01, zoff);
+                    let initialSize = map(initialNoiseValue, 0, 1, minCircleSize, 40); // Max 40 for noise base
+
+                    // Initialize each circle's state
+                    circleStates[c][r] = {
+                        currentSize: initialSize,
+                        currentColor: whiteColor, // Start as white
+                        currentGlowAlpha: 0 // Start with no glow
+                    };
+                }
+            }
+        }
+
+        // draw() function: runs continuously, by default 60 times per second
+        function draw() {
+            // Clear background every frame to show the animation properly
+            background(0);
+
+            // Increment zoff continuously for a non-repeating noise animation
+            zoff += animationSpeed;
+
+            // Determine the current number of columns and rows dynamically
+            let numCols = ceil(width / circleSpacing);
+            let numRows = ceil(height / circleSpacing);
+
+            // Loop through the grid
+            for (let r = 0; r < numRows; r++) {
+                for (let c = 0; c < numCols; c++) {
+                    // Calculate center coordinates for the current circle
+                    let x = c * circleSpacing + circleSpacing / 2;
+                    let y = r * circleSpacing + circleSpacing / 2;
+
+                    // Calculate noise-influenced base size
+                    let noiseValue = noise(x * 0.01, y * 0.01, zoff);
+                    // Map noise value to the base size range (2 to 40 pixels)
+                    let noiseBaseSize = map(noiseValue, 0, 1, minCircleSize, 40);
+
+                    // Calculate distance from current circle's center to the mouse pointer
+                    let d = dist(x, y, mouseX, mouseY);
+
+                    let mouseBoost = 0;
+                    let targetColor;
+                    let targetGlowAlpha = 0;
+
+                    // If the mouse is within the influence radius
+                    if (d < influenceRadius) {
+                        // Map the distance inversely to an influence factor:
+                        // d=0 (mouse directly over) -> factor=1 (full boost)
+                        // d=influenceRadius -> factor=0 (no boost)
+                        let influenceFactor = map(d, 0, influenceRadius, 1, 0);
+                        mouseBoost = influenceFactor * maxMouseSizeBoost;
+
+                        // Target color is light blue
+                        targetColor = lightBlueColor;
+                        // Target glow alpha is proportional to influence
+                        targetGlowAlpha = influenceFactor * maxGlowAlpha;
+                    } else {
+                        // Target color is white
+                        targetColor = whiteColor;
+                        // Target glow alpha is 0
+                        targetGlowAlpha = 0;
+                    }
+
+                    // Calculate the target size for the circle, combining noise and mouse influence
+                    // Constrain the target size within the defined min and max
+                    let targetSize = constrain(noiseBaseSize + mouseBoost, minCircleSize, maxCircleSize);
+
+                    // Safeguard for array indexing in case of very rapid resizes/initializations
+                    if (!circleStates[c] || !circleStates[c][r]) {
+                        // Re-initialize this specific state if missing
+                        circleStates[c] = circleStates[c] || [];
+                        circleStates[c][r] = {
+                            currentSize: noiseBaseSize,
+                            currentColor: whiteColor,
+                            currentGlowAlpha: 0
+                        };
+                    }
+
+                    // Smoothly interpolate the circle's current state (size, color, glow alpha)
+                    circleStates[c][r].currentSize = lerp(
+                        circleStates[c][r].currentSize,
+                        targetSize,
+                        smoothingFactor
+                    );
+                    circleStates[c][r].currentColor = lerpColor(
+                        circleStates[c][r].currentColor,
+                        targetColor,
+                        smoothingFactor
+                    );
+                    circleStates[c][r].currentGlowAlpha = lerp(
+                        circleStates[c][r].currentGlowAlpha,
+                        targetGlowAlpha,
+                        smoothingFactor
+                    );
+
+                    // Draw the smooth glow effect using multiple concentric circles
+                    if (circleStates[c][r].currentGlowAlpha > 0.1) {
+                        for (let i = numGlowCircles; i > 0; i--) {
+                            let glowCurrentAlpha = map(i, numGlowCircles, 0, 0, circleStates[c][r].currentGlowAlpha);
+                            let glowCurrentSize = lerp(circleStates[c][r].currentSize, circleStates[c][r].currentSize + glowBlurExtent, i / numGlowCircles);
+
+                            let glowFillColor = color(
+                                lightBlueColor.levels[0],
+                                lightBlueColor.levels[1],
+                                lightBlueColor.levels[2],
+                                glowCurrentAlpha
+                            );
+                            fill(glowFillColor);
+                            circle(x, y, glowCurrentSize);
+                        }
+                    }
+
+                    // Draw the main circle on top of the glow
+                    fill(circleStates[c][r].currentColor);
+                    circle(x, y, circleStates[c][r].currentSize);
+                }
+            }
+        }
+
+        // windowResized() function: called whenever the browser window is resized
+        function windowResized() {
+            // Resize the canvas to match the new window dimensions
+            resizeCanvas(windowWidth, windowHeight);
+            // Re-initialize circle states because the grid dimensions might have changed
+            initializeCircleStates();
+            // Clear the canvas before redrawing to prevent artifacts
+            background(0);
+            // Call draw() once to immediately update the pattern for the new size
+            draw();
+        }
+    </script>
+</body>
+</html>
