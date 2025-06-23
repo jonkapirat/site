@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Min Dynamiska Webbplats</title>
+    <!-- Ladda Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            overflow: hidden; /* Förhindra rullningslister på kroppen */
+        }
+        /* Knapp för att öppna menyn */
+        .menu-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 50px; /* Storlek på cirkeln */
+            height: 50px;
+            background-color: white;
+            border-radius: 50%; /* Gör den cirkulär */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Liten skugga */
+            z-index: 60; /* Högre än iframe och sidopanel när den är stängd */
+            transition: transform 0.2s ease-in-out;
+        }
+        .menu-button:hover {
+            transform: scale(1.05); /* Liten förstoring vid hover */
+        }
+
+        /* Sidopanelen/Menyn */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: -100%; /* Initialt dold, flyttad utanför vänsterkanten */
+            width: 300px; /* Bredd på menyn */
+            height: 100vh;
+            background-color: white;
+            z-index: 55; /* Över iframen */
+            transition: left 0.3s ease-in-out; /* Mjuk övergång för visning/döljning */
+            box-shadow: 2px 0 10px rgba(0,0,0,0.3); /* Skugga */
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .sidebar.active {
+            left: 0; /* Visa menyn */
+        }
+
+        /* Overlay när menyn är öppen */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent svart */
+            z-index: 50; /* Mellan iframe och meny */
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+        }
+        .overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .content-frame {
+            width: 100%;
+            height: 100vh; /* Fyll hela höjden av visningsfönstret */
+            border: none; /* Ingen ram runt iframen */
+        }
+    </style>
+</head>
+<body class="flex bg-gray-100">
+
+    <!-- Knapp för att öppna menyn -->
+    <div id="menuButton" class="menu-button">
+        <!-- Menyikon (SVG) -->
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+    </div>
+
+    <!-- Overlay som döljer innehållet när menyn är öppen -->
+    <div id="overlay" class="overlay"></div>
+
+    <!-- Sidopanelen/Menyn -->
+    <div id="sidebar" class="sidebar">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">Meny</h2>
+        <a href="about.html" target="contentFrame" class="text-blue-600 hover:text-blue-800 hover:underline p-3 rounded-md bg-blue-50 hover:bg-blue-100 transition-colors duration-200 text-lg" onclick="loadLink(this.href); return false;">Om Oss (Exempel)</a>
+        <a href="contact.html" target="contentFrame" class="text-blue-600 hover:text-blue-800 hover:underline p-3 rounded-md bg-blue-50 hover:bg-blue-100 transition-colors duration-200 text-lg" onclick="loadLink(this.href); return false;">Kontakta Oss (Exempel)</a>
+        <a href="https://www.google.com" target="contentFrame" class="text-blue-600 hover:text-blue-800 hover:underline p-3 rounded-md bg-blue-50 hover:bg-blue-100 transition-colors duration-200 text-lg" onclick="loadLink(this.href); return false;">Google</a>
+        <a href="https://www.wikipedia.org" target="contentFrame" class="text-blue-600 hover:text-blue-800 hover:underline p-3 rounded-md bg-blue-50 hover:bg-blue-100 transition-colors duration-200 text-lg" onclick="loadLink(this.href); return false;">Wikipedia</a>
+        <!-- Lägg till en stäng-knapp för menyn -->
+        <button id="closeMenuButton" class="mt-auto self-end px-6 py-2 bg-red-500 text-white font-semibold rounded-md shadow hover:bg-red-600 transition-colors duration-200">Stäng Meny</button>
+    </div>
+
+    <!-- Huvudinnehållsområdet (iframe) -->
+    <iframe id="contentFrame" name="contentFrame" class="content-frame flex-grow"></iframe>
+
+    <script>
+        const menuButton = document.getElementById('menuButton');
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('overlay');
+        const contentFrame = document.getElementById('contentFrame');
+        const closeMenuButton = document.getElementById('closeMenuButton');
+
+        // Funktion för att öppna menyn
+        function openMenu() {
+            sidebar.classList.add('active');
+            overlay.classList.add('active');
+        }
+
+        // Funktion för att stänga menyn
+        function closeMenu() {
+            sidebar.classList.remove('active');
+            overlay.classList.remove('active');
+        }
+
+        // Lyssna på klick på menyknappen för att öppna menyn
+        menuButton.addEventListener('click', openMenu);
+
+        // Lyssna på klick på stäng-knappen i menyn
+        closeMenuButton.addEventListener('click', closeMenu);
+
+        // Lyssna på klick på overlayen för att stänga menyn
+        overlay.addEventListener('click', closeMenu);
+
+        // Funktion för att ladda länkar i iframen och stänga menyn
+        function loadLink(url) {
+            contentFrame.src = url;
+            closeMenu(); // Stäng menyn efter att en länk klickats
+        }
+
+        // Ladda en initial sida i iframen när sidan laddas
+        const welcomeHtml = `
+            <body class="flex items-center justify-center h-full bg-gray-50 p-8">
+                <div class="text-center text-gray-700">
+                    <h1 class="text-4xl font-bold mb-4">Välkommen!</h1>
+                    <p class="text-lg">Klicka på den vita cirkeln med menyikonen för att öppna menyn.</p>
+                    <p class="text-lg">Välj en länk för att visa innehållet här.</p>
+                </div>
+            </body>
+        `;
+        contentFrame.srcdoc = welcomeHtml;
+    </script>
+</body>
+</html>
