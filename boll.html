@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P5.js Bouncy Ball</title>
+    <!-- Ladda p5.js biblioteket från CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <style>
+        /* Grundläggande CSS för att säkerställa att canvas fyller hela fönstret */
+        html, body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* Förhindrar scrollning om p5.js-duken är större än fönstret */
+        }
+        canvas {
+            display: block; /* Tar bort extra marginal under canvas */
+        }
+    </style>
+</head>
+<body>
+    <script>
+        let balls = []; // Array för att lagra alla bollar
+        let lines = []; // Array för att lagra alla ritade linjer
+        let drawingLine = false; // Flagga för att indikera om en linje ritas just nu
+        let currentLineStart; // Vektor för startpunkten av den nuvarande linjen
+        let score = 0; // Spelarens poäng
+
+        // Objekt för målvågen
+        let targetWave = {
+            x: 0,
+            y: 0,
+            width: 0,
+            amplitude: 5, // Vågens höjd från medellinjen
+            color: '#00008B', // Mörkblå färg
+            phaseOffset: 0 // Används för att randomisera vågens utseende
+        };
+
+        // Färgpalett enligt önskemål
+        const offWhite = '#F8F8F0'; // En mjuk, nästan vit färg
+        const oldYellow = '#D4C08D'; // En dämpad, gammalgul färg
+        const offBlack = '#303030'; // En mjuk, nästan svart färg
+
+        /**
+         * setup() funktionen anropas en gång när p5.js programmet startar.
+         * Här initieras canvas, den första bollen och målvågen.
+         */
+        function setup() {
+            // Skapa canvas som fyller hela webbläsarfönstret
+            createCanvas(windowWidth, windowHeight);
+            // Sätt bakgrundsfärgen för body för att matcha offWhite, vilket skapar en övergång mot oldYellow i canvas.
+            document.body.style.backgroundColor = offWhite;
+            // Släpp en initial boll vid start
+            balls.push(new Ball(width / 2, 0, 10, offBlack));
+            resetWave(); // Ställ in den initiala positionen och bredden för målvågen
+        }
+
+        /**
+         * draw() funktionen anropas kontinuerligt (som standard 60 gånger per sekund).
+         * Här uppdateras och ritas bollar, alla sparade linjer, målvågen och poängen.
+         */
+        function draw() {
+            // Använd oldYellow som bakgrundsfärg för canvas i varje frame
+            background(oldYellow);
+
+            // Uppdatera och rita alla bollar
+            // Loopar baklänges för att säkert kunna ta bort bollar från arrayen under loopen
+            for (let i = balls.length - 1; i >= 0; i--) {
+                let currentBall = balls[i];
+                currentBall.update(); // Uppdatera bollens position och hastighet
+
+                // Kollision med botten av fönstret
+                if (currentBall.position.y + currentBall.radius > height) {
+                    balls.splice(i, 1); // Ta bort denna boll
+                    // Släpp en ny boll när en boll når botten
+                    balls.push(new Ball(width / 2, 0, 10, offBlack));
+                }
+
+                // Kollision med målvågen
+                // Kontrollera om bollens x-område överlappar vågens x-område
+                if (currentBall.position.x + currentBall.radius > targetWave.x &&
+                    currentBall.position.x - currentBall.radius < targetWave.x + targetWave.width) {
+
+                    // Beräkna vågens y-position vid bollens aktuella x-position
+                    let x_relative_to_wave = currentBall.position.x - targetWave.x;
+                    // Beräkna antalet vågcykler baserat på vågens bredd
+                    // Mappar bredden (40-200) till antal cykler (t.ex. 1 till 5)
+                    let numCycles = map(targetWave.width, 40, 200, 1, 5);
+                    // Använd numCycles för att öka frekvensen med vågens längd
+                    let waveY_at_ballX = targetWave.y + targetWave.amplitude * sin(numCycles * TWO_PI * (x_relative_to_wave / targetWave.width) + targetWave.phaseOffset);
+
+                    // Kontrollera om bollens bottenkant är vid eller under vågens linje
+                    // Och om bollen rör sig nedåt (för att undvika upprepade träffar)
+                    if (currentBall.velocity.y > 0 && (currentBall.position.y + currentBall.radius >= waveY_at_ballX)) {
+                        // För att säkerställa att det är en ny träff och inte bollen som fastnat i vågen,
+                        // kontrollera om bollen var ovanför vågen i föregående bildruta.
+                        let prevBallY = currentBall.position.y - currentBall.velocity.y; // Uppskattad y-position i föregående bildruta
+                        // Beräkna vågens y-position vid bollens föregående x-position
+                        let prevWaveY_at_ballX = targetWave.y + targetWave.amplitude * sin(numCycles * TWO_PI * (((currentBall.position.x - currentBall.velocity.x) - targetWave.x) / targetWave.width) + targetWave.phaseOffset);
+
+                        if (prevBallY + currentBall.radius < prevWaveY_at_ballX) { // Bollen var ovanför vågen
+                            score++; // Öka poängen
+                            lines = []; // Rensa alla ritade linjer
+                            resetWave(); // Återställ vågens position och bredd
+                            balls.splice(i, 1); // Ta bort bollen som träffade vågen
+                            // Släpp två nya bollar
+                            balls.push(new Ball(width / 2 - 25, 0, 10, offBlack)); // Första bollen, 25px till vänster om mitten
+                            balls.push(new Ball(width / 2 + 25, -10, 10, offBlack)); // Andra bollen, 25px till höger, lite efter (högre Y)
+                            // Ingen 'return' behövs här då loopen fortsätter med nästa boll
+                        }
+                    }
+                }
+                currentBall.display(); // Rita bollen
+            }
+
+
+            // Rita alla sparade linjer
+            for (let currentLine of lines) {
+                stroke(offBlack); // Linjefärg
+                strokeWeight(2); // Linjetjocklek
+                line(currentLine.x1, currentLine.y1, currentLine.x2, currentLine.y2); // Rita linjen
+            }
+
+            // Om användaren drar ut en linje, rita den temporära linjen som följer musen
+            if (drawingLine) {
+                stroke(offBlack);
+                strokeWeight(2);
+                line(currentLineStart.x, currentLineStart.y, mouseX, mouseY);
+            }
+
+            // Rita målvågen
+            stroke(targetWave.color); // Vågens färg
+            strokeWeight(2); // Vågens tjocklek
+            noFill(); // Vågen ska inte fyllas
+            beginShape(); // Börja rita en form
+            // Rita vågen som en serie små linjesegment
+            for (let i = 0; i <= targetWave.width; i++) {
+                let x = targetWave.x + i;
+                // Beräkna antalet vågcykler baserat på vågens bredd
+                let numCycles = map(targetWave.width, 40, 200, 1, 5); // Anpassa för önskad vågighetsgrad
+                // Beräkna y-position för en sinusvåg. TWO_PI är en full cykel i radianer.
+                let y = targetWave.y + targetWave.amplitude * sin(numCycles * TWO_PI * (i / targetWave.width) + targetWave.phaseOffset);
+                vertex(x, y); // Lägg till en punkt till formen
+            }
+            endShape(); // Avsluta formen
+
+            // Visa poängen i det övre högra hörnet (endast siffran)
+            fill(offBlack); // Textfärg för poängen
+            textSize(24); // Textstorlek
+            textAlign(RIGHT, TOP); // Justera texten till höger och topp
+            text(score, width - 20, 20); // Rita endast siffran med en marginal på 20px från höger och topp
+        }
+
+        /**
+         * resetWave() funktionen ställer in en ny slumpmässig position och bredd för målvågen.
+         */
+        function resetWave() {
+            targetWave.width = random(40, 200); // Slumpmässig bredd mellan 40 och 200 px
+            // Se till att vågen stannar inom skärmen horisontellt
+            targetWave.x = random(0, width - targetWave.width);
+            // Vågen ska sitta 10 px från webbläsarens botten.
+            // targetWave.y är vågens medellinje, så vi justerar för amplituden.
+            targetWave.y = height - 10 - targetWave.amplitude;
+            targetWave.phaseOffset = random(TWO_PI); // Slumpmässig fasförskjutning för att variera vågens startpunkt
+        }
+
+        /**
+         * mousePressed() funktionen anropas när en musknapp trycks ner.
+         * Den initierar ritningen av en ny linje.
+         */
+        function mousePressed() {
+            drawingLine = true; // Sätt flaggan att en linje ritas
+            currentLineStart = createVector(mouseX, mouseY); // Spara startpunkten
+        }
+
+        /**
+         * mouseReleased() funktionen anropas när en musknapp släpps.
+         * Den sparar den färdiga linjen.
+         */
+        function mouseReleased() {
+            drawingLine = false; // Släpp flaggan att en linje ritas
+            // Skapa ett objekt för den nya linjen med start- och slutkoordinater
+            let newLine = {
+                x1: currentLineStart.x,
+                y1: currentLineStart.y,
+                x2: mouseX,
+                y2: mouseY
+            };
+            lines.push(newLine); // Lägg till den nya linjen i arrayen
+        }
+
+        /**
+         * keyPressed() funktionen anropas när en tangent trycks ner.
+         * Den hanterar mellanslag för att rensa skärmen.
+         */
+        function keyPressed() {
+            // Om mellanslagstangenten trycks ner
+            if (key === ' ') {
+                lines = []; // Töm arrayen med linjer, vilket tar bort dem från skärmen
+                balls = []; // Töm alla bollar
+                balls.push(new Ball(width / 2, 0, 10, offBlack)); // Släpp en ny, enkel boll
+                resetWave(); // Återställ vågen också
+                score = 0; // Återställ poängen vid mellanslag
+            }
+        }
+
+        /**
+         * Ball klassen representerar bollen som faller och studsar.
+         */
+        class Ball {
+            /**
+             * Konstruktorn för Ball klassen.
+             * @param {number} x - Bollens initiala x-position.
+             * @param {number} y - Bollens initiala y-position.
+             * @param {number} diameter - Bollens diameter.
+             * @param {string} color - Bollens färg.
+             */
+            constructor(x, y, diameter, color) {
+                this.position = createVector(x, y); // Bollens position (x, y)
+                this.velocity = createVector(0, 0); // Bollens hastighet (vx, vy)
+                this.acceleration = createVector(0, 0.2); // Tyngdkraft (konstant nedåtriktad acceleration)
+                this.diameter = diameter;
+                this.radius = diameter / 2;
+                this.color = color;
+                this.bounciness = 0.8; // Hur mycket energi som behålls vid studs (0.0 till 1.0)
+            }
+
+            /**
+             * update() metoden uppdaterar bollens position och hanterar kollisioner.
+             */
+            update() {
+                this.velocity.add(this.acceleration); // Lägg till acceleration till hastigheten
+                this.position.add(this.velocity); // Lägg till hastigheten till positionen
+
+                // Kollision med vänster/höger kant av fönstret
+                if (this.position.x + this.radius > width || this.position.x - this.radius < 0) {
+                    this.velocity.x *= -1; // Vänd horisontell riktning
+                    // Justera positionen för att förhindra att den fastnar i kanten
+                    if (this.position.x + this.radius > width) this.position.x = width - this.radius;
+                    if (this.position.x - this.radius < 0) this.position.x = this.radius;
+                }
+
+                // Kollision med ritade linjer
+                for (let line of lines) {
+                    let lineStart = createVector(line.x1, line.y1);
+                    let lineEnd = createVector(line.x2, line.y2);
+
+                    // Beräkna den närmaste punkten på linjesegmentet till bollens centrum
+                    let lineVec = p5.Vector.sub(lineEnd, lineStart); // Vektor som representerar linjen
+                    let ballToLineStart = p5.Vector.sub(this.position, lineStart); // Vektor från linjens start till bollen
+                    // Projektion av ballToLineStart på lineVec, normaliserad till linjens längd
+                    let t = p5.Vector.dot(ballToLineStart, lineVec) / lineVec.magSq();
+
+                    // Se till att t är mellan 0 och 1, vilket betyder att den närmaste punkten ligger på linjesegmentet
+                    t = constrain(t, 0, 1);
+
+                    // Beräkna koordinaterna för den närmaste punkten på linjen
+                    let closestPoint = p5.Vector.add(lineStart, p5.Vector.mult(lineVec, t));
+
+                    // Beräkna avståndet mellan bollens centrum och den närmaste punkten på linjen
+                    let distance = p5.Vector.dist(this.position, closestPoint);
+
+                    // Om avståndet är mindre än eller lika med bollens radie, har en kollision skett
+                    if (distance <= this.radius) {
+                        // Kollision!
+                        // Beräkna normalvektorn för linjen (vinkelrät mot linjen)
+                        let normal = createVector(lineEnd.y - lineStart.y, -(lineEnd.x - lineStart.x));
+                        normal.normalize(); // Normalisera vektorn till längden 1
+
+                        // Se till att normalvektorn pekar bort från bollen
+                        let dot = p5.Vector.dot(this.position.copy().sub(closestPoint), normal);
+                        if (dot < 0) {
+                            normal.mult(-1);
+                        }
+
+                        // Justera bollens position för att förhindra att den fastnar i linjen
+                        let overlap = this.radius - distance;
+                        this.position.add(normal.copy().mult(overlap + 0.1)); // Lägg till en liten marginal
+
+                        // Beräkna studsen (vinkel in = vinkel ut)
+                        let incidentVec = this.velocity.copy(); // Bollens nuvarande hastighetsvektor
+                        let reflectedVec = incidentVec.reflect(normal); // Reflektera hastigheten mot normalvektorn
+                        this.velocity = reflectedVec.mult(this.bounciness); // Applicera studsfaktorn
+
+                        // Om bollen rör sig för långsamt horisontellt efter studsen, ge den en liten knuff
+                        if (abs(this.velocity.x) < 0.5) {
+                            this.velocity.x += random(-0.5, 0.5);
+                        }
+                    }
+                }
+            }
+
+            /**
+             * display() metoden ritar bollen på canvas.
+             */
+            display() {
+                fill(this.color); // Sätt bollens färg
+                noStroke(); // Ingen kontur runt bollen
+                ellipse(this.position.x, this.position.y, this.diameter, this.diameter); // Rita cirkeln
+            }
+        }
+
+        /**
+         * windowResized() funktionen anropas när webbläsarfönstret ändrar storlek.
+         * Den anpassar canvasstorleken därefter.
+         */
+        function windowResized() {
+            resizeCanvas(windowWidth, windowHeight); // Ändra storleken på canvas
+            background(oldYellow); // Rensa bakgrunden efter storleksändring
+            // Justera vågens y-position om fönstret ändrar storlek
+            targetWave.y = height - 10 - targetWave.amplitude;
+        }
+    </script>
+</body>
+</html>
