@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rövovarospoproråkoketot Övoverosottototarovare</title>
+    <!-- Inkludera Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Indie+Flower&family=Pirata+One&display=swap" rel="stylesheet">
+    <!-- Inkludera Font Awesome för ikoner -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* Grundläggande styling för hela sidan */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5dc; /* Off-white, beige-ish bakgrund */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh; /* Säkerställer att body tar upp hela viewport-höjden */
+            margin: 0;
+            flex-direction: column; /* För att centrera vertikalt och stapla element */
+            color: #333; /* Standard textfärg */
+            padding: 20px; /* Lite padding runt om för att förhindra att innehåll klistras vid kanterna */
+            box-sizing: border-box; /* Inkludera padding i elementets totala bredd/höjd */
+        }
+
+        /* Rubrikens styling */
+        h1 {
+            font-family: 'Pirata One', cursive; /* Använd Pirata One för titeln */
+            color: #5d4037; /* Mörkare brun för titeln */
+            margin-bottom: 30px;
+            font-size: 2.5em; /* Större fontstorlek för rubriken */
+            letter-spacing: 1.5px; /* Lite extra mellanrum mellan bokstäverna */
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.05); /* Lätt skugga för texten */
+            text-align: center; /* Centrera rubriken */
+            width: 100%; /* Se till att rubriken tar full bredd */
+        }
+
+        /* Gruppering för input-fält och knapp */
+        .input-group {
+            display: flex;
+            align-items: center;
+            justify-content: center; /* Centrera input-fält och knapp horisontellt */
+            gap: 15px; /* Mellanrum mellan input och knapp */
+            flex-wrap: wrap; /* Tillåter element att brytas till ny rad på små skärmar */
+            width: 100%; /* Ta full bredd för grupperingen */
+            max-width: 500px; /* Maxbredd för att hålla det snyggt */
+        }
+
+        /* Styling för textinput-fältet */
+        #textInput {
+            padding: 12px 18px;
+            border: 2px solid #a0a0a0; /* Enkel ram */
+            border-radius: 8px; /* 8px rundning i hörnen som önskat */
+            font-size: 1.1em;
+            width: calc(100% - 70px); /* Justera bredden för att ge plats åt knappen */
+            max-width: 350px; /* Maxbredd för input-fältet */
+            box-sizing: border-box; /* Inkludera padding i bredden */
+            outline: none; /* Ta bort standard outline vid fokus */
+            transition: border-color 0.3s ease, box-shadow 0.3s ease; /* Smidig övergång vid fokus */
+        }
+
+        #textInput:focus {
+            border-color: #8b4513; /* Mörkare brun ram vid fokus */
+            box-shadow: 0 0 0 3px rgba(139, 69, 19, 0.2); /* Lätt skugga vid fokus */
+        }
+
+        /* Styling för "Tala/Stopp"-knappen */
+        #speakButton {
+            background-color: #8b4513; /* Mörkare brun färg för knappen */
+            color: white;
+            border: none;
+            padding: 12px 18px; /* Generös padding för klickbar yta */
+            border-radius: 8px; /* Rundade hörn */
+            cursor: pointer;
+            font-size: 1.6em; /* Storlek på ikonen */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            /* Ingen skugga på knappen */
+        }
+
+        #speakButton:hover {
+            background-color: #6a340f; /* Mörkare brun vid hover */
+            transform: translateY(-2px); /* Lätt uppåt-rörelse vid hover */
+        }
+
+        #speakButton:active {
+            transform: translateY(0); /* Återgår till ursprunglig position vid klick */
+        }
+
+        /* Styling för pratbubblan */
+        #speechBubble {
+            font-family: 'Indie Flower', cursive; /* Använd Indie Flower för pratbubblan */
+            font-size: 18px; /* Ca 16px storlek */
+            background-color: #ffffff; /* Vit bakgrund för bubblan */
+            border: 2px solid #333; /* Tydligare ram för serietidningslook */
+            border-radius: 20px; /* Mer uttalade rundade hörn för hela bubblan */
+            padding: 15px 25px;
+            margin-top: 30px; /* Avstånd från input-fältet */
+            max-width: 80%; /* Maxbredd för bubblan */
+            width: fit-content; /* Anpassa bredden efter innehållet */
+            text-align: center;
+            position: relative;
+            opacity: 0; /* Dölj initialt */
+            transform: translateY(20px); /* Lätt förskjuten initialt */
+            transition: opacity 0.3s ease, transform 0.3s ease; /* Smidig in- och uttoning */
+        }
+
+        /* Den vita inre delen av svansen */
+        #speechBubble::after {
+            content: '';
+            position: absolute;
+            bottom: -10px; /* Positionerar svansen så den överlappar den yttre kanten */
+            left: 50%;
+            width: 0;
+            height: 0;
+            border: 10px solid transparent;
+            border-top-color: #ffffff; /* Vit fyllning */
+            border-bottom: 0; /* Ingen bottenkant */
+            transform: translateX(-50%); /* Centrera horisontellt */
+            z-index: 1; /* Se till att den ligger ovanför den yttre kanten */
+        }
+
+        /* Den svarta yttre kanten av svansen */
+        #speechBubble::before {
+            content: '';
+            position: absolute;
+            bottom: -13px; /* Lite längre ner för att skapa en kant */
+            left: 50%;
+            width: 0;
+            height: 0;
+            border: 13px solid transparent;
+            border-top-color: #333; /* Svart kantfärg */
+            border-bottom: 0; /* Ingen bottenkant */
+            transform: translateX(-50%); /* Centrera horisontellt */
+            z-index: 0; /* Se till att den ligger bakom den vita fyllningen */
+        }
+
+        /* Styling för Clippy-bilden */
+        #clippyImage {
+            width: 80px; /* Storlek på Clippy */
+            height: auto;
+            margin-top: 10px; /* Avstånd från pratbubblan */
+            opacity: 0; /* Dölj initialt */
+            transform: translateY(20px); /* Lätt förskjuten initialt */
+            transition: opacity 0.3s ease, transform 0.3s ease; /* Smidig in- och uttoning */
+        }
+
+        /* Responsiv design för mindre skärmar */
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 2em;
+            }
+
+            .input-group {
+                flex-direction: column; /* Stapla input och knapp vertikalt på små skärmar */
+                gap: 15px;
+            }
+
+            #textInput {
+                width: 100%; /* Full bredd för input-fältet */
+                max-width: none; /* Ta bort maxbredd */
+            }
+
+            #speakButton {
+                width: 100%; /* Full bredd för knappen */
+            }
+
+            #speechBubble {
+                font-size: 16px; /* Justera storlek för mindre skärmar */
+                padding: 10px 15px;
+            }
+
+            #clippyImage {
+                width: 60px; /* Mindre Clippy på små skärmar */
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Övoverosottototarovare</h1> <!-- "Översättare" på rövarspråket -->
+    <div class="input-group">
+        <input type="text" id="textInput" placeholder="Soskrorivov nonågotot ihoihopopovotot hehere"> <!-- "Skriv något här" på rövarspråket -->
+        <button id="speakButton" title="Tala på rövarspråket" data-state="idle">
+            <i class="fas fa-skull-crossbones"></i> <!-- Döskalle med ögonlapp-ikon (initialt) -->
+        </button>
+    </div>
+
+    <!-- Pratbubblan -->
+    <div id="speechBubble"></div>
+
+    <!-- Clippy-bilden -->
+    <img id="clippyImage" src="https://static.wikia.nocookie.net/joke-battles/images/c/cb/Clippy.png" alt="Clippy" onerror="this.onerror=null; this.src='https://placehold.co/80x80/CCCCCC/000000?text=Clippy';">
+
+    <script>
+        const textInput = document.getElementById('textInput');
+        const speakButton = document.getElementById('speakButton');
+        const speakButtonIcon = speakButton.querySelector('i'); // Hämta ikon-elementet
+        const speechBubble = document.getElementById('speechBubble'); // Hämta pratbubblan
+        const clippyImage = document.getElementById('clippyImage'); // Hämta Clippy-bilden
+        let currentUtterance = null; // För att hålla reda på den aktuella uppläsningen
+
+        // Funktion för att översätta till rövarspråket
+        function toRovarspraket(text) {
+            let rovarText = '';
+            // Definiera konsonanter, både gemener och versaler
+            const consonants = 'bcdfghjklmnpqrstvwxyzBCDFGHJKLMNPQRSTVWXYZ';
+            for (let i = 0; i < text.length; i++) {
+                const char = text[i];
+                if (consonants.includes(char)) {
+                    // Om tecknet är en konsonant, lägg till 'o' och sedan samma konsonant igen (gemener)
+                    rovarText += char + 'o' + char.toLowerCase();
+                } else {
+                    // Annars, lägg till tecknet som det är (vokaler, mellanslag, skiljetecken etc.)
+                    rovarText += char;
+                }
+            }
+            return rovarText;
+        }
+
+        // Funktion för att återställa knappen och input-fältet till "idle" läge
+        function resetToIdleState() {
+            speakButtonIcon.classList.remove('fa-stop');
+            speakButtonIcon.classList.add('fa-skull-crossbones');
+            speakButton.dataset.state = 'idle';
+            textInput.value = ''; // Töm input-fältet
+            hideSpeechBubble(); // Dölj pratbubblan
+            hideClippy(); // Dölj Clippy
+        }
+
+        // Funktion för att visa pratbubblan med text
+        function showSpeechBubble(text) {
+            speechBubble.textContent = text;
+            speechBubble.style.opacity = '1';
+            speechBubble.style.transform = 'translateY(0)';
+        }
+
+        // Funktion för att dölja pratbubblan
+        function hideSpeechBubble() {
+            speechBubble.style.opacity = '0';
+            speechBubble.style.transform = 'translateY(20px)';
+            // Rensa texten efter övergången för att undvika att den visas om bubblan blir synlig igen snabbt
+            setTimeout(() => {
+                speechBubble.textContent = '';
+            }, 300);
+        }
+
+        // Funktion för att visa Clippy
+        function showClippy() {
+            clippyImage.style.opacity = '1';
+            clippyImage.style.transform = 'translateY(0)';
+        }
+
+        // Funktion för att dölja Clippy
+        function hideClippy() {
+            clippyImage.style.opacity = '0';
+            clippyImage.style.transform = 'translateY(20px)';
+        }
+
+        // Funktion för att tala upp texten
+        function speakText() {
+            const originalText = textInput.value.trim(); // Hämta text från input-fältet och trimma bort mellanslag
+
+            // Kontrollera om textfältet är tomt
+            if (originalText === '') {
+                // Använd en anpassad meddelanderuta istället för alert()
+                showMessageBox('Skrovivov nonågotot ihoihopopovotot textotoxotofoffålolototetot!'); // "Skriv något i inputfältet!" på rövarspråket
+                return;
+            }
+
+            const rovarText = toRovarspraket(originalText); // Översätt texten till rövarspråket
+
+            // Kontrollera om Web Speech API stöds i webbläsaren
+            if ('speechSynthesis' in window) {
+                // Avbryt eventuell pågående uppläsning innan en ny startas
+                if (window.speechSynthesis.speaking) {
+                    window.speechSynthesis.cancel();
+                }
+
+                currentUtterance = new SpeechSynthesisUtterance(rovarText); // Skapa ett nytt SpeechSynthesisUtterance-objekt
+                currentUtterance.lang = 'sv-SE'; // Ställ in språket till svenska
+
+                // Visa den översatta texten i pratbubblan och Clippy
+                showSpeechBubble(rovarText);
+                showClippy();
+
+                // Ändra knappen till stoppläge
+                speakButtonIcon.classList.remove('fa-skull-crossbones');
+                speakButtonIcon.classList.add('fa-stop');
+                speakButton.dataset.state = 'speaking'; // Anpassad data-attribut för att spåra tillstånd
+
+                // Eventlyssnare för när uppläsningen avslutas naturligt
+                currentUtterance.onend = () => {
+                    resetToIdleState();
+                };
+
+                // Eventlyssnare för när uppläsningen avbryts (t.ex. av stoppknappen)
+                currentUtterance.oncancel = () => {
+                    resetToIdleState();
+                };
+
+                // Försök hitta en svensk röst. Röster måste laddas asynkront ibland.
+                window.speechSynthesis.onvoiceschanged = () => {
+                    const voices = window.speechSynthesis.getVoices();
+                    const swedishVoice = voices.find(voice => voice.lang === 'sv-SE');
+                    if (swedishVoice) {
+                        currentUtterance.voice = swedishVoice; // Använd den svenska rösten om den hittas
+                    }
+                    window.speechSynthesis.speak(currentUtterance); // Starta uppläsningen
+                };
+
+                // Om röster redan är laddade (t.ex. vid andra anropet), behöver vi inte vänta på onvoiceschanged
+                const voices = window.speechSynthesis.getVoices();
+                if (voices.length > 0) {
+                    const swedishVoice = voices.find(voice => voice.lang === 'sv-SE');
+                    if (swedishVoice) {
+                        currentUtterance.voice = swedishVoice;
+                    }
+                    window.speechSynthesis.speak(currentUtterance);
+                } else {
+                    // Om röster inte laddats än, kommer onvoiceschanged att hantera det.
+                }
+
+            } else {
+                // Meddelande om Web Speech API inte stöds, på rövarspråket
+                showMessageBox("Dodinon voveboblobblåsåsosarovare stotödodojojeror totyovåvororor nonohohojoj inongongotot Wobeb Sobpojejochoho Aphopihopihopi fofföror tothalolsosysytonotesos. Poprorovova Chromomeje, Fofirorefooxox ocochoh Edegego.");
+            }
+        }
+
+        // Funktion för att visa en anpassad meddelanderuta istället för alert()
+        function showMessageBox(message) {
+            // Skapa en overlay
+            const overlay = document.createElement('div');
+            overlay.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.5);
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                z-index: 1000;
+            `;
+
+            // Skapa meddelanderutan
+            const messageBox = document.createElement('div');
+            messageBox.style.cssText = `
+                background-color: #fff;
+                padding: 25px 35px;
+                border-radius: 10px;
+                box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+                text-align: center;
+                max-width: 80%;
+                font-size: 1.1em;
+                color: #333;
+                position: relative;
+            `;
+
+            // Lägg till meddelandetexten
+            const messageText = document.createElement('p');
+            messageText.textContent = message;
+            messageText.style.marginBottom = '20px';
+
+            // Lägg till en stäng-knapp
+            const closeButton = document.createElement('button');
+            closeButton.textContent = 'Okok'; // "Ok" på rövarspråket
+            closeButton.style.cssText = `
+                background-color: #8b4513;
+                color: white;
+                border: none;
+                padding: 10px 25px;
+                border-radius: 5px;
+                cursor: pointer;
+                font-size: 1em;
+                transition: background-color 0.2s ease;
+            `;
+            closeButton.onmouseover = () => closeButton.style.backgroundColor = '#6a340f';
+            closeButton.onmouseout = () => closeButton.style.backgroundColor = '#8b4513';
+            closeButton.onclick = () => document.body.removeChild(overlay);
+
+            messageBox.appendChild(messageText);
+            messageBox.appendChild(closeButton);
+            overlay.appendChild(messageBox);
+            document.body.appendChild(overlay);
+        }
+
+
+        // Händelselyssnare för knappen
+        speakButton.addEventListener('click', () => {
+            if (speakButton.dataset.state === 'speaking') {
+                // Om knappen är i "speaking" läge, avbryt uppläsningen
+                window.speechSynthesis.cancel();
+                // oncancel event handler kommer att återställa knappen och input-fältet
+            } else {
+                // Annars, starta uppläsningen
+                speakText();
+            }
+        });
+
+        // Händelselyssnare för Enter-tangenten i textfältet
+        textInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                event.preventDefault(); // Förhindra standardbeteende (t.ex. ny rad i textfältet)
+                // Om uppläsning är aktiv, ska Enter också stoppa den
+                if (speakButton.dataset.state === 'speaking') {
+                    window.speechSynthesis.cancel();
+                } else {
+                    speakText();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
