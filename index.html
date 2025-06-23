@@ -29,6 +29,13 @@
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Liten skugga */
             z-index: 20; /* Se till att knappen är över iframen och menyn när den är stängd */
             border: 1px solid #ccc; /* Enkel kantlinje */
+            transition: left 0.3s ease-out, transform 0.2s ease-out; /* Mjuk övergång för position och ikon */
+        }
+
+        /* Knappens nya position när menyn är aktiv */
+        .menu-button.active {
+            left: calc(300px + 20px); /* Sidopanelens bredd + 20px marginal */
+            transform: rotate(90deg); /* Roterar till ett kryss för att indikera stängning */
         }
 
         /* Menyikon (tre horisontella linjer) */
@@ -36,7 +43,13 @@
             font-size: 24px; /* Storlek på ikontexten */
             line-height: 1;
             color: #333;
+            transition: transform 0.3s ease-out;
         }
+        /* Ikonens rotation när menyn är aktiv för att bilda ett kryss */
+        .menu-button.active span {
+            transform: rotate(-90deg); /* Använder rotationen på knappen för att få den att se ut som ett kryss */
+        }
+
 
         /* Sidopanelen/Menyn */
         .sidebar {
@@ -78,22 +91,6 @@
             color: darkblue; /* Lätt ändring vid hover */
         }
 
-        /* Stäng-knapp i menyn */
-        .close-button {
-            margin-top: auto; /* Pusha knappen längst ner */
-            padding: 10px 15px;
-            background-color: #f44336; /* Röd färg */
-            color: white;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-            align-self: flex-end; /* Placera knappen till höger i menyn */
-            border-radius: 5px;
-        }
-        .close-button:hover {
-            background-color: #d32f2f;
-        }
-
         /* Overlay som döljer innehållet när menyn är öppen */
         .overlay {
             position: fixed;
@@ -124,7 +121,7 @@
 
     <!-- Knapp för att öppna menyn -->
     <div id="menuButton" class="menu-button">
-        <span>&#9776;</span> <!-- Enkel menyikon (tre horisontella streck) -->
+        <span id="menuIcon">&#9776;</span> <!-- Enkel menyikon (tre horisontella streck) -->
     </div>
 
     <!-- Overlay som döljer innehållet när menyn är öppen -->
@@ -137,8 +134,7 @@
         <a href="bau.html">Bau</a>
         <a href="noise.html">Noise</a>
         
-        <!-- Stäng-knapp för menyn -->
-        <button id="closeMenuButton" class="close-button">Stäng Meny</button>
+        <!-- Denna stäng-knapp är borttagen som önskat -->
     </div>
 
     <!-- Huvudinnehållsområdet (iframe) -->
@@ -148,11 +144,12 @@
         // Vänta tills hela DOM har laddats innan skriptet körs.
         document.addEventListener('DOMContentLoaded', () => {
             const menuButton = document.getElementById('menuButton');
+            const menuIcon = document.getElementById('menuIcon'); // Referens till ikonen
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('overlay');
             const contentFrame = document.getElementById('contentFrame');
-            const closeMenuButton = document.getElementById('closeMenuButton');
-            
+            // closeMenuButton tas bort eftersom knappen längst ner har tagits bort
+
             // Hämta alla länkar inuti sidomenyn
             const menuLinks = sidebar.querySelectorAll('a');
 
@@ -160,19 +157,27 @@
             function openMenu() {
                 sidebar.classList.add('active');
                 overlay.classList.add('active');
+                menuButton.classList.add('active'); // Lägg till "active" klass till menyknappen
+                menuIcon.innerHTML = '&times;'; // Byt till kryss-ikonen
+                menuIcon.style.transform = 'rotate(0deg)'; // Återställ ikonens egen rotation
             }
 
             // Funktion för att stänga menyn
             function closeMenu() {
                 sidebar.classList.remove('active');
                 overlay.classList.remove('active');
+                menuButton.classList.remove('active'); // Ta bort "active" klass från menyknappen
+                menuIcon.innerHTML = '&#9776;'; // Byt tillbaka till hamburgare-ikonen
             }
 
-            // Lyssna på klick på menyknappen för att öppna menyn
-            menuButton.addEventListener('click', openMenu);
-
-            // Lyssna på klick på stäng-knappen i menyn
-            closeMenuButton.addEventListener('click', closeMenu);
+            // En enda lyssnare för menyknappen för att växla öppen/stängd status
+            menuButton.addEventListener('click', () => {
+                if (sidebar.classList.contains('active')) {
+                    closeMenu();
+                } else {
+                    openMenu();
+                }
+            });
 
             // Lyssna på klick på overlayen för att stänga menyn
             overlay.addEventListener('click', closeMenu);
@@ -190,17 +195,13 @@
             });
 
             // Ladda den första lokala filen i iframen som standard när sidan laddas
-            // Detta uppfyller "den översta länken ska vara den aktuella filen i ramen till höger"
             const initialUrl = menuLinks[0].href; // Hämta URL från den första länken
             contentFrame.src = initialUrl;
             console.log("Initial laddning i iframe:", initialUrl);
 
             // Lägg till en lyssnare för när iframens innehåll har laddats.
-            // Detta kan vara användbart för att debugga om innehållet laddas korrekt.
             contentFrame.onload = () => {
                 console.log("Iframen har laddat innehåll från:", contentFrame.src);
-                // Försök att ge iframen fokus för musinteraktioner.
-                // Detta är inte garanterat att lösa alla musproblem, men kan hjälpa.
                 try {
                     if (contentFrame.contentWindow) {
                         contentFrame.contentWindow.focus();
