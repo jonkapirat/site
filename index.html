@@ -1,19 +1,200 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="sv">
 <head>
-<title>Site of things</title>
-  
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Min Enkla Webbplats</title>
+    <style>
+        /* Grundläggande stil för hela sidan */
+        body {
+            font-family: sans-serif; /* Enkelt typsnitt */
+            margin: 0;
+            overflow: hidden; /* Förhindra rullningslister på kroppen */
+            display: flex;
+        }
 
+        /* Knapp för att öppna menyn */
+        .menu-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            width: 40px; /* Storlek 40x40px som önskat */
+            height: 40px;
+            background-color: white;
+            border-radius: 50%; /* Gör den cirkulär */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); /* Liten skugga */
+            z-index: 20; /* Se till att knappen är över iframen och menyn när den är stängd */
+            border: 1px solid #ccc; /* Enkel kantlinje */
+        }
+
+        /* Menyikon (tre horisontella linjer) */
+        .menu-button span {
+            font-size: 24px; /* Storlek på ikontexten */
+            line-height: 1;
+            color: #333;
+        }
+
+        /* Sidopanelen/Menyn */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: -300px; /* Initialt dold, utanför skärmen */
+            width: 300px; /* Bredd på menyn */
+            height: 100vh;
+            background-color: white;
+            z-index: 15; /* Över iframen, under menyknappen */
+            transition: left 0.3s ease-out; /* Mjuk in/ut-fading */
+            padding: 20px;
+            box-sizing: border-box; /* Inkludera padding i bredden */
+            border-right: 1px solid #ccc; /* Enkel högerkantlinje */
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar.active {
+            left: 0; /* Visa menyn */
+        }
+
+        /* Rubrik i menyn */
+        .sidebar h2 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 20px;
+            color: #333;
+        }
+
+        /* Länkstil i menyn (ingen extra styling som önskat) */
+        .sidebar a {
+            display: block; /* Gör länkarna till block för enklare klickområde */
+            padding: 10px 0;
+            text-decoration: underline; /* Standard understrykning */
+            color: blue; /* Standard blå färg */
+            margin-bottom: 5px;
+        }
+        .sidebar a:hover {
+            color: darkblue; /* Lätt ändring vid hover */
+        }
+
+        /* Stäng-knapp i menyn */
+        .close-button {
+            margin-top: auto; /* Pusha knappen längst ner */
+            padding: 10px 15px;
+            background-color: #f44336; /* Röd färg */
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            align-self: flex-end; /* Placera knappen till höger i menyn */
+            border-radius: 5px;
+        }
+        .close-button:hover {
+            background-color: #d32f2f;
+        }
+
+        /* Overlay som döljer innehållet när menyn är öppen */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5); /* Semi-transparent svart */
+            z-index: 10; /* Mellan iframe och meny */
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s ease-out, visibility 0.3s ease-out;
+        }
+        .overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Huvudinnehållsområdet (iframe) */
+        .content-frame {
+            width: 100%;
+            height: 100vh; /* Fyll hela höjden */
+            border: none; /* Ingen ram */
+        }
+    </style>
 </head>
-
 <body>
 
-<h1>Things</h1>
-<p>
-  <a href="https://jonkapirat.github.io/site/bau.html">Bau</a>
-</p>
+    <!-- Knapp för att öppna menyn -->
+    <div id="menuButton" class="menu-button">
+        <span>&#9776;</span> <!-- Enkel menyikon (tre horisontella streck) -->
+    </div>
 
+    <!-- Overlay som döljer innehållet när menyn är öppen -->
+    <div id="overlay" class="overlay"></div>
 
+    <!-- Sidopanelen/Menyn med länkar -->
+    <div id="sidebar" class="sidebar">
+        <h2>Meny</h2>
+        <!-- Länkar till lokala filer -->
+        <a href="bau.html">Bau</a>
+        <a href="contact.html">Kontakta Oss</a>
+        
+        <!-- Stäng-knapp för menyn -->
+        <button id="closeMenuButton" class="close-button">Stäng Meny</button>
+    </div>
+
+    <!-- Huvudinnehållsområdet (iframe) -->
+    <iframe id="contentFrame" class="content-frame"></iframe>
+
+    <script>
+        // Vänta tills hela DOM har laddats innan skriptet körs.
+        document.addEventListener('DOMContentLoaded', () => {
+            const menuButton = document.getElementById('menuButton');
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('overlay');
+            const contentFrame = document.getElementById('contentFrame');
+            const closeMenuButton = document.getElementById('closeMenuButton');
+            
+            // Hämta alla länkar inuti sidomenyn
+            const menuLinks = sidebar.querySelectorAll('a');
+
+            // Funktion för att öppna menyn
+            function openMenu() {
+                sidebar.classList.add('active');
+                overlay.classList.add('active');
+            }
+
+            // Funktion för att stänga menyn
+            function closeMenu() {
+                sidebar.classList.remove('active');
+                overlay.classList.remove('active');
+            }
+
+            // Lyssna på klick på menyknappen för att öppna menyn
+            menuButton.addEventListener('click', openMenu);
+
+            // Lyssna på klick på stäng-knappen i menyn
+            closeMenuButton.addEventListener('click', closeMenu);
+
+            // Lyssna på klick på overlayen för att stänga menyn
+            overlay.addEventListener('click', closeMenu);
+
+            // Gå igenom varje menylänk och lägg till en klickhändelselyssnare
+            menuLinks.forEach(link => {
+                link.addEventListener('click', (event) => {
+                    event.preventDefault(); // Förhindra standardbeteendet för länken
+                    const url = event.target.href; // Hämta URL:en
+
+                    console.log("Laddar i iframe:", url); 
+                    contentFrame.src = url; // Sätt iframens src-attribut
+                    closeMenu(); // Stäng menyn
+                });
+            });
+
+            // Ladda den första lokala filen i iframen som standard när sidan laddas
+            // Detta uppfyller "den översta länken ska vara den aktuella filen i ramen till höger"
+            const initialUrl = menuLinks[0].href; // Hämta URL från den första länken
+            contentFrame.src = initialUrl;
+            console.log("Initial laddning i iframe:", initialUrl);
+        });
+    </script>
 </body>
 </html>
