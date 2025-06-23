@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Keep Time</title>
+  <!-- Google Font: Roboto -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background-color: #1B1B1B; /* Overall darkest grey background from image */
+      font-family: 'Roboto', sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    // Funktion för att formatera sekunder till HH:MM:SS
+    const formatTime = (totalSeconds) => {
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    };
+
+    // Huvudkomponenten för applikationen
+    const App = () => {
+      const localStorageKey = 'keepTimeTimers';
+      const MOBILE_BREAKPOINT_SM = 640; // Tailwind's 'sm' breakpoint
+      const MOBILE_BREAKPOINT_MD = 800; // Custom breakpoint for 2 per row / 180px size
+
+      // Funktion för att hämta initialt tillstånd från localStorage eller standardvärden
+      const getInitialTimers = () => {
+        try {
+          const savedTimers = localStorage.getItem(localStorageKey);
+          if (savedTimers) {
+            const parsedTimers = JSON.parse(savedTimers);
+            return parsedTimers.map(timer => ({
+              ...timer,
+              isRunning: false, // Timers ska inte vara igång vid laddning
+              isEditingName: false,
+            }));
+          }
+        } catch (error) {
+          console.error("Misslyckades med att ladda timers från localStorage:", error);
+        }
+        return [
+          { id: Date.now(), name: 'Project name', timeElapsed: 0, isRunning: false, isEditingName: false },
+        ];
+      };
+
+      const [timers, setTimers] = useState(getInitialTimers);
+      const [viewportWidth, setViewportWidth] = useState(window.innerWidth);
+
+      // Uppdatera viewportWidth vid fönsterstorleksändring (för responsiv layout)
+      useEffect(() => {
+        const handleResize = () => {
+          setViewportWidth(window.innerWidth);
+        };
+        window.addEventListener('resize', handleResize);
+        return () => window.removeEventListener('resize', handleResize);
+      }, []);
+
+      // Effekt för timers (räknar upp tid)
+      useEffect(() => {
+        const intervals = timers.map((timer) => {
+          if (timer.isRunning) {
+            return setInterval(() => {
+              setTimers((prevTimers) =>
+                prevTimers.map((t) =>
+                  t.id === timer.id ? { ...t, timeElapsed: t.timeElapsed + 1 } : t
+                )
+              );
+            }, 1000);
+          }
+          return null;
+        });
+
+        return () => {
+          intervals.forEach((interval) => clearInterval(interval));
+        };
+      }, [timers]); // Beroende på 'timers' för att uppdatera intervaller
+
+      // Effekt för att spara timers till localStorage när de ändras
+      useEffect(() => {
+        localStorage.setItem(localStorageKey, JSON.stringify(timers));
+      }, [timers]);
+
+      // Hanterar klick på en timer-kort för att starta/pausa
+      const handleTimerClick = (clickedTimerId) => {
+        setTimers((prevTimers) => {
+          return prevTimers.map((timer) => {
+            if (timer.id === clickedTimerId) {
+              return { ...timer, isRunning: !timer.isRunning }; // Växla isRunning
+            } else {
+              return { ...timer, isRunning: false }; // Pausa andra timers
+            }
+          });
+        });
+      };
+
+      // Hanterar klick för att redigera namn
+      const handleNameClick = (id) => {
+        setTimers((prevTimers) =>
+          prevTimers.map((timer) =>
+            timer.id === id ? { ...timer, isEditingName: true } : timer
+          )
+        );
+      };
+
+      // Hanterar ändring av namn
+      const handleNameChange = (e, id) => {
+        setTimers((prevTimers) =>
+          prevTimers.map((timer) =>
+            timer.id === id ? { ...timer, name: e.target.value } : timer
+          )
+        );
+      };
+
+      // Hanterar tangenttryckningar för att spara namn (Enter-tangenten)
+      const handleNameKeyDown = (e, id) => {
+        if (e.key === 'Enter') {
+          setTimers((prevTimers) =>
+            prevTimers.map((timer) =>
+              timer.id === id ? { ...timer, isEditingName: false } : timer
+            )
+          );
+        }
+      };
+
+      // Hanterar blur (när fokus förloras) för att spara namn
+      const handleNameBlur = (id) => {
+        setTimers((prevTimers) =>
+          prevTimers.map((timer) =>
+            timer.id === id ? { ...timer, isEditingName: false } : timer
+          )
+        );
+      };
+
+      // Hanterar fokus på input-fältet för att markera all text
+      const handleInputFocus = (e) => {
+        e.target.select();
+      };
+
+      // Lägg till en ny timer
+      const addTimer = () => {
+        setTimers((prevTimers) => [
+          ...prevTimers,
+          { id: Date.now(), name: 'Project name', timeElapsed: 0, isRunning: false, isEditingName: false },
+        ]);
+      };
+
+      // Ta bort en specifik timer
+      const removeTimer = (idToRemove) => {
+        setTimers((prevTimers) => prevTimers.filter((timer) => timer.id !== idToRemove));
+      };
+
+      // Återställ alla timers till 0 och pausa dem
+      const resetAllTimers = () => {
+        setTimers((prevTimers) =>
+          prevTimers.map((timer) => ({
+            ...timer,
+            timeElapsed: 0,
+            isRunning: false,
+          }))
+        );
+      };
+
+      // Rensa alla timers (ta bort dem helt)
+      const clearAllTimers = () => {
+        setTimers([]);
+      };
+
+      // Bestämmer fontstorlekar baserat på viewportbredd
+      const getFontSizeClass = (baseSize, breakpointSize) => {
+        // Om viewport är mindre än 800px, använd breakpointSize, annars baseSize
+        return viewportWidth < MOBILE_BREAKPOINT_MD ? breakpointSize : baseSize;
+      };
+
+
+      return (
+        <div className="min-h-screen bg-[#1B1B1B] text-[#DEDEDE] p-6 font-['Roboto']">
+          {/* Header med "Keep time" och navigeringslänkar */}
+          <header className="flex flex-col sm:flex-row justify-between items-center mb-8 px-2"> {/* Adjusted padding */}
+            <h1 className="text-2xl font-bold mb-4 sm:mb-0">Keep time</h1>
+            <nav className="flex space-x-4 text-sm font-normal"> {/* Updated font size and weight for nav links */}
+              <button
+                onClick={addTimer}
+                className="text-[#DEDEDE] hover:text-gray-400 focus:outline-none"
+              >
+                Add timer
+              </button>
+              <button
+                onClick={resetAllTimers}
+                className="text-[#DEDEDE] hover:text-gray-400 focus:outline-none"
+              >
+                Reset
+              </button>
+              <button
+                onClick={clearAllTimers}
+                className="text-[#DEDEDE] hover:text-gray-400 focus:outline-none"
+              >
+                Clear
+              </button>
+            </nav>
+          </header>
+
+          {/* Rutnät av timerkort */}
+          <div className="flex flex-wrap justify-center gap-6">
+            {timers.map((timer, index) => (
+              <div
+                key={timer.id}
+                style={{
+                  // Dynamisk bredd och höjd baserad på 800px breakpoint
+                  width: viewportWidth < MOBILE_BREAKPOINT_MD ? 'calc(50% - 12px)' : '400px', // 2 per row with gap on small, 400px fixed on large
+                  height: viewportWidth < MOBILE_BREAKPOINT_MD ? '180px' : '400px', // Fixed height for small and large
+                }}
+                className={`
+                  relative flex flex-col justify-center items-center text-center p-6 cursor-pointer transition-colors duration-300 ease-in-out
+                  border border-[#333333] /* Thin border for inactive state */
+                  ${timer.isRunning ? 'bg-[#DEDEDE] text-[#1B1B1B]' : 'bg-[#1B1B1B] text-[#DEDEDE]'} /* Color inversion */
+                `}
+                onClick={() => handleTimerClick(timer.id)}
+              >
+                {/* Ta bort-knapp */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation(); // Förhindra att klicket triggar timer-kortet
+                    removeTimer(timer.id);
+                  }}
+                  className={`
+                    absolute top-3 right-3 font-normal text-base opacity-25 hover:opacity-100 transition-opacity duration-300 /* (x) as plain text with opacity */
+                    ${timer.isRunning ? 'text-gray-600 hover:text-gray-800' : 'text-[#DEDEDE] hover:text-gray-400'}
+                  `}
+                >
+                  (x)
+                </button>
+
+                {/* Projektnamn / Redigeringsfält */}
+                {timer.isEditingName ? (
+                  <input
+                    type="text"
+                    value={timer.name}
+                    onChange={(e) => handleNameChange(e, timer.id)}
+                    onKeyDown={(e) => handleNameKeyDown(e, timer.id)}
+                    onBlur={() => handleNameBlur(timer.id)}
+                    onFocus={handleInputFocus} // Lägg till onFocus här
+                    className={`
+                      text-[${getFontSizeClass('20px', '16px')}] font-normal text-center w-full px-2 mt-8 mb-4 /* Roboto Regular, dynamic size, 16px spacing */
+                      bg-transparent outline-none
+                      ${timer.isRunning ? 'text-[#1B1B1B] focus:border-b-[#1B1B1B]' : 'text-[#DEDEDE] focus:border-b-[#DEDEDE]'}
+                      focus:border-b focus:border-opacity-50
+                    `}
+                    autoFocus
+                  />
+                ) : (
+                  <h2
+                    className={`
+                      text-[${getFontSizeClass('20px', '16px')}] font-normal select-none w-full px-2 mt-8 mb-4 /* Roboto Regular, dynamic size, 16px spacing */
+                      ${timer.isRunning ? 'text-[#1B1B1B]' : 'text-[#DEDEDE]'}
+                    `}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleNameClick(timer.id);
+                    }}
+                  >
+                    {timer.name}
+                  </h2>
+                )}
+
+                {/* Stora tidsmåttet (HH:MM:SS) - Dynamisk storlek och Bold */}
+                <div
+                  className={`font-bold leading-none mb-4 /* 16px spacing */
+                              ${timer.isRunning ? 'text-[#1B1B1B]' : 'text-[#DEDEDE]'}`}
+                  style={{ fontSize: getFontSizeClass('60px', '30px') }}
+                >
+                  {formatTime(timer.timeElapsed)}
+                </div>
+
+                {/* Mindre tidsmåttet (decimalform) */}
+                <div
+                  className={`text-[${getFontSizeClass('20px', '16px')}] font-normal /* Roboto Regular, dynamic size */
+                              ${timer.isRunning ? 'text-[#6B6B6B]' : 'text-[#DEDEDE]'}`}
+                >
+                  {(timer.timeElapsed / 3600).toFixed(2)}h
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    };
+
+    // Render the App component into the root div
+    ReactDOM.render(<App />, document.getElementById('root'));
+  </script>
+</body>
+</html>
