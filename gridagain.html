@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generativt Rutnät - Statiskt Mönster med Cirklar och Förbättrad Bias</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden; /* Förhindra scrollbars */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #D9D9D9; /* Bakgrundsfärg för att matcha om canvasen inte täcker allt */
+        }
+        canvas {
+            display: block; /* Tar bort extra utrymme under canvasen */
+            cursor: pointer; /* Visar en pekare för att indikera klickbarhet */
+        }
+    </style>
+</head>
+<body>
+    <script>
+        // Konstanter för dimensioner och beteende
+        const CONTENT_TILE_PX = 20; // Varje ruta i 4x4-området är 20x20px
+        const MARGIN_PX = CONTENT_TILE_PX;     // Mellanrummet mellan 4x4-blocken är nu 20px (en rutstorlek)
+        const FILLED_AREA_SIZE = 4; // Storleken på det fyllda området inom ett block (4x4)
+        const BLOCK_SIZE = FILLED_AREA_SIZE + 1; // Logisk storlek på ett block (4x4 fyllda + 1 rad/kolumn marginal = 5x5)
+        const BLOCK_TOTAL_PX = (FILLED_AREA_SIZE * CONTENT_TILE_PX) + MARGIN_PX; // Total pixelstorlek för ett repeterande block (4*20 + 20 = 100px)
+
+        // Ny konstant för den inre toppmarginalen i pixlar
+        const INNER_TOP_MARGIN_PX = CONTENT_TILE_PX; // En ruta (20px) från toppen av canvasen
+
+        // Typer av rutor
+        const SHAPE_SOLID = 0; // Fylld kvadrat (svart)
+        const SHAPE_DIAGONAL = 1; // Diagonal triangel (svart)
+        const SHAPE_MARGIN = 2; // Marginal (ljus/bakgrundsfärg)
+        const SHAPE_EMPTY = 3; // Explicit tom (ljus/bakgrundsfärg, inom 4x4-området)
+        const SHAPE_SEMICIRCLE_PAIR = 4; // Två halvcirklar med böjen mot varandra (svart)
+        const SHAPE_CIRCLE = 5; // Fylld cirkel (röd eller vit)
+
+        // Färger
+        const COLOR_FOREGROUND = [25, 22, 18]; // Blackish
+        const COLOR_BACKGROUND = [217, 217, 217]; // Grayish white
+        const CIRCLE_COLOR_RED = [205, 70, 70]; // CD4646
+        const CIRCLE_COLOR_WHITE = [255, 255, 255];
+
+        // Variabel för att lagra tillståndet för varje ruta i rutnätet
+        // { type: SHAPE_SOLID|SHAPE_DIAGONAL|SHAPE_MARGIN|SHAPE_EMPTY|SHAPE_SEMICIRCLE_PAIR|SHAPE_CIRCLE, rotation: 0|1|2|3, circleColor?: [R, G, B] }
+        let gridState = [];
+        let num_logical_cols; // Antal logiska kolumner i gridState arrayen
+        let num_logical_rows; // Antal logiska rader i gridState arrayen
+        
+        // Konfigurera p5.js-inställningar
+        function setup() {
+            // Beräkna canvasstorleken med yttre marginaler (20px * 2 = 40px totalt)
+            let canvasW = windowWidth - (CONTENT_TILE_PX * 2);
+            let canvasH = windowHeight - (CONTENT_TILE_PX * 2);
+
+            // Skapa canvasen
+            createCanvas(canvasW, canvasH);
+            
+            // Ställ in bakgrundsfärgen för canvasen
+            background(COLOR_BACKGROUND);
+            noStroke(); // Ingen ram runt formerna
+            angleMode(RADIANS); // Använd radianer för vinklar
+
+            // Ingen loop, vi kontrollerar ritningen manuellt
+            noLoop();
+
+            // Initialisera rutnätet och rita det en gång
+            initializeGrid();
+            drawGrid();
+        }
+
+        // draw() körs inte alls då noLoop() anropas i setup().
+        function draw() {
+            // Denna funktion är tom.
+        }
+
+        /**
+         * Beräknar pixelposition och dimensioner för en cell på en given logisk grid-position (i, j).
+         * Inkluderar nu en inre toppmarginal.
+         * @param {number} i - Kolumnindex i gridState.
+         * @param {number} j - Radindex i gridState.
+         * @returns {{x: number, y: number, width: number, height: number}} Pixelinformation för cellen.
+         */
+        function getCellPixelInfo(i, j) {
+            let col_in_block = i % BLOCK_SIZE;
+            let row_in_block = j % BLOCK_SIZE;
+
+            let block_idx_x = floor(i / BLOCK_SIZE);
+            let block_idx_y = floor(j / BLOCK_SIZE);
+
+            // Beräkna startpixel för blocket
+            let block_start_x = block_idx_x * BLOCK_TOTAL_PX;
+            let block_start_y = block_idx_y * BLOCK_TOTAL_PX;
+
+            let x_px;
+            let y_px;
+            let cell_width;
+            let cell_height;
+
+            // Bestäm pixelposition och storlek baserat på om det är en innehålls- eller marginalcell
+            if (col_in_block < FILLED_AREA_SIZE) { // Innehållscell horisontellt
+                x_px = block_start_x + col_in_block * CONTENT_TILE_PX;
+                cell_width = CONTENT_TILE_PX;
+            } else { // Marginalcell horisontellt
+                x_px = block_start_x + FILLED_AREA_SIZE * CONTENT_TILE_PX;
+                cell_width = MARGIN_PX;
+            }
+
+            if (row_in_block < FILLED_AREA_SIZE) { // Innehållscell vertikalt
+                y_px = block_start_y + row_in_block * CONTENT_TILE_PX;
+                cell_height = CONTENT_TILE_PX;
+            } else { // Marginalcell vertikalt
+                y_px = block_start_y + FILLED_AREA_SIZE * CONTENT_TILE_PX;
+                cell_height = MARGIN_PX;
+            }
+
+            // Lägg till den inre toppmarginalen till Y-koordinaten
+            return { x: x_px, y: y_px + INNER_TOP_MARGIN_PX, width: cell_width, height: cell_height };
+        }
+
+        /**
+         * Hjälpfunktion för att säkert hämta en granncell om den är en solid ruta.
+         * @param {Array<Array<Object>>} grid - Rutnätstillståndet.
+         * @param {number} i - Aktuell cellens kolumnindex.
+         * @param {number} j - Aktuell cellens radindex.
+         * @param {number} dx - Offset i x-led för grannen (-1, 0, 1).
+         * @param {number} dy - Offset i y-led för grannen (-1, 0, 1).
+         * @returns {Object|null} Granncellens data om den är solid och inom gränserna, annars null.
+         */
+        function getSolidNeighbor(grid, i, j, dx, dy) {
+            let ni = i + dx;
+            let nj = j + dy;
+            if (ni >= 0 && ni < num_logical_cols && nj >= 0 && nj < num_logical_rows) {
+                let neighbor = grid[ni][nj];
+                if (neighbor && neighbor.type === SHAPE_SOLID) { // Endast om den är en solid kvadrat
+                    return neighbor;
+                }
+            }
+            return null;
+        }
+
+        // Funktion för att initialisera rutnätet med slumpmässiga men styrda former
+        function initializeGrid() {
+            // Beräkna antalet logiska kolumner och rader i rutnätet baserat på canvasstorlek
+            // Höjden för beräkning av rader är canvasens höjd minus den inre toppmarginalen
+            num_logical_cols = ceil(width / BLOCK_TOTAL_PX) * BLOCK_SIZE;
+            num_logical_rows = ceil((height - INNER_TOP_MARGIN_PX) / BLOCK_TOTAL_PX) * BLOCK_SIZE;
+
+            // Skapa en tom 2D-array för rutnätets tillstånd
+            gridState = Array(num_logical_cols).fill(null).map(() => Array(num_logical_rows).fill(null));
+
+            // Sannolikheter för bias vid initialisering
+            const DIAGONAL_BIAS_PROB = 0.95; // Högsta prioritet för diagonala mönster
+            const SOLID_LINE_BIAS_PROB = 0.7; // Sekundär prioritet för solida horisontella/vertikala linjer
+            const SPARSENESS_CHANCE = 0.30; // 30% chans för explicit tom (typ 3) på kanten av 4x4-området
+
+            // Ny sannolikhet för att ett 4x4-block ska ha EN cirkel (viktat närmare 0)
+            const CHANCE_FOR_BLOCK_TO_HAVE_A_CIRCLE = 0.15; // Låg sannolikhet för att aktivera cirkelplacering i ett block
+            // Inom ett block som ska ha en cirkel, är detta chansen för en given ruta att BLI cirkeln
+            const CIRCLE_PLACEMENT_CHANCE_IN_BLOCK = 0.25; 
+
+            // Trackers för cirkelplacering per block
+            let currentBlockWillHaveCircle = false;
+            let circlePlacedInCurrentBlock = false;
+
+            // Iterera över varje cell i rutnätet
+            for (let i = 0; i < num_logical_cols; i++) {
+                for (let j = 0; j < num_logical_rows; j++) {
+                    // Beräkna block-lokala koordinater
+                    let col_in_block = i % BLOCK_SIZE;
+                    let row_in_block = j % BLOCK_SIZE;
+
+                    // Kontrollera om rutan är en del av marginalen
+                    if (col_in_block === FILLED_AREA_SIZE || row_in_block === FILLED_AREA_SIZE) {
+                        gridState[i][j] = { type: SHAPE_MARGIN, rotation: 0 }; // Markera som marginal
+                        continue; // Gå till nästa ruta
+                    }
+
+                    // Vid starten av ett nytt 4x4-block, bestäm om det ska ha en cirkel
+                    if (col_in_block === 0 && row_in_block === 0) {
+                        currentBlockWillHaveCircle = random() < CHANCE_FOR_BLOCK_TO_HAVE_A_CIRCLE;
+                        circlePlacedInCurrentBlock = false; // Återställ för det nya blocket
+                    }
+
+                    // Inuti det 4x4 fyllda området
+                    let chosenShapeType;
+                    let chosenRotationSteps;
+                    let biasedDecisionMade = false;
+                    let circleColor = null;
+
+                    // Hämta information om grannar (och se till att de inte är marginalceller)
+                    let leftNeighbor = (i > 0 && gridState[i-1][j] && gridState[i-1][j].type !== SHAPE_MARGIN) ? gridState[i-1][j] : null;
+                    let topNeighbor = (j > 0 && gridState[i][j-1] && gridState[i][j-1].type !== SHAPE_MARGIN) ? gridState[i][j-1] : null;
+                    let topLeftNeighbor = (i > 0 && j > 0 && gridState[i-1][j-1] && gridState[i-1][j-1].type !== SHAPE_MARGIN) ? gridState[i-1][j-1] : null;
+
+                    // FÖRSÖK PLACERA CIRKEL FÖRST OM BLOCKET SKA HA EN OCH INTE HAR EN ÄNNU
+                    if (currentBlockWillHaveCircle && !circlePlacedInCurrentBlock && random() < CIRCLE_PLACEMENT_CHANCE_IN_BLOCK) {
+                        chosenShapeType = SHAPE_CIRCLE;
+                        chosenRotationSteps = 0; // Rotation irrelevant för cirkel
+                        circleColor = random() < 0.7 ? CIRCLE_COLOR_RED : CIRCLE_COLOR_WHITE; // Föredrar rött
+                        biasedDecisionMade = true;
+                        circlePlacedInCurrentBlock = true; // Markera att en cirkel placerats i detta block
+                    }
+
+                    // Resterande logik för fyllda former om ingen cirkel placerades här
+                    if (!biasedDecisionMade) {
+                        let possibleFilledShapeTypes = [SHAPE_SOLID, SHAPE_DIAGONAL, SHAPE_SEMICIRCLE_PAIR];
+                        chosenShapeType = random(possibleFilledShapeTypes); // Initial random choice
+                        chosenRotationSteps = floor(random(4)); // Initial random rotation
+
+                        // PRIORITET 1: Diagonala mönster (svarta linjer som i bilden)
+                        if (random() < DIAGONAL_BIAS_PROB) {
+                            if (topLeftNeighbor) {
+                                if (topLeftNeighbor.type === SHAPE_SOLID || (topLeftNeighbor.type === SHAPE_DIAGONAL && (topLeftNeighbor.rotation === 0 || topLeftNeighbor.rotation === 2))) {
+                                    chosenShapeType = random([SHAPE_SOLID, SHAPE_DIAGONAL]); 
+                                    if (chosenShapeType === SHAPE_DIAGONAL) {
+                                        chosenRotationSteps = random() < 0.5 ? 0 : 2;
+                                    } else {
+                                        chosenShapeType = SHAPE_SOLID;
+                                        chosenRotationSteps = 0;
+                                    }
+                                    biasedDecisionMade = true;
+                                }
+                            }
+                        }
+
+                        // PRIORITET 2: Horisontella solida linjer
+                        if (!biasedDecisionMade && random() < SOLID_LINE_BIAS_PROB) {
+                            if (leftNeighbor && leftNeighbor.type === SHAPE_SOLID) {
+                                chosenShapeType = SHAPE_SOLID;
+                                chosenRotationSteps = 0;
+                                biasedDecisionMade = true;
+                            }
+                        }
+
+                        // PRIORITET 3: Vertikala solida linjer
+                        if (!biasedDecisionMade && random() < SOLID_LINE_BIAS_PROB) {
+                            if (topNeighbor && topNeighbor.type === SHAPE_SOLID) {
+                                chosenShapeType = SHAPE_SOLID;
+                                chosenRotationSteps = 0;
+                                biasedDecisionMade = true;
+                            }
+                        }
+
+                        // BIAS LOGIK FÖR HALVCIRKLAR:
+                        if (chosenShapeType === SHAPE_SEMICIRCLE_PAIR) {
+                            let favoredRotations = [];
+                            if (getSolidNeighbor(gridState, i, j, -1, 0)) { // Left neighbor is solid
+                                favoredRotations.push(0, 2); 
+                            }
+                            if (getSolidNeighbor(gridState, i, j, 0, -1)) { // Top neighbor is solid
+                                favoredRotations.push(1, 3); 
+                            }
+                            if (favoredRotations.length > 0) {
+                                chosenRotationSteps = random(favoredRotations);
+                            } else {
+                                chosenRotationSteps = floor(random(4));
+                            }
+                        }
+                    } // End of !biasedDecisionMade block
+
+                    // UNDVIK BLOCK TJOCKARE ÄN 2 RUTOR (Gäller endast solida rutor)
+                    // Denna kontroll körs efter bias-logiken och kan ändra chosenShapeType igen.
+                    if (chosenShapeType === SHAPE_SOLID) {
+                        let countVerticalSolids = 0;
+                        let countHorizontalSolids = 0;
+
+                        if (j >= 1 && gridState[i][j-1] && gridState[i][j-1].type === SHAPE_SOLID) {
+                            countVerticalSolids++;
+                            if (j >= 2 && gridState[i][j-2] && gridState[i][j-2].type === SHAPE_SOLID) {
+                                countVerticalSolids++;
+                            }
+                        }
+                        if (i >= 1 && gridState[i-1][j] && gridState[i-1][j].type === SHAPE_SOLID) {
+                            countHorizontalSolids++;
+                            if (i >= 2 && gridState[i-2][j] && gridState[i-2][j].type === SHAPE_SOLID) {
+                                countHorizontalSolids++;
+                            }
+                        }
+
+                        // Om det skulle bli en 3-tjock solid linje, tvinga till en annan form
+                        if (countVerticalSolids >= 2 || countHorizontalSolids >= 2) {
+                            let breakoutShapeChoice = floor(random(3)); // 0: Diagonal, 1: Semicircle, 2: Circle
+                            if (breakoutShapeChoice === 0) chosenShapeType = SHAPE_DIAGONAL;
+                            else if (breakoutShapeChoice === 1) chosenShapeType = SHAPE_SEMICIRCLE_PAIR;
+                            else {
+                                chosenShapeType = SHAPE_CIRCLE;
+                                circleColor = random() < 0.7 ? CIRCLE_COLOR_RED : CIRCLE_COLOR_WHITE; // Set color for breakout circle
+                            }
+                            chosenRotationSteps = floor(random(4)); // Slumpmässig rotation för den nya formen
+                        }
+                    }
+
+                    // LÄGG TILL EXPLICITA TOMMA RUTOR PÅ KANTEN AV 4X4-OMRÅDET
+                    const isOnEdgeOf4x4 = (col_in_block === 0 || col_in_block === FILLED_AREA_SIZE - 1 ||
+                                            row_in_block === 0 || row_in_block === FILLED_AREA_SIZE - 1);
+
+                    // En explicit tom ruta kan bara skapas om den skulle ha varit fylld
+                    // OCH den ligger på kanten av 4x4-området, OCH sannolikhetskontrollen går igenom.
+                    if ((chosenShapeType === SHAPE_SOLID || chosenShapeType === SHAPE_DIAGONAL || chosenShapeType === SHAPE_SEMICIRCLE_PAIR || chosenShapeType === SHAPE_CIRCLE) && random() < SPARSENESS_CHANCE && isOnEdgeOf4x4) {
+                        chosenShapeType = SHAPE_EMPTY; // Gör den explicit tom (ljus)
+                    }
+
+                    // Säkerställ att rotationen är 0 om det är en solid kvadrat (type 0) eller explicit tom (type 3)
+                    // Eller en marginal (type 2) eller cirkel (type 5)
+                    if (chosenShapeType === SHAPE_SOLID || chosenShapeType === SHAPE_EMPTY || chosenShapeType === SHAPE_MARGIN || chosenShapeType === SHAPE_CIRCLE) {
+                        chosenRotationSteps = 0;
+                    }
+
+                    // Spara det valda tillståndet för den aktuella rutan
+                    gridState[i][j] = { type: chosenShapeType, rotation: chosenRotationSteps, circleColor: circleColor };
+                }
+            }
+        }
+
+        /**
+         * Ritar rutnätets aktuella tillstånd på canvasen.
+         * @param {Array<Array<Object>>} [gridToDraw=gridState] - Rutnätstillståndet som ska ritas.
+         */
+        function drawGrid(gridToDraw = gridState) {
+            background(COLOR_BACKGROUND); // Rensa canvasen med bakgrundsfärgen
+
+            for (let i = 0; i < num_logical_cols; i++) {
+                for (let j = 0; j < num_logical_rows; j++) {
+                    let cellInfo = getCellPixelInfo(i, j); // Hämta pixelinformation utan offset
+                    let cell = gridToDraw[i][j];
+
+                    if (cell.type === SHAPE_SOLID) { // Fylld kvadrat (svart)
+                        fill(COLOR_FOREGROUND);
+                        rect(cellInfo.x, cellInfo.y, cellInfo.width, cellInfo.height);
+                    } else if (cell.type === SHAPE_DIAGONAL) { // Diagonal triangel (svart)
+                        fill(COLOR_FOREGROUND);
+                        push(); // Spara nuvarande transformationsmatris
+                        translate(cellInfo.x + cellInfo.width / 2, cellInfo.y + cellInfo.height / 2); // Flytta origo till rutans mitt
+                        rotate(cell.rotation * PI / 2); // Rotera
+                        // Rita triangeln som fyller ena halvan av den roterade kvadraten
+                        triangle(-cellInfo.width / 2, -cellInfo.height / 2, // Övre vänstra hörnet
+                                 cellInfo.width / 2, -cellInfo.height / 2,  // Övre högra hörnet
+                                 -cellInfo.width / 2, cellInfo.height / 2); // Nedre vänstra hörnet
+                        pop(); // Återställ transformationsmatrisen
+                    } else if (cell.type === SHAPE_SEMICIRCLE_PAIR) { // Ny form: Två halvcirklar (formen: )()
+                        fill(COLOR_FOREGROUND);
+                        push();
+                        translate(cellInfo.x + cellInfo.width / 2, cellInfo.y + cellInfo.height / 2); // Flytta origo till rutans mitt
+                        rotate(cell.rotation * PI / 2); // Rotera hela formen
+
+                        // Rita de två halvcirklarna för formen ) (
+                        // Vänster svart halvcirkel
+                        arc(-cellInfo.width / 2, 0, cellInfo.width, cellInfo.height, -HALF_PI, HALF_PI, CHORD);
+                        // Höger svart halvcirkel
+                        arc(cellInfo.width / 2, 0, cellInfo.width, cellInfo.height, HALF_PI, PI + HALF_PI, CHORD);
+
+                        pop();
+                    } else if (cell.type === SHAPE_CIRCLE) { // Ny form: Fylld cirkel
+                        fill(cell.circleColor || COLOR_FOREGROUND); // Använd tilldelad färg, fallback till svart
+                        ellipse(cellInfo.x + cellInfo.width / 2, cellInfo.y + cellInfo.height / 2, cellInfo.width, cellInfo.height);
+                    }
+                    // Om type är SHAPE_MARGIN (marginal) eller SHAPE_EMPTY (explicit tom), rita inget (bakgrundsfärgen syns)
+                }
+            }
+        }
+
+        // Hantera fönsterstorleksändringar för att anpassa canvasen
+        function windowResized() {
+            // Beräkna canvasstorleken med yttre marginaler (20px * 2 = 40px totalt)
+            let canvasW = windowWidth - (CONTENT_TILE_PX * 2);
+            let canvasH = windowHeight - (CONTENT_TILE_PX * 2);
+            resizeCanvas(canvasW, canvasH); // Ändra storlek på canvasen
+            
+            initializeGrid(); // Återinitialisera rutnätet med de nya dimensionerna
+            drawGrid(); // Rita om rutnätet
+        }
+
+        // När musen trycks ned inom canvasen
+        function mousePressed() {
+            // Kontrollera att muspekaren är inom canvasens gränser innan vi gör något
+            if (mouseX > 0 && mouseX < width && mouseY > 0 && mouseY < height) {
+                initializeGrid(); // Generera ett helt nytt mönster
+                drawGrid();       // Rita det nya mönstret
+            }
+        }
+    </script>
+</body>
+</html>
