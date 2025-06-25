@@ -1,1 +1,306 @@
-
+[
+  {
+    "filename": "Asfalt-grusyta.svg",
+    "answer": "fågel"
+  },
+  {
+    "filename": "Bemannad-kontroll.svg",
+    "answer": "hus"
+  },
+  {
+    "filename": "Berg-i-dagen.svg",
+    "answer": "bil"
+  },
+  {
+    "filename": "Bestandsgrans.svg",
+    "answer": "träd"
+  },
+  {
+    "filename": "Blockterrang.svg",
+    "answer": "sol"
+  },
+  {
+    "filename": "Brant.svg",
+    "answer": "moln"
+  },
+  {
+    "filename": "Bro-Spang.svg",
+    "answer": "blomma"
+  },
+  {
+    "filename": "Brunn.svg",
+    "answer": "katt"
+  },
+  {
+    "filename": "Byggnad.svg",
+    "answer": "hund"
+  },
+  {
+    "filename": "Dunge.svg",
+    "answer": "cykel"
+  },
+  {
+    "filename": "Fara.svg",
+    "answer": "bok"
+  },
+  {
+    "filename": "Fastmark.svg",
+    "answer": "kaffe"
+  },
+  {
+    "filename": "Foderhack.svg",
+    "answer": "klocka"
+  },
+  {
+    "filename": "Forbjudet-omrade.svg",
+    "answer": "stjärna"
+  },
+  {
+    "filename": "Forsta-hjalpen.svg",
+    "answer": "hjärta"
+  },
+  {
+    "filename": "Genomgang.svg",
+    "answer": "globen"
+  },
+  {
+    "filename": "Glanta.svg",
+    "answer": "lampa"
+  },
+  {
+    "filename": "Gol.svg",
+    "answer": "telefon"
+  },
+  {
+    "filename": "Grop.svg",
+    "answer": "skola"
+  },
+  {
+    "filename": "Grotta.svg",
+    "answer": "fjäll"
+  },
+  {
+    "filename": "Grustag-brott.svg",
+    "answer": "båt"
+  },
+  {
+    "filename": "Hack.svg",
+    "answer": "stad"
+  },
+  {
+    "filename": "Halvoppen-mark.svg",
+    "answer": "mynt"
+  },
+  {
+    "filename": "Hojd.svg",
+    "answer": "glas"
+  },
+  {
+    "filename": "Jakttorn.svg",
+    "answer": "ballong"
+  },
+  {
+    "filename": "Jarnvag.svg",
+    "answer": "raket"
+  },
+  {
+    "filename": "Jordvall.svg",
+    "answer": "fisk"
+  },
+  {
+    "filename": "Kalla.svg",
+    "answer": "insekt"
+  },
+  {
+    "filename": "Klippa.svg",
+    "answer": "snögubbe"
+  },
+  {
+    "filename": "Kolbotten.svg",
+    "answer": "isglass"
+  },
+  {
+    "filename": "Kraftledning.svg",
+    "answer": "maskin"
+  },
+  {
+    "filename": "Kraftledningsstolpe.svg",
+    "answer": "karta"
+  },
+  {
+    "filename": "Liten-fara.svg",
+    "answer": "penna"
+  },
+  {
+    "filename": "Liten-gravd-grop.svg",
+    "answer": "sax"
+  },
+  {
+    "filename": "Liten-naturlig-grop.svg",
+    "answer": "gitarr"
+  },
+  {
+    "filename": "Manument-Staty.svg",
+    "answer": "piano"
+  },
+  {
+    "filename": "Mindre-dike.svg",
+    "answer": "färg"
+  },
+  {
+    "filename": "Mur-Stenmur.svg",
+    "answer": "borste"
+  },
+  {
+    "filename": "Myrstack.svg",
+    "answer": "krona"
+  },
+  {
+    "filename": "Nasa.svg",
+    "answer": "regn"
+  },
+  {
+    "filename": "Oppen-mark.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Oppet-strak.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Passage-under-byggnad.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Punkthojd.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Rorledning.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Rose-Minnessten.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Rotvalta-Stubbe.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Ruin.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Sadel.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Sanka.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Sankmark.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Sarpraglat-trad.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Sjo.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Skarning.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Skogshorn.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Skreva-Varn.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Smakuperad-terrang.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Smal-sankmark.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Speciellt-foremal-A.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Speciellt-foremal-B.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Stangsel.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Sten.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Stenig-mark.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Stensamling.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Tat-skog.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Terrass.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Torn.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Trang-passage.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Trappa.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Tunnel-Undergang.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Tydlig-stig.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Vag.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Vatska.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Vattendrag.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Vattenhal.svg",
+    "answer": ""
+  },
+  {
+    "filename": "Vattentank.svg",
+    "answer": ""
+  }
+]
