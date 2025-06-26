@@ -228,8 +228,8 @@
                 const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
                 const svgElement = svgDoc.documentElement;
                 
-                const cleanedSvgCode = new XMLSerializer().serializeToString(svgElement);
-                orionLogoContainer.innerHTML = cleanedSvgCode;
+                orionLogoContainer.innerHTML = ''; // Rensa befintligt innehåll
+                orionLogoContainer.appendChild(svgElement); // Lägg till SVG-elementet direkt
 
             } catch (error) {
                 console.error(`Fel vid laddning eller visning av Orion-loggan:`, error);
@@ -296,7 +296,8 @@
                     const parser = new DOMParser();
                     const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
                     const svgElement = svgDoc.documentElement;
-                    svgContainer.innerHTML = new XMLSerializer().serializeToString(svgElement);
+                    svgContainer.innerHTML = ''; // Rensa befintligt innehåll
+                    svgContainer.appendChild(svgElement); // Lägg till SVG-elementet direkt
                 } catch (error) {
                     console.error(`Fel vid laddning av förhandsvisnings-SVG (Main):`, error);
                     svgContainer.innerHTML = `<p class="text-red-500 text-xs">Kunde ej ladda bild.</p>`;
@@ -331,14 +332,11 @@
                     let svgText = await svgResponse.text();
                     
                     // Behåll width och height för originalstorlek - ingen replace här
-                    // Detta säkerställer att SVG:n renderas med sina inbyggda dimensioner.
-                    // Om SVG:n har en viewBox men inga width/height, kommer den att skala till behållaren.
-                    // Om den har width/height, kommer den att försöka respektera dem.
-
                     const parser = new DOMParser();
                     const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
                     const svgElement = svgDoc.documentElement;
-                    svgContainer.innerHTML = new XMLSerializer().serializeToString(svgElement);
+                    svgContainer.innerHTML = ''; // Rensa befintligt innehåll
+                    svgContainer.appendChild(svgElement); // Lägg till SVG-elementet direkt
                 } catch (error) {
                     console.error(`Fel vid laddning av förhandsvisnings-SVG (Extra):`, error);
                     svgContainer.innerHTML = `<p class="text-red-500 text-xs">Kunde ej ladda bild.</p>`;
@@ -459,8 +457,8 @@
                     const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
                     const svgElement = svgDoc.documentElement;
                     
-                    const cleanedSvgCode = new XMLSerializer().serializeToString(svgElement);
-                    questionSvgContainer.innerHTML = cleanedSvgCode;
+                    questionSvgContainer.innerHTML = ''; // Rensa befintligt innehåll
+                    questionSvgContainer.appendChild(svgElement); // Lägg till SVG-elementet direkt
 
                 } catch (error) {
                     console.error(`Fel vid laddning eller visning av SVG för ${question.filename}:`, error);
@@ -495,7 +493,7 @@
                     if (!answerOptions.some(opt => opt.text === genericFiller)) {
                         answerOptions.push({ text: genericFiller, isCorrect: false });
                     } else {
-                        answerOptions.push({ text: `Annat falskt svar ${Math.random().toFixed(4)}`, isCorrect: false });
+                        answerOptions.push({ text: `Annat falskt svar ${Math.random().toFixed(4)}`, isIsCorrect: false });
                     }
                 }
 
