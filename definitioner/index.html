@@ -40,97 +40,14 @@
             accent-color: #000; /* Gör dem svarta när de är ikryssade/valda */
         }
 
-        /* Dark mode styles */
-        html.dark body { /* Ändrad selector för att specifikt påverka body i dark mode */
-            background-color: #212121; /* Mörk bakgrund för body, uppdaterad färg */
-            color: #e0e0e0; /* Ljus textfärg för body */
-        }
-
-        html.dark #startScreenContainer,
-        html.dark #mainCardContainer,
-        html.dark #resultDisplayContainer {
-            background-color: #333; /* Mörkare kortbakgrund */
-            color: #e0e0e0; /* Ljus textfärg för kort */
-        }
-
-        /* Säkerställ att rubriker och etiketter är synliga i dark mode */
-        html.dark h2,
-        html.dark h3,
-        html.dark label,
-        html.dark span {
-            color: #f0f0f0; /* Ljusare färg för rubriker och info-text */
-        }
-        /* Specifik stil för att resulttexten på resultatskärmen ärver färgen från föräldern i dark mode */
-        html.dark #resultDisplayContainer p {
-            color: inherit; /* Ärver färgen från .resultDisplayContainer */
-        }
-
-
-        html.dark button {
-            background-color: #212121; /* Uppdaterad färg för svarsknappar */
-            color: #e0e0e0;
-            border-color: #414141; /* Uppdaterad färg för svarsknapparnas ram */
-        }
-
-        html.dark button:hover {
-            background-color: #777;
-            color: #ffffff;
-        }
-
-        /* Specifik för bildbehållaren för att förbli ljus */
-        html.dark #questionSvgContainer {
-            background-color: #ffffff; /* Explicit vit bakgrund */
-            border-color: #000000; /* Behåll svart kantlinje */
-            color: #231F20; /* Behåll SVG-element mörka mot vit bakgrund */
-        }
-
-        /* Dark mode toggle icon och close button styling i dark mode */
-        html.dark #darkModeToggle,
-        html.dark #closeQuizButton {
-            border-color: #777; /* Lättare kantlinje i mörkt läge */
-            color: #c0c0c0; /* Ljusare ikonfärg för mörk bakgrund */
-        }
-
-        html.dark #darkModeToggle:hover,
-        html.dark #closeQuizButton:hover {
-            background-color: #444; /* Mörkare bakgrund vid hovring */
-            color: #ffffff; /* Vit ikon vid hovring */
-        }
-
         /* Styling for disabled button */
         button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
         }
-
-        html.dark button:disabled {
-            background-color: #212121; /* Same as normal button in dark mode */
-            border-color: #414141; /* Same as normal button in dark mode */
-            color: #c0c0c0; /* Slightly lighter to indicate disabled */
-        }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center">
-
-    <!-- Dark Mode Toggle Icon -->
-    <div id="darkModeToggle" class="fixed top-4 right-4 cursor-pointer p-1 w-8 h-8 rounded-full border-2 border-gray-400 text-gray-700 hover:bg-gray-200 hover:text-black transition duration-150 ease-in-out flex items-center justify-center z-50">
-        <!-- Moon Icon (default/light mode) -->
-        <svg id="moonIcon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-moon">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-        </svg>
-        <!-- Sun Icon (hidden by default/dark mode) -->
-        <svg id="sunIcon" class="hidden" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-sun">
-            <circle cx="12" cy="12" r="5"></circle>
-            <line x1="12" y1="1" x2="12" y2="3"></line>
-            <line x1="12" y1="21" x2="12" y2="23"></line>
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-            <line x1="1" y1="12" x2="3" y2="12"></line>
-            <line x1="21" y1="12" x2="23" y2="12"></line>
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-        </svg>
-    </div>
 
     <!-- Startskärm -->
     <div id="startScreenContainer" class="bg-white rounded-2xl w-full mx-2 sm:max-w-[340px] sm:mx-auto h-[540px] p-12 flex flex-col items-center justify-center">
@@ -140,6 +57,9 @@
         </div>
         <h2 class="text-4xl font-bold text-gray-800 mb-2">Träna</h2>
         <h3 class="text-xl font-semibold text-gray-600 mb-8">Kontrolldefinitioner</h3>
+
+        <!-- Varningsmeddelande för val av frågor -->
+        <div id="selectionWarning" class="text-red-500 text-sm mt-2 mb-4 hidden"></div>
 
         <!-- Nya kryssrutor för att inkludera olika typer av frågor -->
         <div class="mb-6 flex flex-col items-start w-full">
@@ -178,8 +98,7 @@
     </div>
 
     <!-- Den faktiska synliga kortbehållaren för frågor -->
-    <div id="mainCardContainer" class="bg-white rounded-2xl w-full mx-2 sm:max-w-[340px] sm:mx-auto h-[540px] p-12 flex flex-col items-center justify-center hidden">
-
+    <div id="mainCardContainer" class="bg-white rounded-2xl w-full mx-2 sm:max-w-[340px] sm:mx-auto h-[540px] p-12 flex flex-col items-center justify-between hidden">
         <!-- Kortets framsida (fråga) -->
         <div id="cardFront" class="w-full flex flex-col items-center justify-center flex-grow">
             <!-- SVG-behållare -->
@@ -195,27 +114,22 @@
             </div>
         </div>
 
-        <!-- Baksidan av kortet (ej i bruk) -->
-        <div id="cardBack" class="w-full flex flex-col items-center justify-center flex-grow hidden">
+        <!-- Behållare för frågenummer, stängknapp och tidsräknare - NU INUTI KORTET -->
+        <div id="questionInfoContainer" class="flex justify-between items-center w-full mt-4">
+            <span id="questionNumber" class="text-sm font-normal text-gray-700">1/10</span>
+            <!-- Stäng-knappen -->
+            <div id="closeQuizButton" class="cursor-pointer p-1 w-8 h-8 rounded-full border-2 border-gray-400 text-gray-700 hover:bg-gray-200 hover:text-black transition duration-150 ease-in-out flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-x">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </div>
+            <span id="timer" class="text-sm font-normal text-gray-700">0:00</span>
         </div>
     </div>
-
-    <!-- Behållare för frågenummer, stängknapp och tidsräknare -->
-    <div id="questionInfoContainer" class="flex justify-between items-center w-full px-4 sm:w-[340px] sm:px-12 sm:mx-auto mt-4 hidden">
-        <span id="questionNumber" class="text-sm font-normal text-gray-700">1/10</span>
-        <!-- Stäng-knappen, dold initialt -->
-        <div id="closeQuizButton" class="hidden cursor-pointer p-1 w-8 h-8 rounded-full border-2 border-gray-400 text-gray-700 hover:bg-gray-200 hover:text-black transition duration-150 ease-in-out flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-x">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-            </svg>
-        </div>
-        <span id="timer" class="text-sm font-normal text-gray-700">0:00</span>
-    </div>
-
 
     <!-- Behållare för resultatvisning (utanför kortet) -->
-    <div id="resultDisplayContainer" class="rounded-2xl w-full mx-2 sm:max-w-[340px] sm:mx-auto h-[540px] p-12 flex flex-col items-center justify-center hidden">
+    <div id="resultDisplayContainer" class="bg-white rounded-2xl w-full mx-2 sm:max-w-[340px] sm:mx-auto h-[540px] p-12 flex flex-col items-center justify-center hidden">
         <h2 class="text-2xl font-bold mb-4">Resultat</h2>
         <p id="resultText" class="text-xl font-semibold mb-8 text-center"></p>
         <button id="restartButton" class="px-6 py-3 bg-black text-white font-semibold rounded-md shadow-none hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 transition duration-150 ease-in-out">
@@ -226,12 +140,20 @@
     <script>
         // Filnamn för Orion-loggan
         const ORION_LOGO_FILENAME = 'Orion-logo-skold.svg';
-        // Bas-URL för Orion-loggan, tom sträng om index.html och loggan är i samma mapp
-        const ORION_LOGO_BASE_URL = ''; // Tom sträng för relativ sökväg
+        // Bas-URL för Orion-loggan (tom sträng för relativ sökväg i samma mapp)
+        const ORION_LOGO_BASE_URL = ''; 
 
+        // Bas-URL:er för bilder (relativa sökvägar)
+        const BASE_IMAGE_URL = './foremal/'; 
+        const BASE_IMAGE_URL_EXTRA = './extra/';
+
+        // JSON-data-URL:er (relativa sökvägar)
+        const MAIN_JSON_DATA_URL = './quiz-data.json';
+        const EXTRA_JSON_DATA_URL = './extra-quiz-data.json'; 
+        
+        // Elementreferenser
         const startScreenContainer = document.getElementById('startScreenContainer');
         const mainCardContainer = document.getElementById('mainCardContainer');
-        const cardFront = document.getElementById('cardFront');
         const questionSvgContainer = document.getElementById('questionSvgContainer');
         const answerButtonsContainer = document.getElementById('answerButtons');
         const questionNumberSpan = document.getElementById('questionNumber');
@@ -243,36 +165,35 @@
         const resultDisplayContainer = document.getElementById('resultDisplayContainer');
         const closeQuizButton = document.getElementById('closeQuizButton');
         const orionLogoContainer = document.getElementById('orionLogoContainer');
-
-        // Dark mode toggle elements
-        const darkModeToggle = document.getElementById('darkModeToggle');
-        const moonIcon = document.getElementById('moonIcon');
-        const sunIcon = document.getElementById('sunIcon');
-
-        // Elementreferenser för inställningar
         const includeControlItemsCheckbox = document.getElementById('includeControlItems');
         const includeExtraPlacementCheckbox = document.getElementById('includeExtraPlacement');
-        const numQuestionsRadioButtons = document.querySelectorAll('input[name="quizCount"]');
-        
+        const selectionWarning = document.getElementById('selectionWarning');
+
         let currentQuestionIndex = 0;
         let score = 0;
         let timerInterval;
         let secondsElapsed = 0;
-        let questions = []; // Kommer att innehålla de utvalda quizfrågorna
-        let quizLength = 10; // Standardantal frågor
+        let questions = []; 
+        let quizLength = 10; 
 
-        // Uppdaterade bas-URL:er för bilder till relativa sökvägar
-        const BASE_IMAGE_URL = './foremal/'; // Relativ sökväg
-        const BASE_IMAGE_URL_EXTRA = './extra/'; // Relativ sökväg
+        let allMainQuestionData = []; 
+        let allExtraQuestionData = []; 
 
-        // Uppdaterade JSON-data-URL:er till relativa sökvägar
-        const MAIN_JSON_DATA_URL = './quiz-data.json'; // Relativ sökväg
-        const EXTRA_JSON_DATA_URL = './extra-quiz-data.json'; // Relativ sökväg
-        
-        let allMainQuestionData = []; // Denna kommer att fyllas med frågor från huvud-JSON
-        let allExtraQuestionData = []; // Denna kommer att fyllas med frågor från extra-JSON
+        /**
+         * Lägger till en cache-busting parameter till en URL.
+         * Detta förhindrar att webbläsaren använder en gammal cachad version av resursen.
+         * @param {string} url - URL:en att lägga till parametern till.
+         * @returns {string} Den nya URL:en med cache-busting parameter.
+         */
+        function addCacheBuster(url) {
+            const separator = url.includes('?') ? '&' : '?';
+            return `${url}${separator}v=${new Date().getTime()}`;
+        }
 
-        // Funktion för att blanda array-element
+        /**
+         * Blandar elementen i en array slumpmässigt.
+         * @param {Array} array - Arrayen som ska blandas.
+         */
         function shuffleArray(array) {
             for (let i = array.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
@@ -280,24 +201,30 @@
             }
         }
 
-        // Funktion för att ladda och visa Orion-loggan
+        /**
+         * Laddar och visar Orion-loggan.
+         */
         async function loadOrionLogo() {
             try {
-                // Använd den nya specifika bas-URL:en för loggan (som nu kan vara tom) + filnamn
-                const svgResponse = await fetch(ORION_LOGO_BASE_URL + ORION_LOGO_FILENAME);
+                // Använd den tomma bas-URL:en för att hämta från samma mapp
+                const svgResponse = await fetch(addCacheBuster(ORION_LOGO_BASE_URL + ORION_LOGO_FILENAME));
                 if (!svgResponse.ok) {
                     throw new Error(`Kunde inte ladda Orion-logga: ${ORION_LOGO_FILENAME}, status: ${svgResponse.status}`);
                 }
                 let svgText = await svgResponse.text();
 
                 // Ta bort width, height, och stroke-width attributen från SVG-strängen.
-                // Behåll alla fill/stroke attribut som de är i original-SVG:n för loggan.
                 svgText = svgText
                     .replace(/<svg([^>]*)width=['"].*?['"]([^>]*)>/g, '<svg$1$2>')
                     .replace(/<svg([^>]*)height=['"].*?['"]([^>]*)>/g, '<svg$1$2>')
                     .replace(/stroke-width=['"].*?['"]/g, '');
 
-                orionLogoContainer.innerHTML = svgText; // Infoga den rensade men ofärgade SVG:n
+                const parser = new DOMParser();
+                const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
+                const svgElement = svgDoc.documentElement;
+                
+                const cleanedSvgCode = new XMLSerializer().serializeToString(svgElement);
+                orionLogoContainer.innerHTML = cleanedSvgCode;
 
             } catch (error) {
                 console.error(`Fel vid laddning eller visning av Orion-loggan:`, error);
@@ -305,21 +232,9 @@
             }
         }
 
-        // Funktion för att sätta temat (ljus/mörk)
-        function setTheme(isDark) {
-            if (isDark) {
-                document.documentElement.classList.add('dark');
-                moonIcon.classList.add('hidden');
-                sunIcon.classList.remove('hidden');
-            } else {
-                document.documentElement.classList.remove('dark');
-                moonIcon.classList.remove('hidden');
-                sunIcon.classList.add('hidden');
-            }
-            localStorage.setItem('theme', isDark ? 'dark' : 'light');
-        }
-
-        // Funktion för att kontrollera och uppdatera knappen disabled-state
+        /**
+         * Kontrollerar och uppdaterar "Starta quiz"-knappens disabled-state.
+         */
         function updateStartButtonState() {
             if (!includeControlItemsCheckbox.checked && !includeExtraPlacementCheckbox.checked) {
                 startButton.disabled = true;
@@ -328,20 +243,24 @@
             }
         }
 
-        // Initierar visning av startskärmen
+        /**
+         * Initialiserar visning av startskärmen och döljer övriga delar.
+         */
         function init() {
             startScreenContainer.classList.remove('hidden');
             mainCardContainer.classList.add('hidden');
-            questionInfoContainer.classList.add('hidden');
             resultDisplayContainer.classList.add('hidden');
-            closeQuizButton.classList.add('hidden'); // Dölj stäng-knappen
+            selectionWarning.classList.add('hidden'); // Dölj varningsmeddelandet
+            updateStartButtonState(); // Uppdatera knappens tillstånd vid initiering
         }
 
-        // Startar quiz-logiken
+        /**
+         * Startar quiz-logiken: laddar frågor, blandar dem och visar första frågan.
+         */
         async function startQuiz() {
             currentQuestionIndex = 0;
             score = 0;
-            secondsElapsed = 0; // Återställ totala tiden för quizet vid start
+            secondsElapsed = 0;
             
             let combinedQuestions = [];
 
@@ -349,32 +268,33 @@
             const includeExtra = includeExtraPlacementCheckbox.checked;
 
             if (!includeControl && !includeExtra) {
-                // Detta bör inte hända om knappen är disabled, men som en extra säkerhetskontroll
-                alert("Vänligen välj minst en typ av frågor för quizen (Kontrollföremål eller Extra placering mm.).");
-                return; // Avbryt quizstart om ingen typ är vald
+                selectionWarning.textContent = "Vänligen välj minst en typ av frågor.";
+                selectionWarning.classList.remove('hidden');
+                setTimeout(() => {
+                    selectionWarning.classList.add('hidden');
+                }, 3000);
+                return;
             }
+            selectionWarning.classList.add('hidden'); // Dölj varningsmeddelandet om val är giltigt
 
             try {
                 if (includeControl) {
-                    const mainResponse = await fetch(MAIN_JSON_DATA_URL);
+                    const mainResponse = await fetch(addCacheBuster(MAIN_JSON_DATA_URL));
                     if (!mainResponse.ok) {
                         throw new Error(`HTTP error! status (main quiz data): ${mainResponse.status}`);
                     }
                     allMainQuestionData = await mainResponse.json();
-                    // Lägg till basePath till varje fråga
                     combinedQuestions = combinedQuestions.concat(
                         allMainQuestionData.map(q => ({ ...q, basePath: BASE_IMAGE_URL }))
                     );
                 }
                 
                 if (includeExtra) {
-                    const extraResponse = await fetch(EXTRA_JSON_DATA_URL);
+                    const extraResponse = await fetch(addCacheBuster(EXTRA_JSON_DATA_URL));
                     if (!extraResponse.ok) {
-                        // Om extra JSON inte kan laddas, logga varning men fortsätt med vad som laddats
                         console.warn(`Kunde inte ladda extra quiz-data (${EXTRA_JSON_DATA_URL}), status: ${extraResponse.status}. Fortsätter med tillgängliga frågor.`);
                     } else {
                         allExtraQuestionData = await extraResponse.json();
-                        // Lägg till basePath till varje extra fråga
                         combinedQuestions = combinedQuestions.concat(
                             allExtraQuestionData.map(q => ({ ...q, basePath: BASE_IMAGE_URL_EXTRA }))
                         );
@@ -385,12 +305,9 @@
                 resultText.textContent = "Kunde inte ladda frågorna. Vänligen försök igen senare.";
                 mainCardContainer.classList.add('hidden');
                 resultDisplayContainer.classList.remove('hidden');
-                questionInfoContainer.classList.add('hidden');
-                closeQuizButton.classList.add('hidden');
                 return;
             }
 
-            // Bestäm quizLängd baserat på valda radioknappen
             let selectedQuizCount = document.querySelector('input[name="quizCount"]:checked').value;
             if (selectedQuizCount === 'all') {
                 quizLength = combinedQuestions.length;
@@ -398,131 +315,92 @@
                 quizLength = parseInt(selectedQuizCount, 10);
             }
 
-            // Välj ett slumpmässigt urval av frågor från combinedQuestions
             const shuffledCombinedQuestions = [...combinedQuestions];
             shuffleArray(shuffledCombinedQuestions);
-            // Se till att vi inte försöker ta fler frågor än vad som finns tillgängligt
             questions = shuffledCombinedQuestions.slice(0, Math.min(quizLength, shuffledCombinedQuestions.length)); 
 
             if (questions.length === 0) {
                  resultText.textContent = "Inga frågor att visa. Vänligen kontrollera quiz-datan.";
                  mainCardContainer.classList.add('hidden');
                  resultDisplayContainer.classList.remove('hidden');
-                 questionInfoContainer.classList.add('hidden');
-                 closeQuizButton.classList.add('hidden');
                  return;
             }
 
             startScreenContainer.classList.add('hidden');
             mainCardContainer.classList.remove('hidden');
-            questionInfoContainer.classList.remove('hidden');
             resultDisplayContainer.classList.add('hidden');
-            closeQuizButton.classList.remove('hidden'); // Visa stäng-knappen när quizet startar
 
-            // Initialisera timern och visa den direkt
             timerSpan.textContent = '0:00';
-            startTimer(); // Starta timern här när quizet börjar
+            startTimer();
 
             displayQuestion();
         }
 
-        // Visar en specifik fråga
+        /**
+         * Visar den aktuella frågan på skärmen.
+         */
         async function displayQuestion() {
             if (currentQuestionIndex < questions.length) {
                 const question = questions[currentQuestionIndex];
 
                 try {
-                    // Använd den specifika basePath för denna fråga
-                    const svgResponse = await fetch(question.basePath + question.filename);
+                    const svgResponse = await fetch(addCacheBuster(question.basePath + question.filename));
                     if (!svgResponse.ok) {
                         throw new Error(`Kunde inte ladda SVG-bild: ${question.filename} från ${question.basePath}, status: ${svgResponse.status}`);
                     }
                     let svgText = await svgResponse.text();
 
-                    // Ta bort width, height, och stroke-width attributen från SVG-strängen.
-                    // Ersätt sedan alla fill och stroke attribut med fill/stroke="currentColor" OM de INTE är "none".
                     svgText = svgText
                         .replace(/<svg([^>]*)width=['"].*?['"]([^>]*)>/g, '<svg$1$2>')
                         .replace(/<svg([^>]*)height=['"].*?['"]([^>]*)>/g, '<svg$1$2>')
-                        .replace(/stroke-width=['"].*?['"]/g, ''); // Ta bort stroke-width från alla element
+                        .replace(/stroke-width=['"].*?['"]/g, '');
 
-                    // Använd DOMParser för att manipulera SVG:n mer säkert
                     const parser = new DOMParser();
                     const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
                     const svgElement = svgDoc.documentElement;
-
-                    // Sätt currentColor som standard för fyllning och linjer på element som inte är fill/stroke="none"
-                    const elementsToColor = svgElement.querySelectorAll('*'); // Välj alla element för generell färgning
-
-                    elementsToColor.forEach(el => {
-                        const fill = el.getAttribute('fill');
-                        const stroke = el.getAttribute('stroke');
-
-                        if (fill !== null && fill.toLowerCase() !== 'none') {
-                            el.setAttribute('fill', 'currentColor');
-                        }
-                        if (stroke !== null && stroke.toLowerCase() !== 'none') {
-                            el.setAttribute('stroke', 'currentColor');
-                        }
-                    });
-
-                    // Serialisera tillbaka till en sträng
+                    
                     const cleanedSvgCode = new XMLSerializer().serializeToString(svgElement);
-
                     questionSvgContainer.innerHTML = cleanedSvgCode;
-                    questionSvgContainer.style.color = '#231F20'; // Tvinga färgen till #231F20 via currentColor
 
                 } catch (error) {
                     console.error(`Fel vid laddning eller visning av SVG för ${question.filename}:`, error);
                     questionSvgContainer.innerHTML = `<p class="text-red-500">Kunde inte ladda bild för denna fråga.</p>`;
                 }
 
-                // Uppdatera frågenummer
                 questionNumberSpan.textContent = `${currentQuestionIndex + 1}/${questions.length}`;
-
-                // Rensa befintliga knappar
                 answerButtonsContainer.innerHTML = '';
 
-                // Skapa svarsalternativ
                 let answerOptions = [];
-                // Lägg till det korrekta svaret
                 answerOptions.push({ text: question.answer, isCorrect: true });
 
-                // Använd en kombinerad pool av svar för falska alternativ
                 const combinedAnswerPool = [...allMainQuestionData, ...allExtraQuestionData]
                     .map(q => q.answer)
-                    .filter((value, index, self) => self.indexOf(value) === index); // Filtrera bort dubbletter
+                    .filter((value, index, self) => self.indexOf(value) === index);
 
                 const incorrectAnswersPool = combinedAnswerPool
-                    .filter(ans => ans !== question.answer); // Exkludera det korrekta svaret för den aktuella frågan
+                    .filter(ans => ans !== question.answer);
 
-                shuffleArray(incorrectAnswersPool); // Blanda poolen av inkorrekta svar
+                shuffleArray(incorrectAnswersPool);
 
-                // Lägg till 3 unika inkorrekta svar, om tillgängliga
                 let addedIncorrectAnswers = 0;
                 for (let i = 0; i < incorrectAnswersPool.length && addedIncorrectAnswers < 3; i++) {
-                    // Kontrollera att det inkorrekta svaret inte redan finns bland de valda alternativen
                     if (!answerOptions.some(opt => opt.text === incorrectAnswersPool[i])) {
                         answerOptions.push({ text: incorrectAnswersPool[i], isCorrect: false });
                         addedIncorrectAnswers++;
                     }
                 }
                 
-                // Om det finns färre än 3 unika felaktiga svar (t.ex. om den totala poolen är liten), fyll på med generiska
-                while (answerOptions.length < 4) { // Se till att vi alltid har 4 alternativ
+                while (answerOptions.length < 4) {
                     const genericFiller = `Falskt Svar ${answerOptions.length + 1}`;
                     if (!answerOptions.some(opt => opt.text === genericFiller)) {
                         answerOptions.push({ text: genericFiller, isCorrect: false });
                     } else {
-                        // Fallback om den generiska redan finns, lägg till slumpmässig sträng
                         answerOptions.push({ text: `Annat falskt svar ${Math.random().toFixed(4)}`, isCorrect: false });
                     }
                 }
 
+                shuffleArray(answerOptions);
 
-                shuffleArray(answerOptions); // Blanda alla svarsalternativ
-
-                // Skapa knappar för alla svarsalternativ
                 answerOptions.forEach(answer => {
                     const button = document.createElement('button');
                     button.classList.add('w-full', 'px-4', 'py-2', 'border', 'border-gray-400', 'bg-transparent', 'text-gray-700', 'font-semibold', 'rounded-md', 'hover:bg-gray-200', 'hover:text-black', 'focus:outline-none', 'focus:ring-2', 'focus:ring-gray-400', 'focus:ring-offset-2', 'transition', 'duration-150', 'ease-in-out');
@@ -538,16 +416,16 @@
             }
         }
 
-        // Hanterar klick på en svarsknapp
+        /**
+         * Hanterar klick på en svarsknapp och ger feedback.
+         * @param {HTMLElement} clickedButton - Knappen som klickades på.
+         * @param {boolean} isCorrect - Sant om svaret är korrekt, annars falskt.
+         */
         function handleAnswerClick(clickedButton, isCorrect) {
-            // Timern stoppas först vid showResults()
-
-            // Inaktivera alla knappar för att förhindra flera klick
             Array.from(answerButtonsContainer.children).forEach(button => {
                 button.disabled = true;
             });
 
-            // Visa feedback (rött/grönt blixt)
             if (isCorrect) {
                 score++;
                 clickedButton.classList.add('flash-correct');
@@ -555,20 +433,21 @@
                 clickedButton.classList.add('flash-incorrect');
             }
 
-            // Vänta lite efter blixten, sedan byt fråga eller visa resultat
             setTimeout(() => {
                 currentQuestionIndex++;
                 if (currentQuestionIndex < questions.length) {
                     displayQuestion();
                 } else {
-                    showResults(); // Visa resultat om alla frågor är besvarade
+                    showResults();
                 }
-            }, 1000); // Kort paus efter blixten
+            }, 1000);
         }
 
-        // Startar timern (körs en gång när quizet börjar)
+        /**
+         * Startar timern för quizet.
+         */
         function startTimer() {
-            if (!timerInterval) { // Se till att timern bara startar en gång
+            if (!timerInterval) {
                 timerInterval = setInterval(() => {
                     secondsElapsed++;
                     const minutes = Math.floor(secondsElapsed / 60);
@@ -578,15 +457,19 @@
             }
         }
 
-        // Stoppar timern
+        /**
+         * Stoppar timern.
+         */
         function stopTimer() {
             clearInterval(timerInterval);
-            timerInterval = null; // Återställ så att den kan startas igen
+            timerInterval = null;
         }
 
-        // Visar resultatskärmen
+        /**
+         * Visar resultatskärmen med quizets resultat.
+         */
         function showResults() {
-            stopTimer(); // Stoppa timern när quizet är slut
+            stopTimer();
 
             const totalMinutes = Math.floor(secondsElapsed / 60);
             const totalSeconds = secondsElapsed % 60;
@@ -599,39 +482,20 @@
 
             mainCardContainer.classList.add('hidden');
             resultDisplayContainer.classList.remove('hidden');
-            questionInfoContainer.classList.add('hidden');
-            closeQuizButton.classList.add('hidden'); // Dölj stäng-knappen vid resultat
         }
 
-        // Eventlyssnare för "Starta"-knappen på startskärmen
+        // Eventlyssnare
         startButton.addEventListener('click', startQuiz);
-
-        // Eventlyssnare för "Starta om"-knappen på resultatskärmen
         restartButton.addEventListener('click', init);
-
-        // Eventlyssnare för stäng-knappen
         closeQuizButton.addEventListener('click', init);
-
-        // Event listener for dark mode toggle
-        darkModeToggle.addEventListener('click', () => {
-            const isDark = document.documentElement.classList.contains('dark');
-            setTheme(!isDark);
-        });
-
-        // Eventlyssnare för checkboxar för att uppdatera knappens tillstånd
         includeControlItemsCheckbox.addEventListener('change', updateStartButtonState);
         includeExtraPlacementCheckbox.addEventListener('change', updateStartButtonState);
 
-        // Initiera startskärmen när sidan laddas
+        // Initiera appen när DOM är laddad
         document.addEventListener('DOMContentLoaded', () => {
             init();
-            loadOrionLogo(); // Ladda Orion-loggan när DOM är redo
-
-            // Alltid starta i light mode
-            setTheme(false); 
-
-            // Uppdatera startknappens tillstånd baserat på initiala checkbox-val
-            updateStartButtonState();
+            loadOrionLogo(); // Ladda Orion-loggan
+            updateStartButtonState(); // Uppdatera knappens tillstånd baserat på initiala checkbox-val
         });
     </script>
 </body>
