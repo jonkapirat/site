@@ -95,10 +95,15 @@
         <button id="startButton" class="px-6 py-3 bg-black text-white font-semibold rounded-md shadow-none hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 transition duration-150 ease-in-out">
             Starta quiz
         </button>
+
+        <!-- New container for preview SVGs -->
+        <div id="previewSvgsContainer" class="mt-8 w-full flex flex-col items-center space-y-4">
+            <!-- Preview SVGs will be inserted here dynamically -->
+        </div>
     </div>
 
     <!-- Den faktiska synliga kortbehållaren för frågor -->
-    <div id="mainCardContainer" class="bg-white rounded-2xl w-full mx-2 sm:max-w-[340px] sm:mx-auto h-[540px] p-12 flex flex-col items-center justify-between hidden">
+    <div id="mainCardContainer" class="bg-white rounded-2xl w-full mx-2 sm:max-w-[340px] sm:mx-auto min-h-[540px] p-12 flex flex-col items-center justify-start hidden">
         <!-- Kortets framsida (fråga) -->
         <div id="cardFront" class="w-full flex flex-col items-center justify-center flex-grow">
             <!-- SVG-behållare -->
@@ -168,6 +173,7 @@
         const includeControlItemsCheckbox = document.getElementById('includeControlItems');
         const includeExtraPlacementCheckbox = document.getElementById('includeExtraPlacement');
         const selectionWarning = document.getElementById('selectionWarning');
+        const previewSvgsContainer = document.getElementById('previewSvgsContainer'); // Ny referens
 
         let currentQuestionIndex = 0;
         let score = 0;
@@ -206,7 +212,6 @@
          */
         async function loadOrionLogo() {
             try {
-                // Använd den tomma bas-URL:en för att hämta från samma mapp
                 const svgResponse = await fetch(addCacheBuster(ORION_LOGO_BASE_URL + ORION_LOGO_FILENAME));
                 if (!svgResponse.ok) {
                     throw new Error(`Kunde inte ladda Orion-logga: ${ORION_LOGO_FILENAME}, status: ${svgResponse.status}`);
@@ -229,6 +234,123 @@
             } catch (error) {
                 console.error(`Fel vid laddning eller visning av Orion-loggan:`, error);
                 orionLogoContainer.innerHTML = `<p class="text-red-500 text-xs">Kunde ej ladda logga.</p>`;
+            }
+        }
+
+        /**
+         * Laddar alla quizdata från JSON-filer.
+         */
+        async function loadAllQuizData() {
+            try {
+                const mainResponse = await fetch(addCacheBuster(MAIN_JSON_DATA_URL));
+                if (!mainResponse.ok) {
+                    throw new Error(`HTTP error! status (main quiz data): ${mainResponse.status}`);
+                }
+                allMainQuestionData = await mainResponse.json();
+                // Lägg till basePath till varje fråga
+                allMainQuestionData = allMainQuestionData.map(q => ({ ...q, basePath: BASE_IMAGE_URL }));
+
+                const extraResponse = await fetch(addCacheBuster(EXTRA_JSON_DATA_URL));
+                if (!extraResponse.ok) {
+                    console.warn(`Kunde inte ladda extra quiz-data (${EXTRA_JSON_DATA_URL}), status: ${extraResponse.status}. Fortsätter med tillgängliga frågor.`);
+                } else {
+                    allExtraQuestionData = await extraResponse.json();
+                    // Lägg till basePath till varje extra fråga
+                    allExtraQuestionData = allExtraQuestionData.map(q => ({ ...q, basePath: BASE_IMAGE_URL_EXTRA }));
+                }
+            } catch (error) {
+                console.error("Kunde inte ladda quiz-data vid initiering:", error);
+                // Visa ett felmeddelande på startsidan om data inte kunde laddas
+                selectionWarning.textContent = "Kunde inte ladda frågorna. Kontrollera nätverksanslutningen.";
+                selectionWarning.classList.remove('hidden');
+            }
+        }
+
+        /**
+         * Visar förhandsvisningsbilder på startsidan.
+         */
+        async function displayPreviewSvgsOnStartScreen() {
+            previewSvgsContainer.innerHTML = ''; // Rensa befintliga förhandsvisningar
+
+            // Första objektet från huvud-JSON (skalas upp som i quizen)
+            if (allMainQuestionData.length > 0) {
+                const item = allMainQuestionData[0];
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'flex flex-col items-center space-y-2 mb-4';
+
+                const svgContainer = document.createElement('div');
+                svgContainer.className = 'w-24 h-24 border-2 border-gray-300 flex items-center justify-center p-2 rounded-md overflow-hidden'; // Mindre än quizbilden
+
+                try {
+                    const svgResponse = await fetch(addCacheBuster(item.basePath + item.filename));
+                    if (!svgResponse.ok) {
+                        throw new Error(`Kunde inte ladda förhandsvisnings-SVG: ${item.filename}, status: ${svgResponse.status}`);
+                    }
+                    let svgText = await svgResponse.text();
+                    
+                    // Ta bort width och height för att tillåta skalning
+                    svgText = svgText
+                        .replace(/<svg([^>]*)width=['"].*?['"]([^>]*)>/g, '<svg$1$2>')
+                        .replace(/<svg([^>]*)height=['"].*?['"]([^>]*)>/g, '<svg$1$2>');
+
+                    const parser = new DOMParser();
+                    const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
+                    const svgElement = svgDoc.documentElement;
+                    svgContainer.innerHTML = new XMLSerializer().serializeToString(svgElement);
+                } catch (error) {
+                    console.error(`Fel vid laddning av förhandsvisnings-SVG (Main):`, error);
+                    svgContainer.innerHTML = `<p class="text-red-500 text-xs">Kunde ej ladda bild.</p>`;
+                }
+
+                const nameP = document.createElement('p');
+                nameP.className = 'text-gray-700 font-semibold text-sm text-center';
+                nameP.textContent = item.answer;
+
+                itemDiv.appendChild(svgContainer);
+                itemDiv.appendChild(nameP);
+                previewSvgsContainer.appendChild(itemDiv);
+            }
+
+            // Första objektet från extra-JSON (originalstorlek för felsökning)
+            if (allExtraQuestionData.length > 0) {
+                const item = allExtraQuestionData[0];
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'flex flex-col items-center space-y-2';
+
+                const svgContainer = document.createElement('div');
+                // Ingen fast width/height här, låt SVG:n definiera storleken.
+                // Ta bort overflow-hidden för att se hela bilden om den är stor.
+                // Lägg till en minimal storlek för att säkerställa att div:en har en yta att rita på.
+                svgContainer.className = 'border-2 border-gray-300 flex items-center justify-center p-2 rounded-md min-w-[20px] min-h-[20px]'; 
+
+                try {
+                    const svgResponse = await fetch(addCacheBuster(item.basePath + item.filename));
+                    if (!svgResponse.ok) {
+                        throw new Error(`Kunde inte ladda förhandsvisnings-SVG: ${item.filename}, status: ${svgResponse.status}`);
+                    }
+                    let svgText = await svgResponse.text();
+                    
+                    // Behåll width och height för originalstorlek - ingen replace här
+                    // Detta säkerställer att SVG:n renderas med sina inbyggda dimensioner.
+                    // Om SVG:n har en viewBox men inga width/height, kommer den att skala till behållaren.
+                    // Om den har width/height, kommer den att försöka respektera dem.
+
+                    const parser = new DOMParser();
+                    const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
+                    const svgElement = svgDoc.documentElement;
+                    svgContainer.innerHTML = new XMLSerializer().serializeToString(svgElement);
+                } catch (error) {
+                    console.error(`Fel vid laddning av förhandsvisnings-SVG (Extra):`, error);
+                    svgContainer.innerHTML = `<p class="text-red-500 text-xs">Kunde ej ladda bild.</p>`;
+                }
+
+                const nameP = document.createElement('p');
+                nameP.className = 'text-gray-700 font-semibold text-sm text-center';
+                nameP.textContent = item.answer;
+
+                itemDiv.appendChild(svgContainer);
+                itemDiv.appendChild(nameP);
+                previewSvgsContainer.appendChild(itemDiv);
             }
         }
 
@@ -277,35 +399,12 @@
             }
             selectionWarning.classList.add('hidden'); // Dölj varningsmeddelandet om val är giltigt
 
-            try {
-                if (includeControl) {
-                    const mainResponse = await fetch(addCacheBuster(MAIN_JSON_DATA_URL));
-                    if (!mainResponse.ok) {
-                        throw new Error(`HTTP error! status (main quiz data): ${mainResponse.status}`);
-                    }
-                    allMainQuestionData = await mainResponse.json();
-                    combinedQuestions = combinedQuestions.concat(
-                        allMainQuestionData.map(q => ({ ...q, basePath: BASE_IMAGE_URL }))
-                    );
-                }
-                
-                if (includeExtra) {
-                    const extraResponse = await fetch(addCacheBuster(EXTRA_JSON_DATA_URL));
-                    if (!extraResponse.ok) {
-                        console.warn(`Kunde inte ladda extra quiz-data (${EXTRA_JSON_DATA_URL}), status: ${extraResponse.status}. Fortsätter med tillgängliga frågor.`);
-                    } else {
-                        allExtraQuestionData = await extraResponse.json();
-                        combinedQuestions = combinedQuestions.concat(
-                            allExtraQuestionData.map(q => ({ ...q, basePath: BASE_IMAGE_URL_EXTRA }))
-                        );
-                    }
-                }
-            } catch (error) {
-                console.error("Kunde inte ladda quiz-data:", error);
-                resultText.textContent = "Kunde inte ladda frågorna. Vänligen försök igen senare.";
-                mainCardContainer.classList.add('hidden');
-                resultDisplayContainer.classList.remove('hidden');
-                return;
+            // Använd redan laddad data
+            if (includeControl) {
+                combinedQuestions = combinedQuestions.concat(allMainQuestionData);
+            }
+            if (includeExtra) {
+                combinedQuestions = combinedQuestions.concat(allExtraQuestionData);
             }
 
             let selectedQuizCount = document.querySelector('input[name="quizCount"]:checked').value;
@@ -493,9 +592,11 @@
         includeExtraPlacementCheckbox.addEventListener('change', updateStartButtonState);
 
         // Initiera appen när DOM är laddad
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             init();
-            loadOrionLogo(); // Ladda Orion-loggan
+            await loadOrionLogo(); // Ladda Orion-loggan
+            await loadAllQuizData(); // Ladda all quizdata
+            displayPreviewSvgsOnStartScreen(); // Visa förhandsvisningar
             updateStartButtonState(); // Uppdatera knappens tillstånd baserat på initiala checkbox-val
         });
     </script>
