@@ -50,7 +50,7 @@
 <body class="min-h-screen flex flex-col items-center justify-center">
 
     <!-- Startskärm -->
-    <div id="startScreenContainer" class="bg-white rounded-2xl w-full mx-2 sm:max-w-[340px] sm:mx-auto h-[540px] p-12 flex flex-col items-center justify-center">
+    <div id="startScreenContainer" class="bg-white rounded-2xl w-full mx-2 sm:max-w-[400px] sm:mx-auto h-[540px] p-12 flex flex-col items-center justify-center">
         <!-- Behållare för Orion-loggan -->
         <img src="https://jonkapirat.github.io/site/definitioner/orion-skold.png" alt="Orion Logo" class="w-16 h-[73px] mb-4">
         <h2 class="text-4xl font-bold text-gray-800 mb-2">Träna</h2>
@@ -93,10 +93,13 @@
         <button id="startButton" class="px-6 py-3 bg-black text-white font-semibold rounded-md shadow-none hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 transition duration-150 ease-in-out">
             Starta quiz
         </button>
+
+        <!-- "Lista alla" link added here -->
+        <a href="#" id="listViewLink" class="mt-4 text-sm text-gray-600 hover:text-black hover:underline">Lista alla</a>
     </div>
 
     <!-- Den faktiska synliga kortbehållaren för frågor -->
-    <div id="mainCardContainer" class="bg-white rounded-2xl w-full mx-2 sm:max-w-[340px] sm:mx-auto min-h-[540px] p-12 flex flex-col items-center justify-start hidden">
+    <div id="mainCardContainer" class="bg-white rounded-2xl w-full mx-2 sm:max-w-[400px] sm:mx-auto min-h-[540px] p-12 flex flex-col items-center justify-start hidden">
         <!-- Kortets framsida (fråga) -->
         <div id="cardFront" class="w-full flex flex-col items-center justify-center flex-grow">
             <!-- SVG-behållare -->
@@ -128,12 +131,30 @@
     </div>
 
     <!-- Behållare för resultatvisning (utanför kortet) -->
-    <div id="resultDisplayContainer" class="bg-white rounded-2xl w-full mx-2 sm:max-w-[340px] sm:mx-auto h-[540px] p-12 flex flex-col items-center justify-center hidden">
+    <div id="resultDisplayContainer" class="bg-white rounded-2xl w-full mx-2 sm:max-w-[400px] sm:mx-auto h-[540px] p-12 flex flex-col items-center justify-center hidden">
         <h2 class="text-2xl font-bold mb-4">Resultat</h2>
         <p id="resultText" class="text-xl font-semibold mb-8 text-center"></p>
         <button id="restartButton" class="px-6 py-3 bg-black text-white font-semibold rounded-md shadow-none hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 transition duration-150 ease-in-out">
             Starta om
         </button>
+    </div>
+
+    <!-- New List View Container -->
+    <div id="listViewContainer" class="bg-white rounded-2xl w-full mx-2 sm:max-w-[768px] md:max-w-[960px] lg:max-w-[1200px] p-8 flex flex-col hidden">
+        <a href="#" id="backToQuizLink" class="text-sm text-gray-600 hover:text-black hover:underline mb-6 self-start">
+            &larr; Tillbaka till Quiz
+        </a>
+
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">Terrängföremål</h2>
+        <div id="mainItemsGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
+            <!-- Main items will be loaded here -->
+        </div>
+
+        <h2 class="text-2xl font-bold text-gray-800 mb-2">Placeringar, utseende</h2>
+        <p class="text-sm text-gray-600 mb-4">Endast vissa av riktningssymbolernas väderstreck är med i quizen.</p>
+        <div id="extraItemsGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <!-- Extra items will be loaded here -->
+        </div>
     </div>
 
     <script>
@@ -158,6 +179,11 @@
         const includeControlItemsCheckbox = document.getElementById('includeControlItems');
         const includeExtraPlacementCheckbox = document.getElementById('includeExtraPlacement');
         const selectionWarning = document.getElementById('selectionWarning');
+        const listViewLink = document.getElementById('listViewLink'); // New link reference
+        const listViewContainer = document.getElementById('listViewContainer'); // New list view container
+        const backToQuizLink = document.getElementById('backToQuizLink'); // New back link
+        const mainItemsGrid = document.getElementById('mainItemsGrid'); // New grid for main items
+        const extraItemsGrid = document.getElementById('extraItemsGrid'); // New grid for extra items
 
         let currentQuestionIndex = 0;
         let score = 0;
@@ -221,6 +247,77 @@
         }
 
         /**
+         * Skapar och lägger till ett listobjekt i rutnätet.
+         * @param {Object} item - Objektet som innehåller filnamn och svar.
+         * @param {HTMLElement} gridContainer - Behållaren (grid) att lägga till objektet i.
+         * @param {boolean} scaleSvg - Om SVG:n ska skalas till 24x24px (true) eller visas i originalstorlek (false).
+         */
+        async function createListItem(item, gridContainer, scaleSvg) {
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'flex items-center space-x-2'; // space-x-2 for 8px gap
+
+            const svgFrame = document.createElement('div');
+            svgFrame.className = 'w-7 h-7 border border-black flex items-center justify-center p-[2px] rounded-sm'; // 28x28px frame, 2px padding
+
+            const svgInnerContainer = document.createElement('div');
+            // Inner container for SVG to control its size within the frame
+            svgInnerContainer.className = 'w-6 h-6 flex items-center justify-center'; // 24x24px inner container
+
+            const imgElement = document.createElement('img');
+            imgElement.src = addCacheBuster(item.basePath + item.filename);
+            imgElement.alt = item.answer;
+            imgElement.classList.add('w-full', 'h-full', 'object-contain'); // Ensure image scales within container
+
+            imgElement.onerror = () => {
+                console.error(`Fel vid laddning av SVG för listobjekt: ${item.filename}`);
+                svgInnerContainer.innerHTML = `<p class="text-red-500 text-xs text-center">Bild fel</p>`;
+                imgElement.src = ''; // Rensa src för att förhindra oändlig loop vid fel
+            };
+
+            svgInnerContainer.appendChild(imgElement);
+            svgFrame.appendChild(svgInnerContainer);
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'text-xs text-gray-700'; // 12px text
+            nameSpan.textContent = item.answer;
+
+            itemDiv.appendChild(svgFrame);
+            itemDiv.appendChild(nameSpan);
+            gridContainer.appendChild(itemDiv);
+        }
+
+        /**
+         * Visar listvyn med alla objekt.
+         */
+        async function showListView() {
+            startScreenContainer.classList.add('hidden');
+            mainCardContainer.classList.add('hidden');
+            resultDisplayContainer.classList.add('hidden');
+            listViewContainer.classList.remove('hidden');
+
+            mainItemsGrid.innerHTML = ''; // Clear previous items
+            extraItemsGrid.innerHTML = ''; // Clear previous items
+
+            // Populate main items
+            for (const item of allMainQuestionData) {
+                await createListItem(item, mainItemsGrid, true); // Scale SVG for main items
+            }
+
+            // Populate extra items
+            for (const item of allExtraQuestionData) {
+                await createListItem(item, extraItemsGrid, true); // Scale SVG for extra items as well
+            }
+        }
+
+        /**
+         * Går tillbaka till startsidan för quizet.
+         */
+        function backToStartScreen() {
+            listViewContainer.classList.add('hidden');
+            init(); // Re-initialize start screen
+        }
+
+        /**
          * Kontrollerar och uppdaterar "Starta quiz"-knappens disabled-state.
          */
         function updateStartButtonState() {
@@ -238,6 +335,7 @@
             startScreenContainer.classList.remove('hidden');
             mainCardContainer.classList.add('hidden');
             resultDisplayContainer.classList.add('hidden');
+            listViewContainer.classList.add('hidden'); // Ensure list view is hidden
             selectionWarning.classList.add('hidden'); // Dölj varningsmeddelandet
             updateStartButtonState(); // Uppdatera knappens tillstånd vid initiering
         }
@@ -294,6 +392,7 @@
             startScreenContainer.classList.add('hidden');
             mainCardContainer.classList.remove('hidden');
             resultDisplayContainer.classList.add('hidden');
+            listViewContainer.classList.add('hidden'); // Ensure list view is hidden when starting quiz
 
             timerSpan.textContent = '0:00';
             startTimer();
@@ -359,7 +458,7 @@
 
                 answerOptions.forEach(answer => {
                     const button = document.createElement('button');
-                    button.classList.add('px-4', 'py-2', 'border', 'border-gray-400', 'bg-transparent', 'text-gray-700', 'font-semibold', 'rounded-md', 'hover:bg-gray-200', 'hover:text-black', 'focus:outline-none', 'focus:ring-2', 'focus:ring-gray-400', 'focus:ring-offset-2', 'transition', 'duration-150', 'ease-in-out');
+                    button.classList.add('px-4', 'py-2', 'border', 'border-gray-400', 'bg-transparent', 'text-gray-700', 'font-semibold', 'rounded-md', 'hover:bg-gray-200', 'hover:text-black', 'focus:outline-none', 'focus:ring-2', 'focus:ring-gray-400', 'focus:ring-offset-2', 'transition', 'duration-150', 'ease-in-out', 'w-full'); // Added w-full for consistent width
                     button.textContent = answer.text;
                     button.dataset.isCorrect = answer.isCorrect;
 
@@ -446,6 +545,8 @@
         closeQuizButton.addEventListener('click', init);
         includeControlItemsCheckbox.addEventListener('change', updateStartButtonState);
         includeExtraPlacementCheckbox.addEventListener('change', updateStartButtonState);
+        listViewLink.addEventListener('click', showListView); // New event listener for list view
+        backToQuizLink.addEventListener('click', backToStartScreen); // New event listener for back to quiz
 
         // Initiera appen när DOM är laddad
         document.addEventListener('DOMContentLoaded', async () => {
