@@ -213,11 +213,11 @@
                 }
                 let svgText = await svgResponse.text();
 
-                // Ta bort width, height, och stroke-width attributen från SVG-strängen.
+                // Ta bort width och height attributen för att tillåta skalning via CSS
                 svgText = svgText
                     .replace(/<svg([^>]*)width=['"].*?['"]([^>]*)>/g, '<svg$1$2>')
-                    .replace(/<svg([^>]*)height=['"].*?['"]([^>]*)>/g, '<svg$1$2>')
-                    .replace(/stroke-width=['"].*?['"]/g, '');
+                    .replace(/<svg([^>]*)height=['"].*?['"]([^>]*)>/g, '<svg$1$2>');
+                // Stroke-width behålls för att respektera originaldesign om det finns
 
                 const parser = new DOMParser();
                 const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
@@ -350,10 +350,11 @@
                     }
                     let svgText = await svgResponse.text();
 
+                    // Ta bort width och height attributen för att tillåta skalning via CSS
                     svgText = svgText
                         .replace(/<svg([^>]*)width=['"].*?['"]([^>]*)>/g, '<svg$1$2>')
-                        .replace(/<svg([^>]*)height=['"].*?['"]([^>]*)>/g, '<svg$1$2>')
-                        .replace(/stroke-width=['"].*?['"]/g, '');
+                        .replace(/<svg([^>]*)height=['"].*?['"]([^>]*)>/g, '<svg$1$2>');
+                    // Stroke-width behålls för att respektera originaldesign om det finns
 
                     const parser = new DOMParser();
                     const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
