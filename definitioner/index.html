@@ -153,19 +153,16 @@
         const mainCardContainer = document.getElementById('mainCardContainer');
         const questionSvgContainer = document.getElementById('questionSvgContainer');
         const answerButtonsContainer = document.getElementById('answerButtons');
-        const questionNumberSpan = document.getElementById('questionNumber');
+        const questionNumberSpan = document = document.getElementById('questionNumber');
         const timerSpan = document.getElementById('timer');
         const resultText = document.getElementById('resultText');
         const startButton = document.getElementById('startButton');
         const restartButton = document.getElementById('restartButton');
-        const questionInfoContainer = document.getElementById('questionInfoContainer');
-        const resultDisplayContainer = document.getElementById('resultDisplayContainer');
         const closeQuizButton = document.getElementById('closeQuizButton');
         const orionLogoContainer = document.getElementById('orionLogoContainer');
         const includeControlItemsCheckbox = document.getElementById('includeControlItems');
         const includeExtraPlacementCheckbox = document.getElementById('includeExtraPlacement');
         const selectionWarning = document.getElementById('selectionWarning');
-        // Removed listViewLink, listViewContainer, backToQuizLink, mainItemsGrid, extraItemsGrid
 
         let currentQuestionIndex = 0;
         let score = 0;
@@ -298,7 +295,7 @@
             const includeExtra = includeExtraPlacementCheckbox.checked;
 
             if (!includeControl && !includeExtra) {
-                selectionWarning.textContent = "Vänligen välj minst en typ av frågor.";
+                selectionWarning.textContent = "Vänligen välj minst och en typ av frågor.";
                 selectionWarning.classList.remove('hidden');
                 setTimeout(() => {
                     selectionWarning.classList.add('hidden');
@@ -415,7 +412,7 @@
 
                 answerOptions.forEach(answer => {
                     const button = document.createElement('button');
-                    button.classList.add('w-full', 'px-4', 'py-2', 'border', 'border-gray-400', 'bg-transparent', 'text-gray-700', 'font-semibold', 'rounded-md', 'hover:bg-gray-200', 'hover:text-black', 'focus:outline-none', 'focus:ring-2', 'focus:ring-gray-400', 'focus:ring-offset-2', 'transition', 'duration-150', 'ease-in-out');
+                    button.classList.add('px-4', 'py-2', 'border', 'border-gray-400', 'bg-transparent', 'text-gray-700', 'font-semibold', 'rounded-md', 'hover:bg-gray-200', 'hover:text-black', 'focus:outline-none', 'focus:ring-2', 'focus:ring-gray-400', 'focus:ring-offset-2', 'transition', 'duration-150', 'ease-in-out');
                     button.textContent = answer.text;
                     button.dataset.isCorrect = answer.isCorrect;
 
