@@ -52,9 +52,7 @@
     <!-- Startskärm -->
     <div id="startScreenContainer" class="bg-white rounded-2xl w-full mx-2 sm:max-w-[340px] sm:mx-auto h-[540px] p-12 flex flex-col items-center justify-center">
         <!-- Behållare för Orion-loggan -->
-        <div id="orionLogoContainer" class="w-16 h-16 mb-4 flex items-center justify-center">
-            <!-- SVG för Orion-loggan kommer att laddas här dynamiskt -->
-        </div>
+        <img src="https://jonkapirat.github.io/site/definitioner/orion-skold.png" alt="Orion Logo" class="w-16 h-[73px] mb-4">
         <h2 class="text-4xl font-bold text-gray-800 mb-2">Träna</h2>
         <h3 class="text-xl font-semibold text-gray-600 mb-8">Kontrolldefinitioner</h3>
 
@@ -103,8 +101,10 @@
         <div id="cardFront" class="w-full flex flex-col items-center justify-center flex-grow">
             <!-- SVG-behållare -->
             <div class="w-36 h-36 border-2 border-black flex items-center justify-center mb-8">
-                <!-- SVG-koden kommer att infogas här dynamiskt -->
-                <div id="questionSvgContainer" class="w-full h-full flex items-center justify-center"></div>
+                <!-- SVG-bilden kommer att infogas här dynamiskt via src-attributet -->
+                <div id="questionSvgContainer" class="w-full h-full flex items-center justify-center">
+                    <img id="currentQuestionImage" src="" alt="Frågebild" class="w-full h-full object-contain">
+                </div>
             </div>
 
             <!-- Behållare för de utlinjerade knapparna -->
@@ -137,11 +137,6 @@
     </div>
 
     <script>
-        // Filnamn för Orion-loggan
-        const ORION_LOGO_FILENAME = 'Orion-logo-skold.svg';
-        // Bas-URL för Orion-loggan
-        const ORION_LOGO_BASE_URL = 'https://jonkapirat.github.io/site/definitioner/';
-
         const BASE_IMAGE_URL = 'https://jonkapirat.github.io/site/definitioner/foremal/';
         const BASE_IMAGE_URL_EXTRA = 'https://jonkapirat.github.io/site/definitioner/extra/';
 
@@ -151,15 +146,15 @@
         // Elementreferenser
         const startScreenContainer = document.getElementById('startScreenContainer');
         const mainCardContainer = document.getElementById('mainCardContainer');
-        const questionSvgContainer = document.getElementById('questionSvgContainer');
+        const questionSvgContainer = document.getElementById('questionSvgContainer'); // Behåll denna för felmeddelanden
+        const currentQuestionImage = document.getElementById('currentQuestionImage'); // Ny referens till img-taggen
         const answerButtonsContainer = document.getElementById('answerButtons');
-        const questionNumberSpan = document = document.getElementById('questionNumber');
+        const questionNumberSpan = document.getElementById('questionNumber'); // Korrigerad typo
         const timerSpan = document.getElementById('timer');
         const resultText = document.getElementById('resultText');
         const startButton = document.getElementById('startButton');
         const restartButton = document.getElementById('restartButton');
         const closeQuizButton = document.getElementById('closeQuizButton');
-        const orionLogoContainer = document.getElementById('orionLogoContainer');
         const includeControlItemsCheckbox = document.getElementById('includeControlItems');
         const includeExtraPlacementCheckbox = document.getElementById('includeExtraPlacement');
         const selectionWarning = document.getElementById('selectionWarning');
@@ -193,40 +188,6 @@
             for (let i = array.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
                 [array[i], array[j]] = [array[j], array[i]];
-            }
-        }
-
-        /**
-         * Laddar och visar Orion-loggan.
-         */
-        async function loadOrionLogo() {
-            try {
-                const svgResponse = await fetch(addCacheBuster(ORION_LOGO_BASE_URL + ORION_LOGO_FILENAME));
-                if (!svgResponse.ok) {
-                    throw new Error(`Kunde inte ladda Orion-logga: ${ORION_LOGO_FILENAME}, status: ${svgResponse.status}`);
-                }
-                let svgText = await svgResponse.text();
-
-                // Ta bort width och height attributen för att tillåta skalning via CSS
-                svgText = svgText
-                    .replace(/<svg([^>]*)width=['"].*?['"]([^>]*)>/g, '<svg$1$2>')
-                    .replace(/<svg([^>]*)height=['"].*?['"]([^>]*)>/g, '<svg$1$2');
-                // Stroke-width behålls för att respektera originaldesign om det finns
-
-                const parser = new DOMParser();
-                const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
-                const svgElement = svgDoc.documentElement;
-                
-                // Explicitly set width and height to 100% for scaling
-                svgElement.setAttribute('width', '100%');
-                svgElement.setAttribute('height', '100%');
-
-                orionLogoContainer.innerHTML = ''; // Rensa befintligt innehåll
-                orionLogoContainer.appendChild(svgElement); // Lägg till SVG-elementet direkt
-
-            } catch (error) {
-                console.error(`Fel vid laddning eller visning av Orion-loggan:`, error);
-                orionLogoContainer.innerHTML = `<p class="text-red-500 text-xs">Kunde ej ladda logga.</p>`;
             }
         }
 
@@ -347,34 +308,20 @@
             if (currentQuestionIndex < questions.length) {
                 const question = questions[currentQuestionIndex];
 
-                try {
-                    const svgResponse = await fetch(addCacheBuster(question.basePath + question.filename));
-                    if (!svgResponse.ok) {
-                        throw new Error(`Kunde inte ladda SVG-bild: ${question.filename} från ${question.basePath}, status: ${svgResponse.status}`);
-                    }
-                    let svgText = await svgResponse.text();
+                // Återställ container för att säkerställa att img-taggen är där och inte ett felmeddelande
+                questionSvgContainer.innerHTML = '';
+                questionSvgContainer.appendChild(currentQuestionImage); 
 
-                    // Ta bort width och height attributen för att tillåta skalning via CSS
-                    svgText = svgText
-                        .replace(/<svg([^>]*)width=['"].*?['"]([^>]*)>/g, '<svg$1$2>')
-                        .replace(/<svg([^>]*)height=['"].*?['"]([^>]*)>/g, '<svg$1$2');
-                    // Stroke-width behålls för att respektera originaldesign om det finns
+                currentQuestionImage.src = addCacheBuster(question.basePath + question.filename);
+                currentQuestionImage.alt = question.answer; // Använd svaret som alt-text för tillgänglighet
 
-                    const parser = new DOMParser();
-                    const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
-                    const svgElement = svgDoc.documentElement;
-                    
-                    // Explicitly set width and height to 100% for scaling
-                    svgElement.setAttribute('width', '100%');
-                    svgElement.setAttribute('height', '100%');
-
-                    questionSvgContainer.innerHTML = ''; // Rensa befintligt innehåll
-                    questionSvgContainer.appendChild(svgElement); // Lägg till SVG-elementet direkt
-
-                } catch (error) {
-                    console.error(`Fel vid laddning eller visning av SVG för ${question.filename}:`, error);
-                    questionSvgContainer.innerHTML = `<p class="text-red-500">Kunde inte ladda bild för denna fråga.</p>`;
-                }
+                // Felhanterare för bilden
+                currentQuestionImage.onerror = () => {
+                    console.error(`Fel vid laddning av SVG-bild: ${question.filename}`);
+                    questionSvgContainer.innerHTML = `<p class="text-red-500 text-center">Kunde inte ladda bild för denna fråga.</p>`;
+                    // Rensa src för att förhindra oändlig loop vid fel
+                    currentQuestionImage.src = ''; 
+                };
 
                 questionNumberSpan.textContent = `${currentQuestionIndex + 1}/${questions.length}`;
                 answerButtonsContainer.innerHTML = '';
@@ -503,7 +450,6 @@
         // Initiera appen när DOM är laddad
         document.addEventListener('DOMContentLoaded', async () => {
             init();
-            await loadOrionLogo(); // Ladda Orion-loggan
             await loadAllQuizData(); // Ladda all quizdata
             updateStartButtonState(); // Uppdatera knappens tillstånd baserat på initiala checkbox-val
         });
