@@ -96,7 +96,8 @@
             Starta quiz
         </button>
 
-        <!-- Removed New container for preview SVGs -->
+        <!-- "Lista" link added here -->
+        <a href="#" id="listViewLink" class="mt-4 text-sm text-gray-600 hover:text-black hover:underline">Lista</a>
     </div>
 
     <!-- Den faktiska synliga kortbehållaren för frågor -->
@@ -139,6 +140,23 @@
         </button>
     </div>
 
+    <!-- New List View Container -->
+    <div id="listViewContainer" class="bg-white rounded-2xl w-full mx-2 sm:max-w-[768px] md:max-w-[960px] lg:max-w-[1200px] p-8 flex flex-col hidden">
+        <a href="#" id="backToQuizLink" class="text-sm text-gray-600 hover:text-black hover:underline mb-6 self-start">
+            &larr; Tillbaka till Quiz
+        </a>
+
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">Terrängföremål</h2>
+        <div id="mainItemsGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-8">
+            <!-- Main items will be loaded here -->
+        </div>
+
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">Placeringar, utseende</h2>
+        <div id="extraItemsGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <!-- Extra items will be loaded here -->
+        </div>
+    </div>
+
     <script>
         // Filnamn för Orion-loggan
         const ORION_LOGO_FILENAME = 'Orion-logo-skold.svg';
@@ -168,7 +186,11 @@
         const includeControlItemsCheckbox = document.getElementById('includeControlItems');
         const includeExtraPlacementCheckbox = document.getElementById('includeExtraPlacement');
         const selectionWarning = document.getElementById('selectionWarning');
-        // Removed previewSvgsContainer element reference
+        const listViewLink = document.getElementById('listViewLink'); // New link reference
+        const listViewContainer = document.getElementById('listViewContainer'); // New list view container
+        const backToQuizLink = document.getElementById('backToQuizLink'); // New back link
+        const mainItemsGrid = document.getElementById('mainItemsGrid'); // New grid for main items
+        const extraItemsGrid = document.getElementById('extraItemsGrid'); // New grid for extra items
 
         let currentQuestionIndex = 0;
         let score = 0;
@@ -266,8 +288,93 @@
         }
 
         /**
-         * Removed displayPreviewSvgsOnStartScreen function
+         * Skapar och lägger till ett listobjekt i rutnätet.
+         * @param {Object} item - Objektet som innehåller filnamn och svar.
+         * @param {HTMLElement} gridContainer - Behållaren (grid) att lägga till objektet i.
+         * @param {boolean} scaleSvg - Om SVG:n ska skalas till 24x24px (true) eller visas i originalstorlek (false).
          */
+        async function createListItem(item, gridContainer, scaleSvg) {
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'flex items-center space-x-2'; // space-x-2 for 8px gap
+
+            const svgFrame = document.createElement('div');
+            svgFrame.className = 'w-7 h-7 border border-black flex items-center justify-center p-[2px] rounded-sm'; // 28x28px frame, 2px padding
+
+            const svgInnerContainer = document.createElement('div');
+            // Inner container for SVG to control its size within the frame
+            svgInnerContainer.className = 'w-6 h-6 flex items-center justify-center'; // 24x24px inner container
+
+            try {
+                const svgResponse = await fetch(addCacheBuster(item.basePath + item.filename));
+                if (!svgResponse.ok) {
+                    throw new Error(`Kunde inte ladda SVG för listning: ${item.filename}, status: ${svgResponse.status}`);
+                }
+                let svgText = await svgResponse.text();
+
+                if (scaleSvg) {
+                    // Ta bort width och height för att tillåta skalning via CSS
+                    svgText = svgText
+                        .replace(/<svg([^>]*)width=['"].*?['"]([^>]*)>/g, '<svg$1$2>')
+                        .replace(/<svg([^>]*)height=['"].*?['"]([^>]*)>/g, '<svg$1$2>');
+                }
+
+                const parser = new DOMParser();
+                const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
+                const svgElement = svgDoc.documentElement;
+                
+                // Explicitly set width and height for scaling within the inner container
+                if (scaleSvg) {
+                    svgElement.setAttribute('width', '100%');
+                    svgElement.setAttribute('height', '100%');
+                }
+                
+                svgInnerContainer.appendChild(svgElement);
+            } catch (error) {
+                console.error(`Fel vid laddning eller visning av SVG för listobjekt ${item.filename}:`, error);
+                svgInnerContainer.innerHTML = `<p class="text-red-500 text-xs text-center">Bild fel</p>`;
+            }
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'text-xs text-gray-700'; // 12px text
+            nameSpan.textContent = item.answer;
+
+            svgFrame.appendChild(svgInnerContainer);
+            itemDiv.appendChild(svgFrame);
+            itemDiv.appendChild(nameSpan);
+            gridContainer.appendChild(itemDiv);
+        }
+
+
+        /**
+         * Visar listvyn med alla objekt.
+         */
+        async function showListView() {
+            startScreenContainer.classList.add('hidden');
+            mainCardContainer.classList.add('hidden');
+            resultDisplayContainer.classList.add('hidden');
+            listViewContainer.classList.remove('hidden');
+
+            mainItemsGrid.innerHTML = ''; // Clear previous items
+            extraItemsGrid.innerHTML = ''; // Clear previous items
+
+            // Populate main items
+            for (const item of allMainQuestionData) {
+                await createListItem(item, mainItemsGrid, true); // Scale SVG for main items
+            }
+
+            // Populate extra items
+            for (const item of allExtraQuestionData) {
+                await createListItem(item, extraItemsGrid, false); // Do NOT scale SVG for extra items (original size)
+            }
+        }
+
+        /**
+         * Går tillbaka till startsidan för quizet.
+         */
+        function backToStartScreen() {
+            listViewContainer.classList.add('hidden');
+            init(); // Re-initialize start screen
+        }
 
         /**
          * Kontrollerar och uppdaterar "Starta quiz"-knappens disabled-state.
@@ -287,6 +394,7 @@
             startScreenContainer.classList.remove('hidden');
             mainCardContainer.classList.add('hidden');
             resultDisplayContainer.classList.add('hidden');
+            listViewContainer.classList.add('hidden'); // Ensure list view is hidden
             selectionWarning.classList.add('hidden'); // Dölj varningsmeddelandet
             updateStartButtonState(); // Uppdatera knappens tillstånd vid initiering
         }
@@ -343,6 +451,7 @@
             startScreenContainer.classList.add('hidden');
             mainCardContainer.classList.remove('hidden');
             resultDisplayContainer.classList.add('hidden');
+            listViewContainer.classList.add('hidden'); // Ensure list view is hidden when starting quiz
 
             timerSpan.textContent = '0:00';
             startTimer();
@@ -509,13 +618,14 @@
         closeQuizButton.addEventListener('click', init);
         includeControlItemsCheckbox.addEventListener('change', updateStartButtonState);
         includeExtraPlacementCheckbox.addEventListener('change', updateStartButtonState);
+        listViewLink.addEventListener('click', showListView); // New event listener for list view
+        backToQuizLink.addEventListener('click', backToStartScreen); // New event listener for back to quiz
 
         // Initiera appen när DOM är laddad
         document.addEventListener('DOMContentLoaded', async () => {
             init();
             await loadOrionLogo(); // Ladda Orion-loggan
             await loadAllQuizData(); // Ladda all quizdata
-            // Removed displayPreviewSvgsOnStartScreen(); // Visa förhandsvisningar
             updateStartButtonState(); // Uppdatera knappens tillstånd baserat på initiala checkbox-val
         });
     </script>
