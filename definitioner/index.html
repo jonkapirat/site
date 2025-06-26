@@ -488,14 +488,18 @@
                 clickedButton.classList.add('flash-incorrect');
             }
 
+            // The animation is 0.4s. Ensure the background is explicitly reset after it finishes.
             setTimeout(() => {
+                clickedButton.classList.remove('flash-correct', 'flash-incorrect');
+                clickedButton.style.backgroundColor = 'transparent'; // Explicitly reset background color
+
                 currentQuestionIndex++;
                 if (currentQuestionIndex < questions.length) {
                     displayQuestion();
                 } else {
                     showResults();
                 }
-            }, 1000);
+            }, 1000); // Keep 1 second delay before moving to next question
         }
 
         /**
