@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Träna på Kontrolldefinitioner</title>
+    <!-- Inkludera Tailwind CSS för enkel styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #F3F4F6; /* Standard ljus bakgrund för body */
+        }
+
+        /* Animation för rätt/fel svar */
+        @keyframes flashCorrect {
+            0% { background-color: transparent; }
+            50% { background-color: #4CAF50; /* Grön färg */ }
+            100% { background-color: transparent; }
+        }
+
+        @keyframes flashIncorrect {
+            0% { background-color: transparent; }
+            50% { background-color: #F44336; /* Röd färg */ }
+            100% { background-color: transparent; }
+        }
+
+        .flash-correct {
+            animation: flashCorrect 0.4s ease-out; /* Blixtrar grönt */
+        }
+
+        .flash-incorrect {
+            animation: flashIncorrect 0.4s ease-out; /* Blixtrar rött */
+        }
+
+        /* Anpassad styling för checkbox och radiobuttons när de är valda (svarta) */
+        input[type="checkbox"]:checked,
+        input[type="radio"]:checked {
+            accent-color: #000; /* Gör dem svarta när de är ikryssade/valda */
+        }
+
+        /* Styling for disabled button */
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-center">
+
+    <!-- Startskärm -->
+    <div id="startScreenContainer" class="bg-white rounded-2xl w-full mx-2 sm:max-w-[340px] sm:mx-auto h-[540px] p-12 flex flex-col items-center justify-center">
+        <!-- Behållare för Orion-loggan -->
+        <div id="orionLogoContainer" class="w-16 h-16 mb-4 flex items-center justify-center">
+            <!-- SVG för Orion-loggan kommer att laddas här dynamiskt -->
+        </div>
+        <h2 class="text-4xl font-bold text-gray-800 mb-2">Träna</h2>
+        <h3 class="text-xl font-semibold text-gray-600 mb-8">Kontrolldefinitioner</h3>
+
+        <!-- Varningsmeddelande för val av frågor -->
+        <div id="selectionWarning" class="text-red-500 text-sm mt-2 mb-4 hidden"></div>
+
+        <!-- Nya kryssrutor för att inkludera olika typer av frågor -->
+        <div class="mb-6 flex flex-col items-start w-full">
+            <div class="flex items-center mb-2">
+                <input type="checkbox" id="includeControlItems" checked class="h-4 w-4 text-black focus:ring-black rounded">
+                <label for="includeControlItems" class="ml-2 text-gray-700 font-semibold">Kontrollföremål</label>
+            </div>
+            <div class="flex items-center">
+                <input type="checkbox" id="includeExtraPlacement" class="h-4 w-4 text-black focus:ring-black rounded">
+                <label for="includeExtraPlacement" class="ml-2 text-gray-700 font-semibold">Placeringar, utseende mm.</label>
+            </div>
+        </div>
+
+        <!-- Ny radioknappsgrupp för antal frågor -->
+        <div class="mb-8 text-center">
+            <label class="block text-gray-700 font-semibold mb-2">Antal frågor</label>
+            <div class="flex justify-center space-x-4">
+                <div class="flex items-center">
+                    <input type="radio" id="numQuestions10" name="quizCount" value="10" checked class="h-4 w-4 text-black focus:ring-black">
+                    <label for="numQuestions10" class="ml-1 text-gray-700">10</label>
+                </div>
+                <div class="flex items-center">
+                    <input type="radio" id="numQuestions30" name="quizCount" value="30" class="h-4 w-4 text-black focus:ring-black">
+                    <label for="numQuestions30" class="ml-1 text-gray-700">30</label>
+                </div>
+                <div class="flex items-center">
+                    <input type="radio" id="numQuestionsAll" name="quizCount" value="all" class="h-4 w-4 text-black focus:ring-black">
+                    <label for="numQuestionsAll" class="ml-1 text-gray-700">Alla</label>
+                </div>
+            </div>
+        </div>
+
+        <button id="startButton" class="px-6 py-3 bg-black text-white font-semibold rounded-md shadow-none hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 transition duration-150 ease-in-out">
+            Starta quiz
+        </button>
+
+        <!-- Removed New container for preview SVGs -->
+    </div>
+
+    <!-- Den faktiska synliga kortbehållaren för frågor -->
+    <div id="mainCardContainer" class="bg-white rounded-2xl w-full mx-2 sm:max-w-[340px] sm:mx-auto min-h-[540px] p-12 flex flex-col items-center justify-start hidden">
+        <!-- Kortets framsida (fråga) -->
+        <div id="cardFront" class="w-full flex flex-col items-center justify-center flex-grow">
+            <!-- SVG-behållare -->
+            <div class="w-36 h-36 border-2 border-black flex items-center justify-center mb-8">
+                <!-- SVG-koden kommer att infogas här dynamiskt -->
+                <!-- questionSvgContainer har nu p-5 för att skapa 20px "padding" (innerutrymme) -->
+                <div id="questionSvgContainer" class="w-full h-full flex items-center justify-center"></div>
+            </div>
+
+            <!-- Behållare för de utlinjerade knapparna -->
+            <div id="answerButtons" class="w-full flex flex-col items-center space-y-3">
+                <!-- Knappar kommer att genereras här med JavaScript -->
+            </div>
+        </div>
+
+        <!-- Behållare för frågenummer, stängknapp och tidsräknare - NU INUTI KORTET -->
+        <div id="questionInfoContainer" class="flex justify-between items-center w-full mt-4">
+            <span id="questionNumber" class="text-sm font-normal text-gray-700">1/10</span>
+            <!-- Stäng-knappen -->
+            <div id="closeQuizButton" class="cursor-pointer p-1 w-8 h-8 rounded-full border-2 border-gray-400 text-gray-700 hover:bg-gray-200 hover:text-black transition duration-150 ease-in-out flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-x">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </div>
+            <span id="timer" class="text-sm font-normal text-gray-700">0:00</span>
+        </div>
+    </div>
+
+    <!-- Behållare för resultatvisning (utanför kortet) -->
+    <div id="resultDisplayContainer" class="bg-white rounded-2xl w-full mx-2 sm:max-w-[340px] sm:mx-auto h-[540px] p-12 flex flex-col items-center justify-center hidden">
+        <h2 class="text-2xl font-bold mb-4">Resultat</h2>
+        <p id="resultText" class="text-xl font-semibold mb-8 text-center"></p>
+        <button id="restartButton" class="px-6 py-3 bg-black text-white font-semibold rounded-md shadow-none hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 transition duration-150 ease-in-out">
+            Starta om
+        </button>
+    </div>
+
+    <script>
+        // Filnamn för Orion-loggan
+        const ORION_LOGO_FILENAME = 'Orion-logo-skold.svg';
+        // Bas-URL för Orion-loggan
+        const ORION_LOGO_BASE_URL = 'https://jonkapirat.github.io/site/definitioner/';
+
+        const BASE_IMAGE_URL = 'https://jonkapirat.github.io/site/definitioner/foremal/';
+        const BASE_IMAGE_URL_EXTRA = 'https://jonkapirat.github.io/site/definitioner/extra/';
+
+        const MAIN_JSON_DATA_URL = 'https://jonkapirat.github.io/site/definitioner/quiz-data.json';
+        const EXTRA_JSON_DATA_URL = 'https://jonkapirat.github.io/site/definitioner/extra-quiz-data.json'; 
+        
+        // Elementreferenser
+        const startScreenContainer = document.getElementById('startScreenContainer');
+        const mainCardContainer = document.getElementById('mainCardContainer');
+        const questionSvgContainer = document.getElementById('questionSvgContainer');
+        const answerButtonsContainer = document.getElementById('answerButtons');
+        const questionNumberSpan = document.getElementById('questionNumber');
+        const timerSpan = document.getElementById('timer');
+        const resultText = document.getElementById('resultText');
+        const startButton = document.getElementById('startButton');
+        const restartButton = document.getElementById('restartButton');
+        const questionInfoContainer = document.getElementById('questionInfoContainer');
+        const resultDisplayContainer = document.getElementById('resultDisplayContainer');
+        const closeQuizButton = document.getElementById('closeQuizButton');
+        const orionLogoContainer = document.getElementById('orionLogoContainer');
+        const includeControlItemsCheckbox = document.getElementById('includeControlItems');
+        const includeExtraPlacementCheckbox = document.getElementById('includeExtraPlacement');
+        const selectionWarning = document.getElementById('selectionWarning');
+        // Removed previewSvgsContainer element reference
+
+        let currentQuestionIndex = 0;
+        let score = 0;
+        let timerInterval;
+        let secondsElapsed = 0;
+        let questions = []; 
+        let quizLength = 10; 
+
+        let allMainQuestionData = []; 
+        let allExtraQuestionData = []; 
+
+        /**
+         * Lägger till en cache-busting parameter till en URL.
+         * Detta förhindrar att webbläsaren använder en gammal cachad version av resursen.
+         * @param {string} url - URL:en att lägga till parametern till.
+         * @returns {string} Den nya URL:en med cache-busting parameter.
+         */
+        function addCacheBuster(url) {
+            const separator = url.includes('?') ? '&' : '?';
+            return `${url}${separator}v=${new Date().getTime()}`;
+        }
+
+        /**
+         * Blandar elementen i en array slumpmässigt.
+         * @param {Array} array - Arrayen som ska blandas.
+         */
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+        }
+
+        /**
+         * Laddar och visar Orion-loggan.
+         */
+        async function loadOrionLogo() {
+            try {
+                const svgResponse = await fetch(addCacheBuster(ORION_LOGO_BASE_URL + ORION_LOGO_FILENAME));
+                if (!svgResponse.ok) {
+                    throw new Error(`Kunde inte ladda Orion-logga: ${ORION_LOGO_FILENAME}, status: ${svgResponse.status}`);
+                }
+                let svgText = await svgResponse.text();
+
+                // Ta bort width och height attributen för att tillåta skalning via CSS
+                svgText = svgText
+                    .replace(/<svg([^>]*)width=['"].*?['"]([^>]*)>/g, '<svg$1$2>')
+                    .replace(/<svg([^>]*)height=['"].*?['"]([^>]*)>/g, '<svg$1$2>');
+                // Stroke-width behålls för att respektera originaldesign om det finns
+
+                const parser = new DOMParser();
+                const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
+                const svgElement = svgDoc.documentElement;
+                
+                // Explicitly set width and height to 100% for scaling
+                svgElement.setAttribute('width', '100%');
+                svgElement.setAttribute('height', '100%');
+
+                orionLogoContainer.innerHTML = ''; // Rensa befintligt innehåll
+                orionLogoContainer.appendChild(svgElement); // Lägg till SVG-elementet direkt
+
+            } catch (error) {
+                console.error(`Fel vid laddning eller visning av Orion-loggan:`, error);
+                orionLogoContainer.innerHTML = `<p class="text-red-500 text-xs">Kunde ej ladda logga.</p>`;
+            }
+        }
+
+        /**
+         * Laddar alla quizdata från JSON-filer.
+         */
+        async function loadAllQuizData() {
+            try {
+                const mainResponse = await fetch(addCacheBuster(MAIN_JSON_DATA_URL));
+                if (!mainResponse.ok) {
+                    throw new Error(`HTTP error! status (main quiz data): ${mainResponse.status}`);
+                }
+                allMainQuestionData = await mainResponse.json();
+                // Lägg till basePath till varje fråga
+                allMainQuestionData = allMainQuestionData.map(q => ({ ...q, basePath: BASE_IMAGE_URL }));
+
+                const extraResponse = await fetch(addCacheBuster(EXTRA_JSON_DATA_URL));
+                if (!extraResponse.ok) {
+                    console.warn(`Kunde inte ladda extra quiz-data (${EXTRA_JSON_DATA_URL}), status: ${extraResponse.status}. Fortsätter med tillgängliga frågor.`);
+                } else {
+                    allExtraQuestionData = await extraResponse.json();
+                    // Lägg till basePath till varje extra fråga
+                    allExtraQuestionData = allExtraQuestionData.map(q => ({ ...q, basePath: BASE_IMAGE_URL_EXTRA }));
+                }
+            } catch (error) {
+                console.error("Kunde inte ladda quiz-data vid initiering:", error);
+                // Visa ett felmeddelande på startsidan om data inte kunde laddas
+                selectionWarning.textContent = "Kunde inte ladda frågorna. Kontrollera nätverksanslutningen.";
+                selectionWarning.classList.remove('hidden');
+            }
+        }
+
+        /**
+         * Removed displayPreviewSvgsOnStartScreen function
+         */
+
+        /**
+         * Kontrollerar och uppdaterar "Starta quiz"-knappens disabled-state.
+         */
+        function updateStartButtonState() {
+            if (!includeControlItemsCheckbox.checked && !includeExtraPlacementCheckbox.checked) {
+                startButton.disabled = true;
+            } else {
+                startButton.disabled = false;
+            }
+        }
+
+        /**
+         * Initialiserar visning av startskärmen och döljer övriga delar.
+         */
+        function init() {
+            startScreenContainer.classList.remove('hidden');
+            mainCardContainer.classList.add('hidden');
+            resultDisplayContainer.classList.add('hidden');
+            selectionWarning.classList.add('hidden'); // Dölj varningsmeddelandet
+            updateStartButtonState(); // Uppdatera knappens tillstånd vid initiering
+        }
+
+        /**
+         * Startar quiz-logiken: laddar frågor, blandar dem och visar första frågan.
+         */
+        async function startQuiz() {
+            currentQuestionIndex = 0;
+            score = 0;
+            secondsElapsed = 0;
+            
+            let combinedQuestions = [];
+
+            const includeControl = includeControlItemsCheckbox.checked;
+            const includeExtra = includeExtraPlacementCheckbox.checked;
+
+            if (!includeControl && !includeExtra) {
+                selectionWarning.textContent = "Vänligen välj minst en typ av frågor.";
+                selectionWarning.classList.remove('hidden');
+                setTimeout(() => {
+                    selectionWarning.classList.add('hidden');
+                }, 3000);
+                return;
+            }
+            selectionWarning.classList.add('hidden'); // Dölj varningsmeddelandet om val är giltigt
+
+            // Använd redan laddad data
+            if (includeControl) {
+                combinedQuestions = combinedQuestions.concat(allMainQuestionData);
+            }
+            if (includeExtra) {
+                combinedQuestions = combinedQuestions.concat(allExtraQuestionData);
+            }
+
+            let selectedQuizCount = document.querySelector('input[name="quizCount"]:checked').value;
+            if (selectedQuizCount === 'all') {
+                quizLength = combinedQuestions.length;
+            } else {
+                quizLength = parseInt(selectedQuizCount, 10);
+            }
+
+            const shuffledCombinedQuestions = [...combinedQuestions];
+            shuffleArray(shuffledCombinedQuestions);
+            questions = shuffledCombinedQuestions.slice(0, Math.min(quizLength, shuffledCombinedQuestions.length)); 
+
+            if (questions.length === 0) {
+                 resultText.textContent = "Inga frågor att visa. Vänligen kontrollera quiz-datan.";
+                 mainCardContainer.classList.add('hidden');
+                 resultDisplayContainer.classList.remove('hidden');
+                 return;
+            }
+
+            startScreenContainer.classList.add('hidden');
+            mainCardContainer.classList.remove('hidden');
+            resultDisplayContainer.classList.add('hidden');
+
+            timerSpan.textContent = '0:00';
+            startTimer();
+
+            displayQuestion();
+        }
+
+        /**
+         * Visar den aktuella frågan på skärmen.
+         */
+        async function displayQuestion() {
+            if (currentQuestionIndex < questions.length) {
+                const question = questions[currentQuestionIndex];
+
+                try {
+                    const svgResponse = await fetch(addCacheBuster(question.basePath + question.filename));
+                    if (!svgResponse.ok) {
+                        throw new Error(`Kunde inte ladda SVG-bild: ${question.filename} från ${question.basePath}, status: ${svgResponse.status}`);
+                    }
+                    let svgText = await svgResponse.text();
+
+                    // Ta bort width och height attributen för att tillåta skalning via CSS
+                    svgText = svgText
+                        .replace(/<svg([^>]*)width=['"].*?['"]([^>]*)>/g, '<svg$1$2>')
+                        .replace(/<svg([^>]*)height=['"].*?['"]([^>]*)>/g, '<svg$1$2>');
+                    // Stroke-width behålls för att respektera originaldesign om det finns
+
+                    const parser = new DOMParser();
+                    const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
+                    const svgElement = svgDoc.documentElement;
+                    
+                    // Explicitly set width and height to 100% for scaling
+                    svgElement.setAttribute('width', '100%');
+                    svgElement.setAttribute('height', '100%');
+
+                    questionSvgContainer.innerHTML = ''; // Rensa befintligt innehåll
+                    questionSvgContainer.appendChild(svgElement); // Lägg till SVG-elementet direkt
+
+                } catch (error) {
+                    console.error(`Fel vid laddning eller visning av SVG för ${question.filename}:`, error);
+                    questionSvgContainer.innerHTML = `<p class="text-red-500">Kunde inte ladda bild för denna fråga.</p>`;
+                }
+
+                questionNumberSpan.textContent = `${currentQuestionIndex + 1}/${questions.length}`;
+                answerButtonsContainer.innerHTML = '';
+
+                let answerOptions = [];
+                answerOptions.push({ text: question.answer, isCorrect: true });
+
+                const combinedAnswerPool = [...allMainQuestionData, ...allExtraQuestionData]
+                    .map(q => q.answer)
+                    .filter((value, index, self) => self.indexOf(value) === index);
+
+                const incorrectAnswersPool = combinedAnswerPool
+                    .filter(ans => ans !== question.answer);
+
+                shuffleArray(incorrectAnswersPool);
+
+                let addedIncorrectAnswers = 0;
+                for (let i = 0; i < incorrectAnswersPool.length && addedIncorrectAnswers < 3; i++) {
+                    if (!answerOptions.some(opt => opt.text === incorrectAnswersPool[i])) {
+                        answerOptions.push({ text: incorrectAnswersPool[i], isCorrect: false });
+                        addedIncorrectAnswers++;
+                    }
+                }
+                
+                while (answerOptions.length < 4) {
+                    const genericFiller = `Falskt Svar ${answerOptions.length + 1}`;
+                    if (!answerOptions.some(opt => opt.text === genericFiller)) {
+                        answerOptions.push({ text: genericFiller, isCorrect: false });
+                    } else {
+                        answerOptions.push({ text: `Annat falskt svar ${Math.random().toFixed(4)}`, isIsCorrect: false });
+                    }
+                }
+
+                shuffleArray(answerOptions);
+
+                answerOptions.forEach(answer => {
+                    const button = document.createElement('button');
+                    button.classList.add('w-full', 'px-4', 'py-2', 'border', 'border-gray-400', 'bg-transparent', 'text-gray-700', 'font-semibold', 'rounded-md', 'hover:bg-gray-200', 'hover:text-black', 'focus:outline-none', 'focus:ring-2', 'focus:ring-gray-400', 'focus:ring-offset-2', 'transition', 'duration-150', 'ease-in-out');
+                    button.textContent = answer.text;
+                    button.dataset.isCorrect = answer.isCorrect;
+
+                    button.addEventListener('click', () => handleAnswerClick(button, answer.isCorrect));
+                    answerButtonsContainer.appendChild(button);
+                });
+
+            } else {
+                showResults();
+            }
+        }
+
+        /**
+         * Hanterar klick på en svarsknapp och ger feedback.
+         * @param {HTMLElement} clickedButton - Knappen som klickades på.
+         * @param {boolean} isCorrect - Sant om svaret är korrekt, annars falskt.
+         */
+        function handleAnswerClick(clickedButton, isCorrect) {
+            Array.from(answerButtonsContainer.children).forEach(button => {
+                button.disabled = true;
+            });
+
+            if (isCorrect) {
+                score++;
+                clickedButton.classList.add('flash-correct');
+            } else {
+                clickedButton.classList.add('flash-incorrect');
+            }
+
+            setTimeout(() => {
+                currentQuestionIndex++;
+                if (currentQuestionIndex < questions.length) {
+                    displayQuestion();
+                } else {
+                    showResults();
+                }
+            }, 1000);
+        }
+
+        /**
+         * Startar timern för quizet.
+         */
+        function startTimer() {
+            if (!timerInterval) {
+                timerInterval = setInterval(() => {
+                    secondsElapsed++;
+                    const minutes = Math.floor(secondsElapsed / 60);
+                    const seconds = secondsElapsed % 60;
+                    timerSpan.textContent = `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                }, 1000);
+            }
+        }
+
+        /**
+         * Stoppar timern.
+         */
+        function stopTimer() {
+            clearInterval(timerInterval);
+            timerInterval = null;
+        }
+
+        /**
+         * Visar resultatskärmen med quizets resultat.
+         */
+        function showResults() {
+            stopTimer();
+
+            const totalMinutes = Math.floor(secondsElapsed / 60);
+            const totalSeconds = secondsElapsed % 60;
+            const formattedTime = `${totalMinutes}:${totalSeconds < 10 ? '0' : ''}${totalSeconds}`;
+
+            resultText.innerHTML = `
+                <p>Total tid: ${formattedTime}</p>
+                <p>${score} rätt av ${questions.length}</p>
+            `;
+
+            mainCardContainer.classList.add('hidden');
+            resultDisplayContainer.classList.remove('hidden');
+        }
+
+        // Eventlyssnare
+        startButton.addEventListener('click', startQuiz);
+        restartButton.addEventListener('click', init);
+        closeQuizButton.addEventListener('click', init);
+        includeControlItemsCheckbox.addEventListener('change', updateStartButtonState);
+        includeExtraPlacementCheckbox.addEventListener('change', updateStartButtonState);
+
+        // Initiera appen när DOM är laddad
+        document.addEventListener('DOMContentLoaded', async () => {
+            init();
+            await loadOrionLogo(); // Ladda Orion-loggan
+            await loadAllQuizData(); // Ladda all quizdata
+            // Removed displayPreviewSvgsOnStartScreen(); // Visa förhandsvisningar
+            updateStartButtonState(); // Uppdatera knappens tillstånd baserat på initiala checkbox-val
+        });
+    </script>
+</body>
+</html>
