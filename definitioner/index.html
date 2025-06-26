@@ -364,7 +364,7 @@
 
             // Populate extra items
             for (const item of allExtraQuestionData) {
-                await createListItem(item, extraItemsGrid, false); // Do NOT scale SVG for extra items (original size)
+                await createListItem(item, extraItemsGrid, true); // Scale SVG for extra items as well
             }
         }
 
@@ -476,7 +476,7 @@
                     // Ta bort width och height attributen för att tillåta skalning via CSS
                     svgText = svgText
                         .replace(/<svg([^>]*)width=['"].*?['"]([^>]*)>/g, '<svg$1$2>')
-                        .replace(/<svg([^>]*)height=['"].*?['"]([^>]*)>/g, '<svg$1$2>');
+                        .replace(/<svg([^>]*)height=['"].*?['"]([^>]*)>/g, '<svg$1$2');
                     // Stroke-width behålls för att respektera originaldesign om det finns
 
                     const parser = new DOMParser();
