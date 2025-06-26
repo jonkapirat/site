@@ -53,15 +53,18 @@
             color: #e0e0e0; /* Ljus textfärg för kort */
         }
 
-        html.dark #startScreenContainer h2,
-        html.dark #startScreenContainer h3 {
-            color: #f0f0f0; /* Säkerställ att rubriker är synliga */
-        }
-
+        /* Säkerställ att rubriker och etiketter är synliga i dark mode */
+        html.dark h2,
+        html.dark h3,
         html.dark label,
         html.dark span {
-            color: #c0c0c0; /* Säkerställ att etiketter och span är synliga */
+            color: #f0f0f0; /* Ljusare färg för rubriker och info-text */
         }
+        /* Specifik stil för att resulttexten på resultatskärmen ärver färgen från föräldern i dark mode */
+        html.dark #resultDisplayContainer p {
+            color: inherit; /* Ärver färgen från .resultDisplayContainer */
+        }
+
 
         html.dark button {
             background-color: #212121; /* Uppdaterad färg för svarsknappar */
@@ -213,8 +216,8 @@
 
     <!-- Behållare för resultatvisning (utanför kortet) -->
     <div id="resultDisplayContainer" class="rounded-2xl w-full mx-2 sm:max-w-[340px] sm:mx-auto h-[540px] p-12 flex flex-col items-center justify-center hidden">
-        <h2 class="text-2xl font-bold text-gray-800 mb-4">Resultat</h2>
-        <p id="resultText" class="text-xl font-semibold text-gray-700 mb-8 text-center"></p>
+        <h2 class="text-2xl font-bold mb-4">Resultat</h2>
+        <p id="resultText" class="text-xl font-semibold mb-8 text-center"></p>
         <button id="restartButton" class="px-6 py-3 bg-black text-white font-semibold rounded-md shadow-none hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-black focus:ring-offset-2 transition duration-150 ease-in-out">
             Starta om
         </button>
@@ -223,8 +226,8 @@
     <script>
         // Filnamn för Orion-loggan
         const ORION_LOGO_FILENAME = 'Orion-logo-skold.svg';
-        // Ny bas-URL för Orion-loggan, som ligger i rotmappen för definitioner
-        const ORION_LOGO_BASE_URL = '';
+        // Bas-URL för Orion-loggan, tom sträng om index.html och loggan är i samma mapp
+        const ORION_LOGO_BASE_URL = ''; // Tom sträng för relativ sökväg
 
         const startScreenContainer = document.getElementById('startScreenContainer');
         const mainCardContainer = document.getElementById('mainCardContainer');
@@ -258,12 +261,13 @@
         let questions = []; // Kommer att innehålla de utvalda quizfrågorna
         let quizLength = 10; // Standardantal frågor
 
-        // Uppdaterad bas-URL för huvudbilder
-        const BASE_IMAGE_URL = './foremal/'; // Uppdaterad till nya foldern
-        const BASE_IMAGE_URL_EXTRA = './extra/'; // Bas-URL för extra bilder
+        // Uppdaterade bas-URL:er för bilder till relativa sökvägar
+        const BASE_IMAGE_URL = './foremal/'; // Relativ sökväg
+        const BASE_IMAGE_URL_EXTRA = './extra/'; // Relativ sökväg
 
-        const MAIN_JSON_DATA_URL = './quiz-data.json';
-        const EXTRA_JSON_DATA_URL = './extra-quiz-data.json'; 
+        // Uppdaterade JSON-data-URL:er till relativa sökvägar
+        const MAIN_JSON_DATA_URL = './quiz-data.json'; // Relativ sökväg
+        const EXTRA_JSON_DATA_URL = './extra-quiz-data.json'; // Relativ sökväg
         
         let allMainQuestionData = []; // Denna kommer att fyllas med frågor från huvud-JSON
         let allExtraQuestionData = []; // Denna kommer att fyllas med frågor från extra-JSON
@@ -279,8 +283,8 @@
         // Funktion för att ladda och visa Orion-loggan
         async function loadOrionLogo() {
             try {
-                // Använd den nya specifika bas-URL:en för loggan
-                const svgResponse = await fetch(ORION_LOGO_FILENAME);
+                // Använd den nya specifika bas-URL:en för loggan (som nu kan vara tom) + filnamn
+                const svgResponse = await fetch(ORION_LOGO_BASE_URL + ORION_LOGO_FILENAME);
                 if (!svgResponse.ok) {
                     throw new Error(`Kunde inte ladda Orion-logga: ${ORION_LOGO_FILENAME}, status: ${svgResponse.status}`);
                 }
