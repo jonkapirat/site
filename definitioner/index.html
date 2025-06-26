@@ -459,6 +459,12 @@
                 answerOptions.forEach(answer => {
                     const button = document.createElement('button');
                     button.classList.add('px-4', 'py-2', 'border', 'border-gray-400', 'bg-transparent', 'text-gray-700', 'font-semibold', 'rounded-md', 'hover:bg-gray-200', 'hover:text-black', 'focus:outline-none', 'focus:ring-2', 'focus:ring-gray-400', 'focus:ring-offset-2', 'transition', 'duration-150', 'ease-in-out', 'w-full'); // Added w-full for consistent width
+                    
+                    // Explicitly set styles to ensure a clean state for new buttons
+                    button.style.backgroundColor = 'transparent';
+                    button.style.opacity = '1';
+                    button.disabled = false; // Ensure new buttons are not disabled
+
                     button.textContent = answer.text;
                     button.dataset.isCorrect = answer.isCorrect;
 
@@ -492,6 +498,7 @@
             setTimeout(() => {
                 clickedButton.classList.remove('flash-correct', 'flash-incorrect');
                 clickedButton.style.backgroundColor = 'transparent'; // Explicitly reset background color
+                clickedButton.style.opacity = '1'; // Explicitly reset opacity for the clicked button
 
                 currentQuestionIndex++;
                 if (currentQuestionIndex < questions.length) {
