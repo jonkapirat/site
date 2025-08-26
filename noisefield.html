@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Partiklar i ett brusfält</title>
+    <!-- Link to the p5.js library from a CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <style>
+        /* Styles to fill the entire browser window */
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000; /* Svart bakgrund */
+        }
+        canvas {
+            display: block; /* Removes extra space under canvas */
+        }
+    </style>
+</head>
+<body>
+    <script>
+        // Variables for the noise field
+        let zoff = 0; // Third dimension for Perlin noise for animation
+        let mouseInfluenceAngle = 0; // The angle influenced by the mouse/touch position
+        let mouseInfluenceSpeed = 0.5; // How quickly the field "drags" towards the mouse
+
+        // An array to hold all particles
+        let particles = [];
+        // A variable to determine the number of particles
+        let numberOfParticles = 5000;
+
+        /**
+         * A class to handle the particle.
+         */
+        class Particle {
+            constructor() {
+                // Creates a vector for the position with a random starting point
+                this.pos = createVector(random(width), random(height));
+                // Creates a vector for the velocity
+                this.vel = createVector(0, 0);
+                // Sets a random speed limit for each particle with a wider range for a more noticeable effect
+                this.maxSpeed = random(0.5, 6);
+            }
+
+            /**
+             * Updates the particle's position based on the hidden force field.
+             */
+            update() {
+                // Find the angle at the current position
+                let angle = (noise(this.pos.x * 0.01, this.pos.y * 0.01, zoff) * TWO_PI * 2) + mouseInfluenceAngle;
+                
+                // Convert the angle to a force vector
+                let force = p5.Vector.fromAngle(angle);
+
+                // Add the force to the velocity
+                this.vel.add(force);
+                // Limit the speed to maxSpeed
+                this.vel.limit(this.maxSpeed);
+                // Update the position
+                this.pos.add(this.vel);
+            }
+
+            /**
+             * Checks if the particle has left the screen and "teleports" it to the opposite side.
+             */
+            checkEdges() {
+                if (this.pos.x > width) this.pos.x = 0;
+                if (this.pos.x < 0) this.pos.x = width;
+                if (this.pos.y > height) this.pos.y = 0;
+                if (this.pos.y < 0) this.pos.y = height;
+            }
+
+            /**
+             * Draws the particle on the canvas.
+             */
+            draw() {
+                // Draws a solid white circle with 2 px diameter
+                noStroke();
+                fill(255);
+                circle(this.pos.x, this.pos.y, 2);
+            }
+        }
+
+        /**
+         * This function runs once when the sketch starts.
+         * It sets up the canvas and initial settings.
+         */
+        function setup() {
+            // Creates a canvas that fills the entire browser window
+            createCanvas(windowWidth, windowHeight);
+            background(0); // Sets the background to black
+            
+            // Create the specified number of particles and add them to the array
+            for (let i = 0; i < numberOfParticles; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        /**
+         * This function runs continuously, 60 times per second.
+         * It updates and draws the particles.
+         */
+        function draw() {
+            background(0, 10); // Draws a semi-transparent black background for a "fade" effect
+            
+            // If the mouse is pressed (or finger is touching), influence the field
+            if (mouseIsPressed) {
+                // Calculate the target angle based on mouse position relative to the center
+                let targetAngle = atan2(mouseY - height / 2, mouseX - width / 2);
+                // Smoothly interpolate the current angle towards the target angle
+                mouseInfluenceAngle = lerp(mouseInfluenceAngle, targetAngle, mouseInfluenceSpeed);
+            }
+
+            // Loop through the particles array and update and draw each particle
+            for (let p of particles) {
+                p.update();
+                p.checkEdges();
+                p.draw();
+            }
+
+            // Updates the time factor for the animation (increased speed)
+            zoff += 0.005;
+        }
+
+        /**
+         * This function runs when the window is resized.
+         * It adjusts the canvas size to match.
+         */
+        function windowResized() {
+            resizeCanvas(windowWidth, windowHeight);
+        }
+
+        /**
+         * This function handles mouse clicks or touch presses.
+         */
+        function mousePressed() {
+            // This function is required by p5.js for mouseIsPressed to work on mobile
+            // No need to add any code here, the logic is in the draw loop
+        }
+    </script>
+</body>
+</html>
