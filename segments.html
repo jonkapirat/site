@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Animerade P5.js-linjer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden; /* Döljer scrollbars */
+            background-color: #000;
+        }
+        canvas {
+            display: block; /* Tar bort extra marginaler under canvas */
+        }
+        #slider-container {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100px;
+            height: 20px;
+            cursor: pointer;
+        }
+        #slider-handle {
+            position: absolute;
+            width: 10px;
+            height: 20px;
+            background-color: #fff;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div id="slider-container">
+        <div id="slider-handle"></div>
+    </div>
+    <script>
+        // Avstånd från sidokanter för linjerna
+        const MARGIN = 80;
+
+        // Variabel för antalet segment att dela upp linjerna i
+        let numSegments = 200;
+
+        // Variabler för linjernas ändpunkter och deras hastigheter
+        let line1_p1, line1_p2, line2_p1, line2_p2, line3_p1, line3_p2, line4_p1, line4_p2;
+        
+        // Variabel för att styra visningen av de extra linjerna
+        let showExtraLines = false;
+
+        // Variabler för slidern
+        let sliderContainer;
+        let sliderHandle;
+        let isDragging = false;
+        let minSegments = 0;
+        let maxSegments = 200;
+
+        // setup() körs en gång när programmet startar
+        function setup() {
+            // Skapa en canvas som fyller hela webbläsarfönstret
+            createCanvas(windowWidth, windowHeight);
+
+            // Sätt linjefärg och tjocklek
+            stroke(255); // Vit färg
+            strokeWeight(0.5); // 0.5 pixel tjock
+
+            // Hämta slider-elementen från DOM:en
+            sliderContainer = document.getElementById('slider-container');
+            sliderHandle = document.getElementById('slider-handle');
+
+            // Lägg till händelselyssnare för slidern
+            sliderHandle.addEventListener('mousedown', startDrag);
+            document.addEventListener('mouseup', endDrag);
+            document.addEventListener('mousemove', drag);
+            sliderHandle.addEventListener('touchstart', startDrag);
+            document.addEventListener('touchend', endDrag);
+            document.addEventListener('touchmove', drag);
+
+            // Initiera linjepunkterna
+            initializePoints();
+        }
+
+        // draw() körs i en loop för att animera
+        function draw() {
+            // Svart bakgrund för att rensa canvas för varje bildruta
+            background(0);
+
+            // Uppdatera positionerna för varje punkt baserat på deras hastighet
+            updatePoint(line1_p1);
+            updatePoint(line1_p2);
+            updatePoint(line2_p1);
+            updatePoint(line2_p2);
+            updatePoint(line3_p1);
+            updatePoint(line3_p2);
+            updatePoint(line4_p1);
+            updatePoint(line4_p2);
+
+            // Rita de ursprungliga fyra linjerna
+            line(line1_p1.x, line1_p1.y, line1_p2.x, line1_p2.y);
+            line(line2_p1.x, line2_p1.y, line2_p2.x, line2_p2.y);
+            line(line3_p1.x, line3_p1.y, line3_p2.x, line3_p2.y);
+            line(line4_p1.x, line4_p1.y, line4_p2.x, line4_p2.y);
+
+            // Rita linjerna mellan segmenten
+            for (let i = 0; i < numSegments; i++) {
+                let amount = i / (numSegments - 1);
+
+                // Beräkna punkterna på den första linjen med interpolation (lerp)
+                let p1_x = lerp(line1_p1.x, line1_p2.x, amount);
+                let p1_y = lerp(line1_p1.y, line1_p2.y, amount);
+
+                // Beräkna punkterna på den andra linjen med interpolation (lerp)
+                let p2_x = lerp(line2_p1.x, line2_p2.x, amount);
+                let p2_y = lerp(line2_p1.y, line2_p2.y, amount);
+                
+                // Beräkna punkterna på den tredje linjen med interpolation (lerp)
+                let p3_x = lerp(line3_p1.x, line3_p2.x, amount);
+                let p3_y = lerp(line3_p1.y, line3_p2.y, amount);
+                
+                // Beräkna punkterna på den fjärde linjen med interpolation (lerp)
+                let p4_x = lerp(line4_p1.x, line4_p2.x, amount);
+                let p4_y = lerp(line4_p1.y, line4_p2.y, amount);
+
+                // Rita linjer mellan de motsatta segmenten
+                line(p1_x, p1_y, p2_x, p2_y);
+                line(p3_x, p3_y, p4_x, p4_y);
+
+                // Rita de extra linjerna om showExtraLines är true
+                if (showExtraLines) {
+                    line(p2_x, p2_y, p3_x, p3_y);
+                    line(p4_x, p4_y, p1_x, p1_y);
+                }
+            }
+        }
+
+        // Följande funktion säkerställer att canvasen ändrar storlek när fönstret gör det
+        function windowResized() {
+            resizeCanvas(windowWidth, windowHeight);
+            // Återställ punkternas positioner för att undvika problem med storleksändring
+            initializePoints();
+        }
+
+        // Följande funktion lägger till en klickhändelse
+        function mouseClicked() {
+            showExtraLines = !showExtraLines; // Växla värdet på showExtraLines
+        }
+
+        // En funktion för att initiera punkterna med slumpmässiga hastigheter
+        function initializePoints() {
+            // Använd slumpmässiga värden för hastigheten (-2 till 2 pixlar per bildruta)
+            line1_p1 = { x: MARGIN, y: 150, vx: random(-2, 2), vy: random(-2, 2) };
+            line1_p2 = { x: MARGIN, y: height - 150, vx: random(-2, 2), vy: random(-2, 2) };
+            line2_p1 = { x: width - MARGIN, y: 150, vx: random(-2, 2), vy: random(-2, 2) };
+            line2_p2 = { x: width - MARGIN, y: height - 150, vx: random(-2, 2), vy: random(-2, 2) };
+            
+            // Nya linjer som rör sig på samma sätt
+            line3_p1 = { x: random(width), y: MARGIN, vx: random(-2, 2), vy: random(-2, 2) };
+            line3_p2 = { x: random(width), y: height - MARGIN, vx: random(-2, 2), vy: random(-2, 2) };
+            line4_p1 = { x: MARGIN, y: random(height), vx: random(-2, 2), vy: random(-2, 2) };
+            line4_p2 = { x: width - MARGIN, y: random(height), vx: random(-2, 2), vy: random(-2, 2) };
+        }
+
+        // En funktion för att uppdatera en punktposition och kontrollera för kollision med kanterna
+        function updatePoint(p) {
+            // Flytta punkten
+            p.x += p.vx;
+            p.y += p.vy;
+
+            // Kontrollera för kollision med skärmens kanter och vänd riktning
+            if (p.x <= 0 || p.x >= width) {
+                p.vx *= -1;
+            }
+            if (p.y <= 0 || p.y >= height) {
+                p.vy *= -1;
+            }
+        }
+
+        // Slider-funktioner
+        function startDrag(event) {
+            event.preventDefault();
+            isDragging = true;
+        }
+
+        function endDrag(event) {
+            isDragging = false;
+        }
+
+        function drag(event) {
+            if (!isDragging) return;
+
+            // Få X-koordinaten för mus eller touch
+            const clientX = event.touches ? event.touches[0].clientX : event.clientX;
+            const containerRect = sliderContainer.getBoundingClientRect();
+
+            // Beräkna den nya positionen för handtaget
+            let newX = clientX - containerRect.left;
+            
+            // Begränsa handtaget inom sliderns spår (100px)
+            newX = max(0, min(newX, containerRect.width));
+            
+            // Uppdatera handtagets position
+            sliderHandle.style.left = newX + 'px';
+
+            // Mappa handtagets position till antalet segment
+            numSegments = floor(map(newX, 0, containerRect.width, minSegments, maxSegments));
+        }
+    </script>
+</body>
+</html>
