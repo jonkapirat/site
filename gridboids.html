@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P5.js Grid</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #FFFFFF;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.4.0/lib/p5.js"></script>
+</head>
+<body>
+    <script>
+        let gridDimension;
+        const margin = 16;
+        const canvasBgColor = '#FFFFFF';
+        const squareFillColor = '#FAFAFA';
+        const circleFillColor = '#011CD2';
+        const circleOutOfBoundsColor = '#D67167';
+        let numCircles = 5;
+        let squares = [];
+        let allBoids = [];
+
+        function setup() {
+            createCanvas(windowWidth, windowHeight);
+            gridDimension = min(width, height) * 0.8;
+            createGrid();
+        }
+
+        function draw() {
+            updateAllBoids();
+            drawGrid();
+            drawInstructions();
+        }
+
+        function windowResized() {
+            resizeCanvas(windowWidth, windowHeight);
+            gridDimension = min(width, height) * 0.8;
+            createGrid();
+        }
+
+        function keyPressed() {
+            if (keyCode === UP_ARROW && numCircles < 16) {
+                addCircleToAllSquares();
+            } else if (keyCode === DOWN_ARROW && numCircles > 1) {
+                removeCircleFromAllSquares();
+            }
+        }
+        
+        // Boid-klass för att hantera cirklarnas position och hastighet
+        class Boid {
+            constructor(x, y, parentSquareIndex) {
+                this.position = createVector(x, y);
+                this.velocity = p5.Vector.random2D();
+                this.velocity.setMag(random(0.5, 1.5));
+                this.acceleration = createVector();
+                this.maxForce = 0.05;
+                this.maxSpeed = 2;
+                this.isOutOfBounds = false;
+                this.parentSquareIndex = parentSquareIndex;
+            }
+
+            // Gömda regler för boids
+            // Separation
+            separation(boids) {
+                let perceptionRadius = 24;
+                let steering = createVector();
+                let total = 0;
+                for (let other of boids) {
+                    let d = dist(this.position.x, this.position.y, other.position.x, other.position.y);
+                    if (other != this && d < perceptionRadius) {
+                        let diff = p5.Vector.sub(this.position, other.position);
+                        diff.div(d * d);
+                        steering.add(diff);
+                        total++;
+                    }
+                }
+                if (total > 0) {
+                    steering.div(total);
+                    steering.setMag(this.maxSpeed);
+                    steering.sub(this.velocity);
+                    steering.limit(this.maxForce);
+                }
+                return steering;
+            }
+
+            // Inriktning
+            alignment(boids) {
+                let perceptionRadius = 32;
+                let steering = createVector();
+                let total = 0;
+                for (let other of boids) {
+                    let d = dist(this.position.x, this.position.y, other.position.x, other.position.y);
+                    if (other != this && d < perceptionRadius) {
+                        steering.add(other.velocity);
+                        total++;
+                    }
+                }
+                if (total > 0) {
+                    steering.div(total);
+                    steering.setMag(this.maxSpeed);
+                    steering.sub(this.velocity);
+                    steering.limit(this.maxForce);
+                }
+                return steering;
+            }
+
+            // Sammanhållning
+            cohesion(boids) {
+                let perceptionRadius = 32;
+                let steering = createVector();
+                let total = 0;
+                for (let other of boids) {
+                    let d = dist(this.position.x, this.position.y, other.position.x, other.position.y);
+                    if (other != this && d < perceptionRadius) {
+                        steering.add(other.position);
+                        total++;
+                    }
+                }
+                if (total > 0) {
+                    steering.div(total);
+                    steering.sub(this.position);
+                    steering.setMag(this.maxSpeed);
+                    steering.sub(this.velocity);
+                    steering.limit(this.maxForce);
+                }
+                return steering;
+            }
+
+            // Styr boidsen tillbaka in i rutan
+            boundaries() {
+                let steering = createVector();
+                let boundary = 15;
+                let desired;
+                let parentSquare = squares[this.parentSquareIndex];
+                let { x, y, size } = parentSquare;
+
+                if (this.position.x < x + boundary) {
+                    desired = createVector(this.maxSpeed, this.velocity.y);
+                } else if (this.position.x > x + size - boundary) {
+                    desired = createVector(-this.maxSpeed, this.velocity.y);
+                }
+
+                if (this.position.y < y + boundary) {
+                    desired = createVector(this.velocity.x, this.maxSpeed);
+                } else if (this.position.y > y + size - boundary) {
+                    desired = createVector(this.velocity.x, -this.maxSpeed);
+                }
+
+                if (desired) {
+                    desired.setMag(this.maxSpeed);
+                    steering = p5.Vector.sub(desired, this.velocity);
+                    steering.limit(this.maxForce);
+                }
+                return steering;
+            }
+
+            flock(boids) {
+                let separation = this.separation(boids);
+                let alignment = this.alignment(boids);
+                let cohesion = this.cohesion(boids);
+                let boundaryForce = this.boundaries();
+
+                this.acceleration.add(separation.mult(2));
+                this.acceleration.add(alignment);
+                this.acceleration.add(cohesion);
+                this.acceleration.add(boundaryForce.mult(2));
+            }
+
+            update() {
+                this.position.add(this.velocity);
+                this.velocity.add(this.acceleration);
+                this.velocity.limit(this.maxSpeed);
+                this.acceleration.mult(0);
+            }
+        }
+
+        function createGrid() {
+            squares = [];
+            allBoids = [];
+            let startX = (width - gridDimension) / 2;
+            let startY = (height - gridDimension) / 2;
+            let squareSide = (gridDimension - (3 * margin)) / 4;
+            const circleSize = squareSide * 0.04;
+
+            for (let i = 0; i < 4; i++) {
+                for (let j = 0; j < 4; j++) {
+                    let squareIndex = i * 4 + j;
+                    let x = startX + j * (squareSide + margin);
+                    let y = startY + i * (squareSide + margin);
+
+                    let circles = [];
+                    for (let k = 0; k < numCircles; k++) {
+                        let randX = random(x + circleSize / 2, x + squareSide - circleSize / 2);
+                        let randY = random(y + circleSize / 2, y + squareSide - circleSize / 2);
+                        let boid = new Boid(randX, randY, squareIndex);
+                        circles.push(boid);
+                        allBoids.push(boid);
+                    }
+                    squares.push({ x: x, y: y, size: squareSide, circles: circles });
+                }
+            }
+        }
+
+        function addCircleToAllSquares() {
+            numCircles++;
+            const squareSide = (gridDimension - (3 * margin)) / 4;
+            const circleSize = squareSide * 0.04;
+
+            for (let i = 0; i < squares.length; i++) {
+                let square = squares[i];
+                let randX = random(square.x + circleSize / 2, square.x + square.size - circleSize / 2);
+                let randY = random(square.y + circleSize / 2, square.y + square.size - circleSize / 2);
+                let newBoid = new Boid(randX, randY, i);
+                square.circles.push(newBoid);
+                allBoids.push(newBoid);
+            }
+        }
+
+        function removeCircleFromAllSquares() {
+            numCircles--;
+            for (let square of squares) {
+                if (square.circles.length > 0) {
+                    let boidToRemove = square.circles.pop();
+                    let indexInAllBoids = allBoids.indexOf(boidToRemove);
+                    if (indexInAllBoids > -1) {
+                        allBoids.splice(indexInAllBoids, 1);
+                    }
+                }
+            }
+        }
+        
+        function updateAllBoids() {
+            for (let boid of allBoids) {
+                // Find nearest boid from another square
+                let closestOtherBoid = null;
+                let minDistance = Infinity;
+
+                for (let otherBoid of allBoids) {
+                    if (boid.parentSquareIndex !== otherBoid.parentSquareIndex) {
+                        let d = dist(boid.position.x, boid.position.y, otherBoid.position.x, otherBoid.position.y);
+                        if (d < 22 && d < minDistance) {
+                            minDistance = d;
+                            closestOtherBoid = otherBoid;
+                        }
+                    }
+                }
+
+                // If a close boid from another square is found, perform the switch
+                if (closestOtherBoid) {
+                    let boidA_boundaryForce = boid.boundaries().mag();
+                    let boidB_boundaryForce = closestOtherBoid.boundaries().mag();
+
+                    if (boidA_boundaryForce < boidB_boundaryForce) {
+                        // Steal Boid A
+                        let oldParentSquare = squares[boid.parentSquareIndex];
+                        let newParentSquare = squares[closestOtherBoid.parentSquareIndex];
+
+                        let boidIndex = oldParentSquare.circles.indexOf(boid);
+                        if (boidIndex > -1) {
+                            oldParentSquare.circles.splice(boidIndex, 1);
+                            newParentSquare.circles.push(boid);
+                            boid.parentSquareIndex = closestOtherBoid.parentSquareIndex;
+                        }
+                    } else if (boidB_boundaryForce < boidA_boundaryForce) {
+                        // Steal Boid B
+                        let oldParentSquare = squares[closestOtherBoid.parentSquareIndex];
+                        let newParentSquare = squares[boid.parentSquareIndex];
+
+                        let boidIndex = oldParentSquare.circles.indexOf(closestOtherBoid);
+                        if (boidIndex > -1) {
+                            oldParentSquare.circles.splice(boidIndex, 1);
+                            newParentSquare.circles.push(closestOtherBoid);
+                            closestOtherBoid.parentSquareIndex = boid.parentSquareIndex;
+                        }
+                    }
+                }
+            }
+        }
+
+
+        function drawGrid() {
+            background(canvasBgColor);
+
+            // Step 1: Draw all squares first
+            for (let square of squares) {
+                fill(squareFillColor);
+                noStroke();
+                rect(square.x, square.y, square.size, square.size);
+            }
+
+            // Step 2: Then, draw all boids and their lines
+            strokeWeight(0.5);
+            for (let square of squares) {
+                for (let circle of square.circles) {
+                    circle.flock(square.circles);
+                    circle.update();
+
+                    // Check if boid is outside the square
+                    if (circle.position.x < square.x || circle.position.x > square.x + square.size ||
+                        circle.position.y < square.y || circle.position.y > square.y + square.size) {
+                        circle.isOutOfBounds = true;
+                    } else {
+                        circle.isOutOfBounds = false;
+                    }
+
+                    // Set fill color based on out of bounds status
+                    if (circle.isOutOfBounds) {
+                        fill(circleOutOfBoundsColor);
+                        stroke(circleOutOfBoundsColor);
+                    } else {
+                        fill(circleFillColor);
+                        stroke(circleFillColor);
+                    }
+
+                    const circleSize = square.size * 0.04;
+                    ellipse(circle.position.x, circle.position.y, circleSize, circleSize);
+
+                    // Anslut varje cirkel till dess närmaste granne
+                    let closest = null;
+                    let minDistance = Infinity;
+
+                    for (let other of square.circles) {
+                        if (circle !== other) {
+                            let d = dist(circle.position.x, circle.position.y, other.position.x, other.position.y);
+                            if (d < minDistance) {
+                                minDistance = d;
+                                closest = other;
+                            }
+                        }
+                    }
+                    if (closest) {
+                        line(circle.position.x, circle.position.y, closest.position.x, closest.position.y);
+                    }
+                }
+            }
+        }
+
+        function drawInstructions() {
+            let startY = (height - gridDimension) / 2 + gridDimension + 32;
+            textSize(11);
+            fill('#8D8D8D');
+           
+            textAlign(CENTER);
+            text('Arrow up/down. Click', width / 2, startY);
+        }
+
+        function mousePressed() {
+            createGrid();
+        }
+    </script>
+</body>
+</html>
