@@ -25,11 +25,11 @@
         /* Delad styling för kontrollknappar */
         .control-button {
             position: absolute;
-            top: 20px; /* Uppdaterad till 20px från överkanten */
+            top: 20px; /* 20px från överkanten (oförändrad) */
             z-index: 10;
             cursor: pointer;
             
-            /* Förbättrar respons på touch-skärmar, förhindrar fördröjning */
+            /* Förbättrar respons på touch-skärmar */
             touch-action: manipulation; 
             
             /* Minimalistisk Styling */
@@ -47,12 +47,12 @@
 
         /* Placering av Tree-knappen (80px från vänsterkanten) */
         #treeButton {
-            left: 80px; /* Uppdaterad till 80px från vänsterkanten */
+            left: 80px; /* 80px från vänsterkanten (oförändrad) */
         }
 
-        /* Placering av Clear-knappen (till höger om Tree-knappen, ca 15px mellanrum) */
+        /* Placering av Clear-knappen */
         #clearButton {
-            left: 155px; /* Ca 80px + 60px bredd + 15px mellanrum */
+            left: 155px; 
         }
 
         .control-button:hover {
@@ -71,10 +71,10 @@
 
     <script>
         // Globala konstanter för fjärilens gemensamma utseende/gränser
-        const BUTTERFLY_COUNT = 20;       // Antal fjärilar som skapas per klick
-        const INITIAL_V_ANGLE = Math.PI / 6; // Grundvinkel för V-formen (startöppning)
-        const FLAP_AMPLITUDE = Math.PI / 8; // Hur mycket vingarna maximalt öppnas/stängs (gemensamt för alla)
-        const SCATTER_RADIUS = 15;        // Maximalt avstånd från klickpunkten vid initiering
+        const BUTTERFLY_COUNT = 20;       
+        const INITIAL_V_ANGLE = Math.PI / 6; 
+        const FLAP_AMPLITUDE = Math.PI / 8; 
+        const SCATTER_RADIUS = 15;        
         
         // FÄRG PALETT
         const COLOR_PALETTE = [
@@ -98,22 +98,22 @@
         const SCARE_DURATION_MS = 4000; // 4 sekunder som fjärilarna flyr/flyger i flock innan de återvänder
         
         // Fractal Tree konstanter
-        const MAX_DEPTH = 4;           // Antal rekursiva delningar
-        const INITIAL_LENGTH = 100;    // Startlängd för stammen
-        const BRANCH_ANGLE = Math.PI / 6; // 30 graders vinkel för delning
-        const MAX_ANIMATION_TIME_MS = 5000; // 5 sekunder för att rita hela trädet
+        const MAX_DEPTH = 4;           
+        const INITIAL_LENGTH = 100;    
+        const BRANCH_ANGLE = Math.PI / 6; 
+        const MAX_ANIMATION_TIME_MS = 5000; 
 
-        const SCARE_RADIUS = 40;       // Muspekarens skrämselradie i pixlar
+        const SCARE_RADIUS = 40;       
 
         let canvas;
         let butterflies = []; 
-        let lastClickTime; // Behålls för att kunna återanvända om timer läggs till igen
+        let lastClickTime; 
 
         // Variabler för träd och animation
-        let treeLandingSpots = []; // Lagrar koordinater för fjärilarnas landning
-        let treeSegments = [];     // Lagrar alla linjesegment för trädets teckningsanimation
-        let treeDrawn = false;     // Flagg: Är trädet aktivt (under ritning eller klart)?
-        let treeAnimationStartTime = 0; // Tiden (millis) när trädet började ritas
+        let treeLandingSpots = []; 
+        let treeSegments = [];     
+        let treeDrawn = false;     
+        let treeAnimationStartTime = 0; 
 
         /**
          * Klass för att representera ett enda linjesegment i trädet.
@@ -149,10 +149,8 @@
 
                 // --- Landningsstatus ---
                 this.isLanded = false;
-                this.targetSpot = null; // Den tilldelade landningsplatsen på trädet
+                this.targetSpot = null; 
                 
-                // Om trädet är aktivt vid klicket (dvs. vi injicerar), starta skrämseltimern
-                // Detta får den nya svärmen att flyga fritt i 4 sekunder innan landning.
                 if (isAttractionActiveOnPress) {
                     this.scareTimer = millis() + SCARE_DURATION_MS;
                 } else {
@@ -272,16 +270,15 @@
                 let distToTarget = p5.Vector.dist(this.position, targetPoint);
 
                 // 3. Landningscheck
-                if (distToTarget < 5) { // Om den är nära nog
+                if (distToTarget < 5) { 
                     this.isLanded = true;
                     // Lås positionen till målet med en liten slumpmässig offset
                     this.position = targetPoint.copy().add(random(-3, 3), random(-3, 3)); 
-                    this.velocity.mult(0); // Stanna rörelse
+                    this.velocity.mult(0); 
                     this.acceleration.mult(0);
                 } else {
                     // 4. Styr mot målet
                     let steer = this.seek(targetPoint);
-                    // Ge en starkare dragningskraft mot målet för att landa snabbare
                     this.applyForce(steer.mult(1.5)); 
                 }
             }
@@ -311,18 +308,14 @@
              */
             update(butterflies, isAttractionActive) {
                 if (this.isLanded) {
-                    // Om landad, gör inget annat än att rita (vingslagen fortsätter i display())
                     return; 
                 }
                 
-                // Kontrollerar om fjärilen fortfarande är i flykt/skrämsel-läge
                 const isScared = millis() < this.scareTimer; 
 
                 if (isAttractionActive && !isScared) {
-                    // Om attraktion är aktiv OCH fjärilen inte är skrämd, styr mot trädets grenar
                     this.approachTarget(); 
                 } else {
-                    // Annars (om inte aktiv eller om skrämd), kör normal Boid-logik
                     this.flock(butterflies); 
                     let noiseForce = this.calculateNoiseForce();
                     this.applyForce(noiseForce);
@@ -347,7 +340,6 @@
              * Ritar fjärilen på canvasen och animerar dess flax och studs.
              */
             display() {
-                // Vingslagen beror enbart på frameCount, så de fortsätter även när isLanded=true
                 let flap = sin(frameCount * this.flapSpeed + this.flapOffset) * FLAP_AMPLITUDE;
                 let yOffset = -flap * this.verticalStudScale; 
                 
@@ -384,27 +376,17 @@
         
         /**
          * Rekursiv funktion för att generera alla trädsegment och lagra dem.
-         * Den samlar även landningsplatserna (treeLandingSpots).
-         * @param {p5.Vector} startPos Absolut startposition.
-         * @param {number} len Längden på den aktuella grenen.
-         * @param {number} angle Aktuell rotationsvinkel (0 = rakt upp).
-         * @param {number} depth Aktuellt djup.
          */
         function generateBranch(startPos, len, angle, depth) {
             if (depth > MAX_DEPTH) return;
 
-            // Beräkna slutposition
             let dx = len * sin(angle);
             let dy = len * cos(angle);
             
-            // Y är inverterad i p5.js, så vi subtraherar dy
             let endPos = createVector(startPos.x + dx, startPos.y - dy); 
 
-            // Lagra segmentet
             treeSegments.push(new Segment(startPos.copy(), endPos.copy()));
 
-            // Samla landningspunkter längs segmentet endast för djup 2 och högre
-            // Detta filtrerar bort landningsplatser från stammen och de första stora grenarna (gren 1 och 2).
             if (depth >= 2) { 
                 const numSamples = 4;
                 for (let i = 1; i < numSamples; i++) {
@@ -414,64 +396,53 @@
                 }
             }
             
-            // Lägg till spetsen som sista landningsplats (endast för sista djupet)
             if (depth === MAX_DEPTH) {
                 treeLandingSpots.push(endPos.copy());
             }
 
 
-            // Stoppvillkor och rekursiva anrop
             if (depth < MAX_DEPTH) {
                 let nextLen = len * 0.7;
 
-                // Gren 1 (vänster)
                 generateBranch(endPos, nextLen, angle - BRANCH_ANGLE, depth + 1);
-
-                // Gren 2 (höger)
                 generateBranch(endPos, nextLen, angle + BRANCH_ANGLE, depth + 1);
             }
         }
 
         /**
          * Funktion för att förberäkna alla trädsegment.
-         * Körs endast en gång när trädet aktiveras.
          */
         function precalculateTree() {
             treeSegments = [];
             treeLandingSpots = [];
             
-            // Startposition: Mitt på bottenkanten
             const startPos = createVector(width / 2, height);
             
-            // Starta rekursion. Vinkel 0 är rakt upp.
             generateBranch(startPos, INITIAL_LENGTH, 0, 0); 
         }
 
         /**
          * Ritar trädets segment baserat på animationens framsteg.
-         * @param {number} progress Animationens framsteg (0.0 till 1.0).
          */
         function drawAnimatedTree(progress) {
             if (treeSegments.length === 0) return;
 
             stroke('#333');
-            strokeWeight(1); // Smalare grenar
+            strokeWeight(1); 
             noFill();
 
             const totalSegments = treeSegments.length;
             const segmentsToDraw = progress * totalSegments;
 
-            // 1. Rita alla helt färdiga segment
             const fullSegments = floor(segmentsToDraw);
             for (let i = 0; i < fullSegments; i++) {
                 const seg = treeSegments[i];
                 line(seg.start.x, seg.start.y, seg.end.x, seg.end.y);
             }
 
-            // 2. Rita det delvis färdiga segmentet (där "pennan" ritar just nu)
             if (fullSegments < totalSegments) {
                 const seg = treeSegments[fullSegments];
-                const partialProgress = segmentsToDraw - fullSegments; // Den del av segmentet som ska ritas
+                const partialProgress = segmentsToDraw - fullSegments; 
 
                 const partialEnd = p5.Vector.lerp(seg.start, seg.end, partialProgress);
                 line(seg.start.x, seg.start.y, partialEnd.x, partialEnd.y);
@@ -483,14 +454,14 @@
          */
         function toggleTree() {
             if (treeDrawn) {
-                // Träd finns: Ta bort det och starta flykt för alla fjärilar
+                // Träd finns: Ta bort det
                 treeDrawn = false; 
                 treeSegments = [];
                 treeLandingSpots = []; 
                 treeAnimationStartTime = 0;
-                lastClickTime = millis(); // Uppdatera tiden för att markera aktivitet
+                lastClickTime = millis(); 
                 
-                // Alla befintliga fjärilar lyfter och flyger fritt
+                // Fjärilarna lyfter
                 for (let b of butterflies) {
                     b.isLanded = false;
                     b.targetSpot = null; 
@@ -500,21 +471,15 @@
 
             } else {
                 // Träd finns inte: Skapa det
-                
-                // 1. Förberäkna segment
                 precalculateTree();
-                // 2. Starta animationstimer
                 treeAnimationStartTime = millis();
-                // 3. Markera som aktiv/under ritning
                 treeDrawn = true; 
-                lastClickTime = millis(); // Uppdatera tiden för att markera aktivitet
+                lastClickTime = millis(); 
                 
-                // Om fjärilar redan finns, tvinga dem att lyfta och flyga fritt (scareTimer=0) 
-                // innan de dras mot det nya trädet när det är klart.
+                // Fjärilarna lyfter för att flyga fritt tills trädet är klart
                 for (let b of butterflies) {
                     b.isLanded = false;
                     b.targetSpot = null; 
-                    // Obs: scareTimer sätts inte här, de flyger fritt direkt tills trädet är ritat.
                 }
             }
         }
@@ -526,19 +491,16 @@
             canvas = createCanvas(windowWidth, windowHeight);
             canvas.style('display', 'block');
             background('#f7f7f7'); 
-            lastClickTime = millis(); // Initialisera
+            lastClickTime = millis(); 
         }
 
         function draw() {
-            // Rensa bakgrunden i varje frame
             background('#f7f7f7'); 
 
             let isAttractionActive = false;
             
-            // Om trädet är aktivt (treeDrawn=true), rita det och beräkna landningsattraktion.
             if (treeDrawn) { 
                 
-                // Kontrollerar om trädet är helt ritat (attraktionen aktiv)
                 const isAttractionFullyActive = (millis() - treeAnimationStartTime >= MAX_ANIMATION_TIME_MS);
 
                 const elapsedTime = millis() - treeAnimationStartTime;
@@ -546,13 +508,11 @@
                 
                 drawAnimatedTree(treeProgress);
 
-                // Aktivera attraktion ENDAST när trädet är helt ritat (progress = 1.0)
                 if (treeProgress >= 1.0) {
                     isAttractionActive = true;
                 }
             }
             
-            // Uppdatera position och rita varje fjäril.
             for (let butterfly of butterflies) {
                 butterfly.update(butterflies, isAttractionActive); 
                 butterfly.display();
@@ -561,49 +521,66 @@
 
         /**
          * Hanterar musrörelser för att skrämma bort landade fjärilar.
-         * Denna funktion körs endast när musen rör sig över canvas.
          */
         function mouseMoved() {
-            // Kontrollera om fjärilarna ska vara landade (dvs. trädet är ritat och attraktionen är aktiv)
             const isAttractionActive = (treeDrawn && (millis() - treeAnimationStartTime >= MAX_ANIMATION_TIME_MS));
 
             if (isAttractionActive) {
-                // Vi använder mouseX och mouseY globalt från p5.js
                 const mousePos = createVector(mouseX, mouseY);
                 
                 for (let b of butterflies) {
-                    // Endast skräm om fjärilen har landat
                     if (b.isLanded) {
                         let d = p5.Vector.dist(mousePos, b.position);
 
                         if (d < SCARE_RADIUS) {
-                            // 1. "Lyft" fjärilen, rensa målet och sätt skrämseltimer
                             b.isLanded = false;
                             b.targetSpot = null; 
-                            b.scareTimer = millis() + SCARE_DURATION_MS; // Skrämd i 4 sekunder
+                            b.scareTimer = millis() + SCARE_DURATION_MS; 
                             
-                            // 2. Beräkna avstötningskraft (flyger bort från muspekaren)
                             let escapeVector = p5.Vector.sub(b.position, mousePos);
                             escapeVector.normalize();
                             
-                            // Ställ in en snabbare utgångshastighet och knuff för större flykt
                             b.velocity = escapeVector.copy().mult(b.maxSpeed * 4.0); 
                             b.applyForce(escapeVector.mult(2.0));                     
                         }
                     }
                 }
-                
-                // lastClickTime uppdateras inte, så trädet står kvar.
             }
-            return false; // Förhindra standardhantering av musrörelse
+            return false; 
         }
 
 
         /**
          * Skapar BUTTERFLY_COUNT (20) nya fjärilar vid musens position.
+         * Denna funktion har nu en viktig logik som förhindrar att fjärilar skapas
+         * om klicket skedde på en HTML-knapp istället för på canvasen.
          */
         function mousePressed() {
-            // Kontrollera om trädet redan är framme och helt ritat (dvs. attraktion är aktiv)
+            // --- NY FIX: Kontrollera om klicket är på en HTML-knapp ---
+            const treeButton = document.getElementById('treeButton');
+            const clearButton = document.getElementById('clearButton');
+
+            if (treeButton && clearButton) {
+                const treeRect = treeButton.getBoundingClientRect();
+                const clearRect = clearButton.getBoundingClientRect();
+
+                // mouseX/mouseY är P5.js-koordinater (relativa till canvas, som är fullscreen)
+                // getBoundingClientRect() är viewport-koordinater. Jämförelsen fungerar.
+                const isOverTreeButton = mouseX >= treeRect.left && mouseX <= treeRect.right &&
+                                         mouseY >= treeRect.top && mouseY <= treeRect.bottom;
+                
+                const isOverClearButton = mouseX >= clearRect.left && mouseX <= clearRect.right &&
+                                          mouseY >= clearRect.top && mouseY <= clearRect.bottom;
+
+                if (isOverTreeButton || isOverClearButton) {
+                    // Om klicket är ÖVER en av HTML-knapparna, ignorera P5.js-händelsen.
+                    // Detta tillåter webbläsaren att trigga knappens 'click' event i stället.
+                    return false; 
+                }
+            }
+            // --- SLUT PÅ NY FIX ---
+
+
             const isAttractionActiveOnPress = (treeDrawn && (millis() - treeAnimationStartTime >= MAX_ANIMATION_TIME_MS));
 
             // Skapa nya fjärilar
@@ -614,21 +591,13 @@
                 let startX = mouseX + offsetX;
                 let startY = mouseY + offsetY;
                 
-                // Om trädet ÄR aktivt, får de nya fjärilarna en 4s skrämseltimer (Boids-flykt).
-                // Annars flyger de fritt från start.
                 let newButterfly = new Butterfly(startX, startY, isAttractionActiveOnPress);
                 butterflies.push(newButterfly);
             }
             return false; 
         }
         
-        // P5.js har inbyggd hantering för touch. För att hantera touch på canvasen
-        // använder vi mousePressed() och mouseMoved(). För knapparna (som är utanför
-        // canvasen), använder vi standard 'click' eventlyssnare, vilket är det
-        // bästa sättet att hantera både mus och touch-input för HTML-element.
-        
-
-        // Lägger till eventlyssnare för knapparna
+        // Lägger till eventlyssnare för knapparna (dessa körs fortfarande korrekt)
         document.addEventListener('DOMContentLoaded', () => {
             const clearButton = document.getElementById('clearButton');
             const treeButton = document.getElementById('treeButton'); 
@@ -637,10 +606,10 @@
                 clearButton.addEventListener('click', () => {
                     butterflies = []; 
                     lastClickTime = millis(); 
-                    treeDrawn = false; // Återställer trädflaggor
+                    treeDrawn = false; 
                     treeSegments = [];
-                    treeLandingSpots = []; // Rensa landningsplatser
-                    treeAnimationStartTime = 0; // Nollställ animationstimern
+                    treeLandingSpots = []; 
+                    treeAnimationStartTime = 0; 
                     if (canvas) {
                         background('#f7f7f7'); 
                     }
@@ -656,6 +625,10 @@
         // Hanterar responsivitet: Ändra canvasstorleken när fönstret ändras
         function windowResized() {
             resizeCanvas(windowWidth, windowHeight);
+            // Återberäkna trädets position om det är ritat
+            if(treeDrawn) {
+                precalculateTree(); 
+            }
         }
     </script>
 </body>
