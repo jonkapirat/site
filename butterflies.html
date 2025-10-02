@@ -25,10 +25,12 @@
         /* Delad styling för kontrollknappar */
         .control-button {
             position: absolute;
-            top: 20px;
-            margin-left: 80px;
+            top: 20px; /* Uppdaterad till 20px från överkanten */
             z-index: 10;
             cursor: pointer;
+            
+            /* Förbättrar respons på touch-skärmar, förhindrar fördröjning */
+            touch-action: manipulation; 
             
             /* Minimalistisk Styling */
             padding: 4px 12px;
@@ -43,14 +45,14 @@
             transition: all 0.15s ease-in-out;
         }
 
-        /* Placering av Tree-knappen (först till vänster) */
+        /* Placering av Tree-knappen (80px från vänsterkanten) */
         #treeButton {
-            left: 15px;
+            left: 80px; /* Uppdaterad till 80px från vänsterkanten */
         }
 
-        /* Placering av Clear-knappen (till höger om Tree-knappen) */
+        /* Placering av Clear-knappen (till höger om Tree-knappen, ca 15px mellanrum) */
         #clearButton {
-            left: 80px; /* Ca 15px + 50px bredd + 15px mellanrum */
+            left: 155px; /* Ca 80px + 60px bredd + 15px mellanrum */
         }
 
         .control-button:hover {
@@ -93,7 +95,6 @@
         const SEPARATION_WEIGHT = 3.0; 
 
         // --- Mål/Landningskonstanter ---
-        // const IDLE_TIMEOUT_MS = 20000;  // BORTTAGEN: Inte längre tidsbaserad
         const SCARE_DURATION_MS = 4000; // 4 sekunder som fjärilarna flyr/flyger i flock innan de återvänder
         
         // Fractal Tree konstanter
@@ -620,11 +621,17 @@
             }
             return false; 
         }
+        
+        // P5.js har inbyggd hantering för touch. För att hantera touch på canvasen
+        // använder vi mousePressed() och mouseMoved(). För knapparna (som är utanför
+        // canvasen), använder vi standard 'click' eventlyssnare, vilket är det
+        // bästa sättet att hantera både mus och touch-input för HTML-element.
+        
 
-        // Lägger till eventlyssnare för Clear-knappen OCH den nya Tree-knappen
+        // Lägger till eventlyssnare för knapparna
         document.addEventListener('DOMContentLoaded', () => {
             const clearButton = document.getElementById('clearButton');
-            const treeButton = document.getElementById('treeButton'); // NYTT
+            const treeButton = document.getElementById('treeButton'); 
             
             if (clearButton) {
                 clearButton.addEventListener('click', () => {
