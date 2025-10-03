@@ -54,8 +54,18 @@
         const SEPARATION_WEIGHT = 3.0; 
 
         // --- Mål/Landningskonstanter ---
-        const SCARE_DURATION_MS = 4000; // 4 sekunder som fjärilarna flyr/flyger i flock innan de återvänder
+        const SCARE_DURATION_MS = 4000; // 4 sekunder som fjärilarna flyr/flyger i flock efter musrörelse
         
+        // --- NYA TRÄD/FALL KONSTANTER ---
+        const MAX_BUTTERFLIES_PER_BRANCH = 8;        // Maximal last innan grenen faller
+        const FALL_FLIGHT_DURATION_MS = 8000;         // 8 sekunder flygtid efter fall
+        // ÄNDRAD: Djup 1 är nu den första nivån som kan falla och ta emot fjärilar.
+        const OUTER_BRANCH_DEPTH_START = 1;           
+        
+        // --- VISUELL FALLKONSTANTER ---
+        const FALL_ANIMATION_DURATION_MS = 1500;      // Tid för fallanimation
+        const FALL_GRAVITY = 0.5;                     // Visuell "gravitation" för fallet (högre = snabbare)
+
         // Fractal Tree konstanter
         const MAX_DEPTH = 4;           
         const INITIAL_LENGTH = 100;    
@@ -67,12 +77,15 @@
         let canvas;
         let butterflies = []; 
         let lastClickTime; 
+        let segmentIdCounter = 0; // Räknare för unika segment-ID
 
         // Variabler för träd och animation
-        let treeLandingSpots = []; 
-        let treeSegments = [];     
+        let treeLandingSpots = []; // Lagrar: { spot: p5.Vector, segmentId: number }
+        let treeSegments = [];     // Lagrar TreeSegment-objekt
         let treeDrawn = false;     
         let treeAnimationStartTime = 0; 
+        // currentFallDepth börjar på MAX_DEPTH (4) och räknas ned till OUTER_BRANCH_DEPTH_START (1)
+        let currentFallDepth = MAX_DEPTH; 
         
         // --- P5.JS KNAPP-KONSTANTER ---
         const BUTTON_SIZE = 24;
@@ -98,12 +111,20 @@
 
 
         /**
-         * Klass för att representera ett enda linjesegment i trädet.
+         * Klass för att representera ett enda linjesegment i trädet med last- och fallstatus.
          */
-        class Segment {
-            constructor(start, end) {
+        class TreeSegment {
+            constructor(start, end, isOuter, id, depth) {
                 this.start = start;
                 this.end = end;
+                this.isOuter = isOuter; // Kan grenen falla (är den landningsbar/på yttre djup)
+                this.isFallen = false;  // Har grenen fallit och är borta från scenen
+                this.isFalling = false; // Håller på att falla (visuell animation)
+                this.fallStartTime = 0; // Tidsstämpel när fallet började
+                this.load = 0;          // Nuvarande antal fjärilar på segmentet
+                this.id = id;           // Unikt ID
+                this.landingSpots = []; // Array av p5.Vectors
+                this.depth = depth;     // Grenens djup (0 = stam)
             }
         }
 
@@ -132,12 +153,47 @@
                 // --- Landningsstatus ---
                 this.isLanded = false;
                 this.targetSpot = null; 
+                this.parentSegmentId = null; // ID för segmentet den landar på/flyger mot
+                
+                // Timers
+                this.scareTimer = 0;        // Flygtid efter musrörelse
+                this.fallFlightTimer = 0;   // Flygtid efter att gren fallit
                 
                 if (isAttractionActiveOnPress) {
                     this.scareTimer = millis() + SCARE_DURATION_MS;
-                } else {
-                    this.scareTimer = 0; 
                 }
+            }
+            
+            /** Hjälpfunktion för att hitta segmentobjektet utifrån ID. */
+            findSegment(segmentId) {
+                return treeSegments.find(s => s.id === segmentId);
+            }
+            
+            /** Initierar lyft från marken eller gren. */
+            liftOff(isFall = false) {
+                // 1. Minska lasten på den gamla grenen (om landad)
+                if (this.isLanded && this.parentSegmentId !== null) {
+                    const segment = this.findSegment(this.parentSegmentId);
+                    if (segment) {
+                        segment.load--;
+                    }
+                }
+                
+                // 2. Återställ status
+                this.isLanded = false;
+                this.targetSpot = null; 
+                this.parentSegmentId = null;
+                this.acceleration.mult(0); 
+
+                // 3. Sätt flygtimer
+                if (isFall) {
+                    this.fallFlightTimer = millis() + FALL_FLIGHT_DURATION_MS;
+                } else {
+                    this.scareTimer = millis() + SCARE_DURATION_MS;
+                }
+                
+                // 4. Ge den en initial hastighet
+                this.velocity = p5.Vector.random2D().setMag(this.maxSpeed * 1.5);
             }
 
             /** Applicerar en kraft på fjärilens acceleration. */
@@ -235,28 +291,54 @@
             
             /** Styr fjärilen mot trädets landningsplatser. */
             approachTarget() {
-                // Sätt landningspositionen första gången
-                if (this.targetSpot === null) {
+                // 1. Hitta en målposition/segment om ingen finns
+                if (this.targetSpot === null || this.parentSegmentId === null) {
                     if (treeLandingSpots.length > 0) {
-                        this.targetSpot = random(treeLandingSpots);
+                        // Filtrera bort platser som tillhör fallna eller fallande grenar
+                        const availableSpots = treeLandingSpots.filter(s => {
+                            const segment = this.findSegment(s.segmentId);
+                            // Endast landa på segment som inte är fallna OCH inte faller
+                            return segment && !segment.isFallen && !segment.isFalling;
+                        });
+                        
+                        if (availableSpots.length === 0) return; // Inga lediga platser
+                        
+                        // Väljer plats slumpmässigt bland de tillgängliga
+                        const selected = random(availableSpots);
+                        this.targetSpot = selected.spot;
+                        this.parentSegmentId = selected.segmentId;
                     } else {
+                        // Inga landningsplatser i trädet, fjärilen fortsätter flyga (Boids-beteende)
                         return;
                     }
                 }
                 
+                // 2. Kontrollera om nuvarande målsegment har fallit under flygning
+                const currentSegment = this.findSegment(this.parentSegmentId);
+                if (!currentSegment || currentSegment.isFallen || currentSegment.isFalling) {
+                    this.targetSpot = null;
+                    this.parentSegmentId = null;
+                    return; // Uppdatera på nytt för att hitta nytt mål eller återgå till flock
+                }
+                
                 let targetPoint = this.targetSpot;
 
-                // 2. Beräkna avståndet till målet
+                // 3. Beräkna avståndet till målet
                 let distToTarget = p5.Vector.dist(this.position, targetPoint);
 
-                // 3. Landningscheck
+                // 4. Landningscheck
                 if (distToTarget < 5) { 
-                    this.isLanded = true;
-                    this.position = targetPoint.copy().add(random(-3, 3), random(-3, 3)); 
-                    this.velocity.mult(0); 
-                    this.acceleration.mult(0);
+                    if (!this.isLanded) { // Endast räkna last en gång vid landning
+                        this.isLanded = true;
+                        this.position = targetPoint.copy().add(random(-3, 3), random(-3, 3)); 
+                        this.velocity.mult(0); 
+                        this.acceleration.mult(0);
+                        
+                        // Öka lasten på målsegmentet
+                        currentSegment.load++;
+                    }
                 } else {
-                    // 4. Styr mot målet
+                    // 5. Styr mot målet
                     let steer = this.seek(targetPoint);
                     this.applyForce(steer.mult(1.5)); 
                 }
@@ -284,29 +366,51 @@
              * Uppdaterar fjärilens position.
              */
             update(butterflies, isAttractionActive) {
-                if (this.isLanded) {
-                    return; 
+                
+                // 1. Kontrollera om fjärilen flyger p.g.a. grenfall (8s flygning)
+                if (this.fallFlightTimer > 0 && millis() < this.fallFlightTimer) {
+                    // Fortsätt flyga som Boid
+                    this.flock(butterflies); 
+                    let noiseForce = this.calculateNoiseForce();
+                    this.applyForce(noiseForce);
+                } else if (this.fallFlightTimer > 0 && millis() >= this.fallFlightTimer) {
+                    // 8 sekunder har passerat, återställ timern och sök nytt mål
+                    this.fallFlightTimer = 0;
+                    this.targetSpot = null;
+                    this.parentSegmentId = null;
                 }
                 
+                // 2. Kontrollera om landad (och om grenen har fallit/håller på att falla)
+                if (this.isLanded) {
+                    const segment = this.findSegment(this.parentSegmentId);
+                    // Om segmentet inte finns, eller är fallit/faller, lyft omedelbart
+                    if (!segment || segment.isFallen || segment.isFalling) {
+                        this.liftOff(true); // Grenen föll, lyft och flyg i 8s
+                    }
+                    return; // Stoppa uppdatering om landad och grenen är stabil
+                }
+                
+                // 3. Om inte i fall-flygning eller landad, använd normal logik
                 const isScared = millis() < this.scareTimer; 
 
-                if (isAttractionActive && !isScared) {
+                if (isAttractionActive && !isScared && this.fallFlightTimer === 0) {
                     this.approachTarget(); 
-                } else {
+                } else if (this.fallFlightTimer === 0) {
+                    // Normal Boids flocking/scare flight
                     this.flock(butterflies); 
                     let noiseForce = this.calculateNoiseForce();
                     this.applyForce(noiseForce);
                 }
 
-                // 3. Tillämpa fysik
+                // 4. Tillämpa fysik
                 this.velocity.add(this.acceleration);
                 this.velocity.limit(this.maxSpeed);
                 this.position.add(this.velocity);
                 
-                // 4. Nollställ accelerationen
+                // 5. Nollställ accelerationen
                 this.acceleration.mult(0); 
 
-                // 5. Wrap-around (Gränshantering)
+                // 6. Wrap-around (Gränshantering)
                 if (this.position.x < 0) this.position.x = width;
                 if (this.position.x > width) this.position.x = 0;
                 if (this.position.y < 0) this.position.y = height;
@@ -362,19 +466,28 @@
             
             let endPos = createVector(startPos.x + dx, startPos.y - dy); 
 
-            treeSegments.push(new Segment(startPos.copy(), endPos.copy()));
+            // Skapa det nya segmentet och lägg till i listan
+            // isOuter är nu true från och med djup 1
+            const isOuter = depth >= OUTER_BRANCH_DEPTH_START; 
+            const newSegment = new TreeSegment(startPos.copy(), endPos.copy(), isOuter, segmentIdCounter++, depth);
+            treeSegments.push(newSegment);
 
-            if (depth >= 2) { 
-                const numSamples = 4;
+            // Skapa landningsfläckar och koppla dem till detta segment
+            const numSamples = 4;
+            // Landningsfläckar skapas från och med djup 1
+            if (depth >= OUTER_BRANCH_DEPTH_START) { 
                 for (let i = 1; i < numSamples; i++) {
                     let t = i / numSamples;
                     let spot = p5.Vector.lerp(startPos, endPos, t);
-                    treeLandingSpots.push(spot);
+                    newSegment.landingSpots.push(spot);
+                    treeLandingSpots.push({ spot: spot, segmentId: newSegment.id }); 
                 }
             }
             
+            // Slutpunkten för de djupaste grenarna (MAX_DEPTH) är också landningsplatser
             if (depth === MAX_DEPTH) {
-                treeLandingSpots.push(endPos.copy());
+                newSegment.landingSpots.push(endPos.copy());
+                treeLandingSpots.push({ spot: endPos.copy(), segmentId: newSegment.id });
             }
 
 
@@ -392,19 +505,24 @@
         function precalculateTree() {
             treeSegments = [];
             treeLandingSpots = [];
+            segmentIdCounter = 0; // Återställ ID-räknaren
             
             const startPos = createVector(width / 2, height);
+            
+            // Återställ den nuvarande falldjupet till max
+            currentFallDepth = MAX_DEPTH; 
             
             generateBranch(startPos, INITIAL_LENGTH, 0, 0); 
         }
 
         /**
-         * Ritar trädets segment baserat på animationens framsteg.
+         * Ritar trädets segment baserat på animationens framsteg och hanterar fallanimation.
          */
         function drawAnimatedTree(progress) {
             if (treeSegments.length === 0) return;
 
             stroke('#333');
+            // ÄNDRAD: Enhetlig tjocklek på 1px för alla grenar.
             strokeWeight(1); 
             noFill();
 
@@ -412,17 +530,53 @@
             const segmentsToDraw = progress * totalSegments;
 
             const fullSegments = floor(segmentsToDraw);
-            for (let i = 0; i < fullSegments; i++) {
+            
+            for (let i = 0; i < totalSegments; i++) {
                 const seg = treeSegments[i];
-                line(seg.start.x, seg.start.y, seg.end.x, seg.end.y);
-            }
+                
+                // 1. Hoppa över helt fallna grenar
+                if (seg.isFallen) continue;
+                
+                let start = seg.start;
+                let end = seg.end;
+                
+                // Sätter tjocklek (den är nu alltid 1 här)
+                strokeWeight(1);
+                
+                // 2. Hantera fallande grenar (visuell animation)
+                if (seg.isFalling) {
+                    const timeElapsed = millis() - seg.fallStartTime;
+                    
+                    if (timeElapsed < FALL_ANIMATION_DURATION_MS) {
+                        const t = timeElapsed / 1000; // Tid i sekunder
+                        
+                        // Enkel fallsimulering (gravitation)
+                        let fallDistance = FALL_GRAVITY * t * t * 1000; 
+                        // Lite sidodrift baserat på grenens lutning
+                        let sideDrift = (seg.end.x - seg.start.x > 0) ? t * 50 : -t * 50; 
+                        
+                        // Applicera fall-transformation på segmentets positioner
+                        start = start.copy().add(sideDrift, fallDistance);
+                        end = end.copy().add(sideDrift, fallDistance);
 
-            if (fullSegments < totalSegments) {
-                const seg = treeSegments[fullSegments];
-                const partialProgress = segmentsToDraw - fullSegments; 
-
-                const partialEnd = p5.Vector.lerp(seg.start, seg.end, partialProgress);
-                line(seg.start.x, seg.start.y, partialEnd.x, partialEnd.y);
+                    } else {
+                        // Animation klar, markera som helt borta
+                        seg.isFalling = false;
+                        seg.isFallen = true;
+                        continue;
+                    }
+                }
+                
+                // 3. Ritmoment (inklusive tillväxtanimation)
+                if (i < fullSegments) {
+                    // Helt ritat segment (eller fallande, där start/end är modifierade)
+                    line(start.x, start.y, end.x, end.y);
+                } else if (!seg.isFalling && i === fullSegments && segmentsToDraw < totalSegments) {
+                    // Delvis ritat segment (endast om animationen inte är klar OCH grenen inte faller)
+                    const partialProgress = segmentsToDraw - fullSegments; 
+                    const partialEnd = p5.Vector.lerp(start, end, partialProgress);
+                    line(start.x, start.y, partialEnd.x, partialEnd.y);
+                }
             }
         }
         
@@ -437,13 +591,11 @@
                 treeLandingSpots = []; 
                 treeAnimationStartTime = 0;
                 lastClickTime = millis(); 
+                currentFallDepth = MAX_DEPTH; // Återställ vid borttagning
                 
                 // Fjärilarna lyfter
                 for (let b of butterflies) {
-                    b.isLanded = false;
-                    b.targetSpot = null; 
-                    b.scareTimer = 0;    
-                    b.acceleration.mult(0); 
+                    b.liftOff(false); // Normal lift-off (4s scare)
                 }
 
             } else {
@@ -492,7 +644,7 @@
                 const iconXStart = btn.x + iconPadding; // x + 7
                 const iconYStart = btn.y + iconPadding; // y + 7
                 const iconXEnd = btn.x + btn.w - iconPadding; // x + 17
-                const iconYEnd = btn.y + btn.h - iconPadding; // y + 17
+                const iconYEnd = btn.y + btn.h - iconPadding; // x + 17
                 const iconCenterX = btn.x + btn.w / 2; // x + 12
                 
                 if (key === 'TREE') {
@@ -553,6 +705,8 @@
                         treeSegments = [];
                         treeLandingSpots = []; 
                         treeAnimationStartTime = 0; 
+                        segmentIdCounter = 0;
+                        currentFallDepth = MAX_DEPTH; // Återställ vid rensning
                         if (canvas) {
                             background('#f7f7f7'); 
                         }
@@ -561,6 +715,56 @@
                 }
             }
             return false; // Ingen knapp klickades
+        }
+
+        /**
+         * Kontrollerar om någon gren vid det nuvarande djupet har överskridit lastgränsen och får den att falla.
+         * Hanterar även kaskadeffekten.
+         */
+        function checkBranchFalls() {
+            // Endast grenar på currentFallDepth kan utlösas att falla (dvs. currentFallDepth >= 1)
+            if (currentFallDepth < OUTER_BRANCH_DEPTH_START) return;
+
+            const newlyFallingSegmentIds = [];
+
+            // 1. Kontrollera överbelastning vid currentFallDepth
+            for (let segment of treeSegments) {
+                if (segment.depth === currentFallDepth && 
+                    !segment.isFallen && 
+                    !segment.isFalling && 
+                    segment.load > MAX_BUTTERFLIES_PER_BRANCH) 
+                {
+                    // Trigger fall animation
+                    segment.isFalling = true;
+                    segment.fallStartTime = millis();
+                    newlyFallingSegmentIds.push(segment.id);
+                }
+            }
+
+            // 2. Fjärilarna på de fallande segmenten lyfter
+            if (newlyFallingSegmentIds.length > 0) {
+                for (let b of butterflies) {
+                    // liftOff kommer att hantera lastminskning och timer-sättning
+                    if (newlyFallingSegmentIds.includes(b.parentSegmentId)) {
+                        b.liftOff(true); // Lyft och flyg i 8s
+                    }
+                }
+            }
+            
+            // 3. Kaskad-djup uppdatering
+            // Kontrollera om någon gren vid currentFallDepth fortfarande står/är landningsbar.
+            const standingSegments = treeSegments.filter(s => 
+                s.depth === currentFallDepth && !s.isFallen && !s.isFalling
+            );
+
+            // Gå inåt ENDAST om alla grenar på nuvarande djup har fallit OCH vi inte har nått det permanenta inre djupet (0)
+            if (standingSegments.length === 0 && currentFallDepth > 1) {
+                // Inga stående grenar kvar på detta djup. Gå inåt.
+                currentFallDepth--;
+            }
+            // När currentFallDepth når 1, kommer den att stanna där. När alla grenar på djup 1 faller,
+            // är det bara djup 0 kvar (som inte kan falla). Då tas alla landningsplatser bort
+            // och fjärilarna övergår till flockbeteende (Boids) igen.
         }
 
 
@@ -585,11 +789,17 @@
                 const elapsedTime = millis() - treeAnimationStartTime;
                 let treeProgress = constrain(elapsedTime / MAX_ANIMATION_TIME_MS, 0, 1);
                 
+                // Ritar och animerar fallet
                 drawAnimatedTree(treeProgress);
 
                 if (treeProgress >= 1.0) {
                     isAttractionActive = true;
                 }
+            }
+            
+            // Kolla om grenar faller (endast när trädet är helt ritat)
+            if (treeDrawn && isAttractionActive) {
+                checkBranchFalls();
             }
             
             for (let butterfly of butterflies) {
@@ -615,9 +825,7 @@
                         let d = p5.Vector.dist(mousePos, b.position);
 
                         if (d < SCARE_RADIUS) {
-                            b.isLanded = false;
-                            b.targetSpot = null; 
-                            b.scareTimer = millis() + SCARE_DURATION_MS; 
+                            b.liftOff(false); // Normal lift-off (4s scare)
                             
                             let escapeVector = p5.Vector.sub(b.position, mousePos);
                             escapeVector.normalize();
@@ -659,14 +867,12 @@
             return false; 
         }
         
-        // Denna eventlyssnare är inte längre nödvändig eftersom knapparna är i P5.js.
-        // document.addEventListener('DOMContentLoaded', () => { ... });
-
 
         // Hanterar responsivitet: Ändra canvasstorleken när fönstret ändras
         function windowResized() {
             resizeCanvas(windowWidth, windowHeight);
             if(treeDrawn) {
+                // Återberäkna trädet baserat på den nya storleken
                 precalculateTree(); 
             }
         }
