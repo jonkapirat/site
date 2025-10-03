@@ -135,7 +135,8 @@
                 this.acceleration = createVector(0, 0);
                 
                 this.wingLength = random(5, 10); 
-                this.strokeWeight = random(1, 2); 
+                // ÄNDRAT: Fast vingbredd på 1px för visuellt test
+                this.strokeWeight = 1; 
                 this.color = random(COLOR_PALETTE); 
                 
                 this.flapOffset = random(0, TWO_PI);
@@ -431,6 +432,7 @@
                 rotate(tiltAngle); 
                 
                 stroke(this.color); 
+                // Använder den fasta tjockleken (1) från konstruktorn
                 strokeWeight(this.strokeWeight); 
                 noFill();
 
