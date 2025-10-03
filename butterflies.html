@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>P5.js Fjärilssvärm Boids</title>
-    <!-- Laddar in Tailwind CSS för enklare layout och responsivitet -->
+    <!-- Laddar in Tailwind CSS för enklare layout och responsivitet (används fortfarande för bakgrund/body-stil) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Laddar in p5.js biblioteket -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
@@ -15,59 +15,18 @@
             padding: 0;
             overflow: hidden; /* Förhindrar scrollning */
             height: 100%;
-            cursor: pointer; /* Visuell hint att man kan klicka */
+            /* Tar bort cursor: pointer; från body eftersom vi hanterar det i P5.js nu */
         }
         /* Säkerställer att p5.js canvas fyller sin container */
         canvas {
             display: block;
-        }
-        
-        /* Delad styling för kontrollknappar */
-        .control-button {
-            position: absolute;
-            top: 20px; /* 20px från överkanten (oförändrad) */
-            z-index: 10;
-            cursor: pointer;
-            
-            /* Förbättrar respons på touch-skärmar */
-            touch-action: manipulation; 
-            
-            /* Minimalistisk Styling */
-            padding: 4px 12px;
-            border-radius: 6px; 
-            font-family: sans-serif;
-            font-size: 14px;
-            font-weight: 400; 
-            color: #333; 
-            background-color: #fff;
-            border: 1px solid #333; 
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-            transition: all 0.15s ease-in-out;
-        }
-
-        /* Placering av Tree-knappen (80px från vänsterkanten) */
-        #treeButton {
-            left: 80px; /* 80px från vänsterkanten (oförändrad) */
-        }
-
-        /* Placering av Clear-knappen */
-        #clearButton {
-            left: 155px; 
-        }
-
-        .control-button:hover {
-            background-color: #f0f0f0; /* Subtil hover-effekt */
-            color: #111;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            transform: translateY(-0.5px);
+            /* Nu ritas allt (inklusive knappar) inuti canvasen, så inga HTML-element ligger ovanpå */
+            touch-action: none; /* Viktigt för att förhindra standard touch-gesturer i Chrome på Android */
         }
     </style>
 </head>
 <body class="bg-[#f7f7f7] antialiased flex items-center justify-center h-screen w-screen">
-    <!-- Ny Tree-knapp -->
-    <button id="treeButton" class="control-button">Tree</button>
-    <!-- Clear-knapp -->
-    <button id="clearButton" class="control-button">Clear</button>
+    <!-- Knapparna är nu borttagna härifrån och ritas istället i P5.js -->
 
     <script>
         // Globala konstanter för fjärilens gemensamma utseende/gränser
@@ -114,6 +73,29 @@
         let treeSegments = [];     
         let treeDrawn = false;     
         let treeAnimationStartTime = 0; 
+        
+        // --- P5.JS KNAPP-KONSTANTER ---
+        const BUTTON_SIZE = 24;
+        const BUTTON_PADDING = 16;
+        const BUTTON_START_X = 80;
+        const BUTTON_START_Y = 20;
+
+        // Definierar knapparnas positioner (inuti P5.js canvas)
+        const BUTTONS = {
+            TREE: {
+                x: BUTTON_START_X,
+                y: BUTTON_START_Y,
+                w: BUTTON_SIZE,
+                h: BUTTON_SIZE
+            },
+            CLEAR: {
+                x: BUTTON_START_X + BUTTON_SIZE + BUTTON_PADDING, // 80 + 24 + 16 = 120
+                y: BUTTON_START_Y,
+                w: BUTTON_SIZE,
+                h: BUTTON_SIZE
+            }
+        };
+
 
         /**
          * Klass för att representera ett enda linjesegment i trädet.
@@ -256,10 +238,8 @@
                 // Sätt landningspositionen första gången
                 if (this.targetSpot === null) {
                     if (treeLandingSpots.length > 0) {
-                        // Välj en slumpmässig, tillgänglig landningsplats från trädet
                         this.targetSpot = random(treeLandingSpots);
                     } else {
-                        // Om inga landningsplatser finns, gör inget
                         return;
                     }
                 }
@@ -272,7 +252,6 @@
                 // 3. Landningscheck
                 if (distToTarget < 5) { 
                     this.isLanded = true;
-                    // Lås positionen till målet med en liten slumpmässig offset
                     this.position = targetPoint.copy().add(random(-3, 3), random(-3, 3)); 
                     this.velocity.mult(0); 
                     this.acceleration.mult(0);
@@ -303,8 +282,6 @@
 
             /**
              * Uppdaterar fjärilens position.
-             * @param {Butterfly[]} butterflies Alla fjärilar i svärmen.
-             * @param {boolean} isAttractionActive Är trädet ritat och redo för landning?
              */
             update(butterflies, isAttractionActive) {
                 if (this.isLanded) {
@@ -483,6 +460,108 @@
                 }
             }
         }
+        
+        /**
+         * Ritar de två in-sketch-knapparna (Tree och Clear) med den nya stilen.
+         */
+        function drawButtons() {
+            // Färg för 50% opacitet svart (51, 51, 51, 128)
+            const HALF_ALPHA_COLOR = color(51, 51, 51, 128); 
+
+            // Ritar knapparna
+            for (let key in BUTTONS) {
+                const btn = BUTTONS[key];
+                
+                push();
+                
+                // 1. RITA RAMEN (50% opacitet)
+                stroke(HALF_ALPHA_COLOR); 
+                strokeWeight(1); // 1px kantlinje
+                
+                // Ingen fyllning för någon av knapparna
+                noFill(); 
+                
+                // Rita den 24x24 stora knappen med rundade hörn
+                rect(btn.x, btn.y, btn.w, btn.h, 4); 
+
+                // Ritar symbolerna (nu 10x10, centrerade)
+                
+                const iconSize = 10;
+                const iconPadding = (btn.w - iconSize) / 2; // (24 - 10) / 2 = 7
+                
+                const iconXStart = btn.x + iconPadding; // x + 7
+                const iconYStart = btn.y + iconPadding; // y + 7
+                const iconXEnd = btn.x + btn.w - iconPadding; // x + 17
+                const iconYEnd = btn.y + btn.h - iconPadding; // y + 17
+                const iconCenterX = btn.x + btn.w / 2; // x + 12
+                
+                if (key === 'TREE') {
+                    // Symbol: Ett enkelt träd (stam och en triangel)
+                    
+                    // 2. STAM (50% opacitet)
+                    stroke(HALF_ALPHA_COLOR);
+                    strokeWeight(1.5);
+                    
+                    // Stam (från ca 60% till 95% av ikonområdet)
+                    line(iconCenterX, iconYStart + iconSize * 0.6, iconCenterX, iconYEnd - 1); 
+                    
+                    // 3. KRONA (50% opacitet)
+                    noStroke();
+                    fill(HALF_ALPHA_COLOR);
+                    // Krona (Triangel, tar upp toppen av ikonområdet)
+                    triangle(
+                        iconXStart, iconYEnd - iconSize * 0.4, // Base Left 
+                        iconXEnd, iconYEnd - iconSize * 0.4,   // Base Right
+                        iconCenterX, iconYStart + 1            // Tip (slightly down from top edge)
+                    );
+                    
+                } else { // CLEAR
+                    // Symbol: Ett enkelt X (10x10, fyller ikonområdet)
+                    
+                    // 2. KRYSS (50% opacitet)
+                    stroke(HALF_ALPHA_COLOR);
+                    strokeWeight(1.5);
+                    
+                    // Linjer (diagonaler)
+                    line(iconXStart, iconYStart, iconXEnd, iconYEnd);       // Top-Left till Bottom-Right
+                    line(iconXEnd, iconYStart, iconXStart, iconYEnd);       // Top-Right till Bottom-Left
+                }
+                
+                pop();
+            }
+        }
+        
+        /**
+         * Kontrollerar om mus/touch klickade på en av knapparna.
+         * @returns {boolean} True om en knapp klickades, annars False.
+         */
+        function checkButtonClicks() {
+            for (let key in BUTTONS) {
+                const btn = BUTTONS[key];
+                
+                // Kontrollerar om musX/musY är inom knappens gränser
+                if (mouseX >= btn.x && mouseX <= btn.x + btn.w &&
+                    mouseY >= btn.y && mouseY <= btn.y + btn.h) {
+                    
+                    if (key === 'TREE') {
+                        toggleTree();
+                    } else if (key === 'CLEAR') {
+                        // Clear-logiken
+                        butterflies = []; 
+                        lastClickTime = millis(); 
+                        treeDrawn = false; 
+                        treeSegments = [];
+                        treeLandingSpots = []; 
+                        treeAnimationStartTime = 0; 
+                        if (canvas) {
+                            background('#f7f7f7'); 
+                        }
+                    }
+                    return true; // En knapp klickades
+                }
+            }
+            return false; // Ingen knapp klickades
+        }
 
 
         // --- P5.js Standardfunktioner ---
@@ -517,6 +596,9 @@
                 butterfly.update(butterflies, isAttractionActive); 
                 butterfly.display();
             }
+            
+            // Ritar knapparna OVANPÅ allt annat
+            drawButtons();
         }
 
         /**
@@ -546,44 +628,24 @@
                     }
                 }
             }
+            // Returvärdet 'false' förhindrar standard-scrollbeteende på mobiler
             return false; 
         }
 
 
         /**
-         * Skapar BUTTERFLY_COUNT (20) nya fjärilar vid musens position.
-         * Denna funktion har nu en viktig logik som förhindrar att fjärilar skapas
-         * om klicket skedde på en HTML-knapp istället för på canvasen.
+         * Skapar fjärilar ELLER triggar en knappklick.
          */
         function mousePressed() {
-            // --- NY FIX: Kontrollera om klicket är på en HTML-knapp ---
-            const treeButton = document.getElementById('treeButton');
-            const clearButton = document.getElementById('clearButton');
-
-            if (treeButton && clearButton) {
-                const treeRect = treeButton.getBoundingClientRect();
-                const clearRect = clearButton.getBoundingClientRect();
-
-                // mouseX/mouseY är P5.js-koordinater (relativa till canvas, som är fullscreen)
-                // getBoundingClientRect() är viewport-koordinater. Jämförelsen fungerar.
-                const isOverTreeButton = mouseX >= treeRect.left && mouseX <= treeRect.right &&
-                                         mouseY >= treeRect.top && mouseY <= treeRect.bottom;
-                
-                const isOverClearButton = mouseX >= clearRect.left && mouseX <= clearRect.right &&
-                                          mouseY >= clearRect.top && mouseY <= clearRect.bottom;
-
-                if (isOverTreeButton || isOverClearButton) {
-                    // Om klicket är ÖVER en av HTML-knapparna, ignorera P5.js-händelsen.
-                    // Detta tillåter webbläsaren att trigga knappens 'click' event i stället.
-                    return false; 
-                }
+            // 1. Kontrollera om en knapp klickades
+            if (checkButtonClicks()) {
+                // Om en knapp klickades, stoppa exekveringen HÄR för att undvika att skapa fjärilar.
+                return false; 
             }
-            // --- SLUT PÅ NY FIX ---
 
-
+            // 2. Om ingen knapp klickades, skapa fjärilar (gammal logik)
             const isAttractionActiveOnPress = (treeDrawn && (millis() - treeAnimationStartTime >= MAX_ANIMATION_TIME_MS));
 
-            // Skapa nya fjärilar
             for (let i = 0; i < BUTTERFLY_COUNT; i++) {
                 let offsetX = random(-SCATTER_RADIUS, SCATTER_RADIUS);
                 let offsetY = random(-SCATTER_RADIUS, SCATTER_RADIUS);
@@ -597,35 +659,13 @@
             return false; 
         }
         
-        // Lägger till eventlyssnare för knapparna (dessa körs fortfarande korrekt)
-        document.addEventListener('DOMContentLoaded', () => {
-            const clearButton = document.getElementById('clearButton');
-            const treeButton = document.getElementById('treeButton'); 
-            
-            if (clearButton) {
-                clearButton.addEventListener('click', () => {
-                    butterflies = []; 
-                    lastClickTime = millis(); 
-                    treeDrawn = false; 
-                    treeSegments = [];
-                    treeLandingSpots = []; 
-                    treeAnimationStartTime = 0; 
-                    if (canvas) {
-                        background('#f7f7f7'); 
-                    }
-                });
-            }
-
-            if (treeButton) {
-                treeButton.addEventListener('click', toggleTree);
-            }
-        });
+        // Denna eventlyssnare är inte längre nödvändig eftersom knapparna är i P5.js.
+        // document.addEventListener('DOMContentLoaded', () => { ... });
 
 
         // Hanterar responsivitet: Ändra canvasstorleken när fönstret ändras
         function windowResized() {
             resizeCanvas(windowWidth, windowHeight);
-            // Återberäkna trädets position om det är ritat
             if(treeDrawn) {
                 precalculateTree(); 
             }
