@@ -15,18 +15,15 @@
             padding: 0;
             overflow: hidden; /* Förhindrar scrollning */
             height: 100%;
-            /* Tar bort cursor: pointer; från body eftersom vi hanterar det i P5.js nu */
         }
         /* Säkerställer att p5.js canvas fyller sin container */
         canvas {
             display: block;
-            /* Nu ritas allt (inklusive knappar) inuti canvasen, så inga HTML-element ligger ovanpå */
-            touch-action: none; /* Viktigt för att förhindra standard touch-gesturer i Chrome på Android */
+            touch-action: none; /* Viktigt för att förhindra standard touch-gesturer (zoom/scroll) i Chrome på Android */
         }
     </style>
 </head>
 <body class="bg-[#f7f7f7] antialiased flex items-center justify-center h-screen w-screen">
-    <!-- Knapparna är nu borttagna härifrån och ritas istället i P5.js -->
 
     <script>
         // Globala konstanter för fjärilens gemensamma utseende/gränser
@@ -59,7 +56,7 @@
         // --- NYA TRÄD/FALL KONSTANTER ---
         const MAX_BUTTERFLIES_PER_BRANCH = 8;        // Maximal last innan grenen faller
         const FALL_FLIGHT_DURATION_MS = 8000;         // 8 sekunder flygtid efter fall
-        // ÄNDRAD: Djup 1 är nu den första nivån som kan falla och ta emot fjärilar.
+        // Djup 1 är nu den första nivån som kan falla och ta emot fjärilar. Djup 0 är permanent.
         const OUTER_BRANCH_DEPTH_START = 1;           
         
         // --- VISUELL FALLKONSTANTER ---
@@ -84,7 +81,6 @@
         let treeSegments = [];     // Lagrar TreeSegment-objekt
         let treeDrawn = false;     
         let treeAnimationStartTime = 0; 
-        // currentFallDepth börjar på MAX_DEPTH (4) och räknas ned till OUTER_BRANCH_DEPTH_START (1)
         let currentFallDepth = MAX_DEPTH; 
         
         // --- P5.JS KNAPP-KONSTANTER ---
@@ -102,7 +98,7 @@
                 h: BUTTON_SIZE
             },
             CLEAR: {
-                x: BUTTON_START_X + BUTTON_SIZE + BUTTON_PADDING, // 80 + 24 + 16 = 120
+                x: BUTTON_START_X + BUTTON_SIZE + BUTTON_PADDING, 
                 y: BUTTON_START_Y,
                 w: BUTTON_SIZE,
                 h: BUTTON_SIZE
@@ -117,14 +113,14 @@
             constructor(start, end, isOuter, id, depth) {
                 this.start = start;
                 this.end = end;
-                this.isOuter = isOuter; // Kan grenen falla (är den landningsbar/på yttre djup)
-                this.isFallen = false;  // Har grenen fallit och är borta från scenen
-                this.isFalling = false; // Håller på att falla (visuell animation)
-                this.fallStartTime = 0; // Tidsstämpel när fallet började
-                this.load = 0;          // Nuvarande antal fjärilar på segmentet
-                this.id = id;           // Unikt ID
-                this.landingSpots = []; // Array av p5.Vectors
-                this.depth = depth;     // Grenens djup (0 = stam)
+                this.isOuter = isOuter; 
+                this.isFallen = false;  
+                this.isFalling = false; 
+                this.fallStartTime = 0; 
+                this.load = 0;          
+                this.id = id;           
+                this.landingSpots = []; 
+                this.depth = depth;     
             }
         }
 
@@ -153,11 +149,11 @@
                 // --- Landningsstatus ---
                 this.isLanded = false;
                 this.targetSpot = null; 
-                this.parentSegmentId = null; // ID för segmentet den landar på/flyger mot
+                this.parentSegmentId = null; 
                 
                 // Timers
-                this.scareTimer = 0;        // Flygtid efter musrörelse
-                this.fallFlightTimer = 0;   // Flygtid efter att gren fallit
+                this.scareTimer = 0;        
+                this.fallFlightTimer = 0;   
                 
                 if (isAttractionActiveOnPress) {
                     this.scareTimer = millis() + SCARE_DURATION_MS;
@@ -466,8 +462,7 @@
             
             let endPos = createVector(startPos.x + dx, startPos.y - dy); 
 
-            // Skapa det nya segmentet och lägg till i listan
-            // isOuter är nu true från och med djup 1
+            // isOuter är nu true från och med djup 1 (Djup 0 är permanent stam)
             const isOuter = depth >= OUTER_BRANCH_DEPTH_START; 
             const newSegment = new TreeSegment(startPos.copy(), endPos.copy(), isOuter, segmentIdCounter++, depth);
             treeSegments.push(newSegment);
@@ -522,7 +517,7 @@
             if (treeSegments.length === 0) return;
 
             stroke('#333');
-            // ÄNDRAD: Enhetlig tjocklek på 1px för alla grenar.
+            // Enhetlig tjocklek på 1px för alla grenar.
             strokeWeight(1); 
             noFill();
 
@@ -639,13 +634,13 @@
                 // Ritar symbolerna (nu 10x10, centrerade)
                 
                 const iconSize = 10;
-                const iconPadding = (btn.w - iconSize) / 2; // (24 - 10) / 2 = 7
+                const iconPadding = (btn.w - iconSize) / 2; 
                 
-                const iconXStart = btn.x + iconPadding; // x + 7
-                const iconYStart = btn.y + iconPadding; // y + 7
-                const iconXEnd = btn.x + btn.w - iconPadding; // x + 17
-                const iconYEnd = btn.y + btn.h - iconPadding; // x + 17
-                const iconCenterX = btn.x + btn.w / 2; // x + 12
+                const iconXStart = btn.x + iconPadding; 
+                const iconYStart = btn.y + iconPadding; 
+                const iconXEnd = btn.x + btn.w - iconPadding; 
+                const iconYEnd = btn.y + btn.h - iconPadding; 
+                const iconCenterX = btn.x + btn.w / 2; 
                 
                 if (key === 'TREE') {
                     // Symbol: Ett enkelt träd (stam och en triangel)
@@ -662,9 +657,9 @@
                     fill(HALF_ALPHA_COLOR);
                     // Krona (Triangel, tar upp toppen av ikonområdet)
                     triangle(
-                        iconXStart, iconYEnd - iconSize * 0.4, // Base Left 
-                        iconXEnd, iconYEnd - iconSize * 0.4,   // Base Right
-                        iconCenterX, iconYStart + 1            // Tip (slightly down from top edge)
+                        iconXStart, iconYEnd - iconSize * 0.4, 
+                        iconXEnd, iconYEnd - iconSize * 0.4,   
+                        iconCenterX, iconYStart + 1            
                     );
                     
                 } else { // CLEAR
@@ -675,8 +670,8 @@
                     strokeWeight(1.5);
                     
                     // Linjer (diagonaler)
-                    line(iconXStart, iconYStart, iconXEnd, iconYEnd);       // Top-Left till Bottom-Right
-                    line(iconXEnd, iconYStart, iconXStart, iconYEnd);       // Top-Right till Bottom-Left
+                    line(iconXStart, iconYStart, iconXEnd, iconYEnd);       
+                    line(iconXEnd, iconYStart, iconXStart, iconYEnd);       
                 }
                 
                 pop();
@@ -706,7 +701,7 @@
                         treeLandingSpots = []; 
                         treeAnimationStartTime = 0; 
                         segmentIdCounter = 0;
-                        currentFallDepth = MAX_DEPTH; // Återställ vid rensning
+                        currentFallDepth = MAX_DEPTH; 
                         if (canvas) {
                             background('#f7f7f7'); 
                         }
@@ -752,19 +747,14 @@
             }
             
             // 3. Kaskad-djup uppdatering
-            // Kontrollera om någon gren vid currentFallDepth fortfarande står/är landningsbar.
             const standingSegments = treeSegments.filter(s => 
                 s.depth === currentFallDepth && !s.isFallen && !s.isFalling
             );
 
             // Gå inåt ENDAST om alla grenar på nuvarande djup har fallit OCH vi inte har nått det permanenta inre djupet (0)
             if (standingSegments.length === 0 && currentFallDepth > 1) {
-                // Inga stående grenar kvar på detta djup. Gå inåt.
                 currentFallDepth--;
             }
-            // När currentFallDepth når 1, kommer den att stanna där. När alla grenar på djup 1 faller,
-            // är det bara djup 0 kvar (som inte kan falla). Då tas alla landningsplatser bort
-            // och fjärilarna övergår till flockbeteende (Boids) igen.
         }
 
 
@@ -811,23 +801,28 @@
             drawButtons();
         }
 
+        // ------------------------------------------------------------------
+        // NY LOGIK FÖR SKRÄMSELT PÅ BÅDE MUS OCH TOUCH
+        // ------------------------------------------------------------------
+
         /**
-         * Hanterar musrörelser för att skrämma bort landade fjärilar.
+         * Generell funktion för att skrämma fjärilar runt en given koordinat (x, y).
+         * Används av både mouseMoved och touchMoved.
          */
-        function mouseMoved() {
+        function scareButterflies(x, y) {
             const isAttractionActive = (treeDrawn && (millis() - treeAnimationStartTime >= MAX_ANIMATION_TIME_MS));
 
             if (isAttractionActive) {
-                const mousePos = createVector(mouseX, mouseY);
+                const checkPos = createVector(x, y);
                 
                 for (let b of butterflies) {
                     if (b.isLanded) {
-                        let d = p5.Vector.dist(mousePos, b.position);
+                        let d = p5.Vector.dist(checkPos, b.position);
 
                         if (d < SCARE_RADIUS) {
                             b.liftOff(false); // Normal lift-off (4s scare)
                             
-                            let escapeVector = p5.Vector.sub(b.position, mousePos);
+                            let escapeVector = p5.Vector.sub(b.position, checkPos);
                             escapeVector.normalize();
                             
                             b.velocity = escapeVector.copy().mult(b.maxSpeed * 4.0); 
@@ -836,10 +831,30 @@
                     }
                 }
             }
-            // Returvärdet 'false' förhindrar standard-scrollbeteende på mobiler
+        }
+
+        /**
+         * Hanterar musrörelser (Desktop).
+         */
+        function mouseMoved() {
+            scareButterflies(mouseX, mouseY);
             return false; 
         }
 
+        /**
+         * Hanterar swipe/touch rörelser (Mobil).
+         * P5.js ger oss 'touches' arrayen med touch-punkter.
+         */
+        function touchMoved() {
+            // Iterera över alla aktiva touch-punkter
+            for (let touch of touches) {
+                scareButterflies(touch.x, touch.y);
+            }
+            // Returnera false för att förhindra standardfunktioner som skrollning/zoom
+            return false;
+        }
+
+        // ------------------------------------------------------------------
 
         /**
          * Skapar fjärilar ELLER triggar en knappklick.
