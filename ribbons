@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamisk 3D-Bandeffekt: Platt & Växande</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        /* CSS-bakgrundsfärgen är inställd via JS, men denna säkerställer att body har en basfärg */
+        body { margin: 0; overflow: hidden; background-color: #1B1C1D; }
+        canvas { display: block; }
+    </style>
+</head>
+<body>
+
+    <script>
+        // Globala variabler för Three.js
+        let scene, camera, renderer, controls;
+        let clock = new THREE.Clock();
+        let ribbons = []; // Array för att hålla alla band-objekt
+        let cubeRenderTarget; // För reflektioner
+        let cubeCamera; // Den kamera som används för reflektioner
+
+        // --- TIDSBEGRÄNSNING ---
+        const MAX_RUN_TIME = 120; // Stoppa bandgenerering efter 120 sekunder (2 minuter)
+        let isRibbonGenerationActive = true; 
+        // -----------------------
+
+        // --- NYA VARIABLER FÖR KONTROLL ---
+        const NUM_RIBBONS = 6;              // Ändra detta för att justera antalet band (max 6 med nuvarande startriktningar)
+        const BACKGROUND_COLOR_HEX = 0xF8FBF6; // Ändra detta för att ändra bakgrundsfärg (t.ex. 0x000000 för svart)
+        // ---------------------------------
+        
+        // Bandets inställningar
+        const RIBBON_WIDTH = 6.0;         // Bandets bredd i 3D-enheter
+        const RIBBON_SEGMENT_POINTS = 5;  // Initiala startpunkter
+        const PATH_POINTS_SMOOTHNESS = 5; // Antal interpolerade punkter per kontrollpunkt
+        const START_SPREAD = 20.0;         // Max avstånd från centrum för startpunkterna
+        const MAX_DISTANCE_THRESHOLD = 50.0; // Gräns för att ändra beteende (t.ex. tvinga bandet in mot mitten)
+        
+        const speed = 3;             // Hastighet bandet växer med
+        const ROTATION_STRENGTH = 0.4; // Ökad slumpmässig faktor för vildare svängar
+        const SCENE_ROTATION_SPEED = 0.001; // Svag rotation av hela scenen (Y-axel)
+        const SCENE_ROTATION_X_SPEED = 0.0012; // Svag rotation i höjdled (X-axel)
+
+        // Inkludera OrbitControls (för enklare navigering i 3D-världen)
+        // [OrbitControls code has been omitted for brevity but is assumed to be present and functional as in the source file]
+        const OrbitControls = function (object, domElement) {
+            this.object = object;
+            this.domElement = (domElement !== undefined) ? domElement : document;
+            this.enabled = true;
+            this.target = new THREE.Vector3(); 
+            this.minDistance = 0;
+            this.maxDistance = Infinity;
+            this.minZoom = 0;
+            this.maxZoom = Infinity;
+            this.minPolarAngle = 0; 
+            this.maxPolarAngle = Math.PI;
+            this.minAzimuthAngle = -Infinity;
+            this.maxAzimuthAngle = Infinity;
+            this.enableDamping = true;
+            this.dampingFactor = 0.05;
+            this.enableZoom = true;
+            this.zoomSpeed = 1.0;
+            this.enableRotate = true;
+            this.rotateSpeed = 1.0;
+            this.enablePan = true;
+            this.panSpeed = 1.0;
+            this.autoRotate = false;
+            this.autoRotateSpeed = 2.0;
+            this.keyPanSpeed = 7.0;
+            this.keys = { LEFT: 37, UP: 38, RIGHT: 39, BOTTOM: 40 };
+
+            const scope = this;
+            const changeEvent = { type: 'change' };
+            const startEvent = { type: 'start' };
+            const endEvent = { type: 'end' };
+            const STATE = { NONE: -1, ROTATE: 0, DOLLY: 1, PAN: 2, TOUCH_ROTATE: 3, TOUCH_DOLLY_PAN: 4 };
+            let state = STATE.NONE;
+            const EPS = 0.000001;
+            const spherical = new THREE.Spherical();
+            const sphericalDelta = new THREE.Spherical();
+            let scale = 1;
+            const panOffset = new THREE.Vector3();
+            let zoomChanged = false;
+            const rotateStart = new THREE.Vector2();
+            const rotateEnd = new THREE.Vector2();
+            const rotateDelta = new THREE.Vector2();
+            const panStart = new THREE.Vector2();
+            const panEnd = new THREE.Vector2();
+            const panDelta = new THREE.Vector2();
+            const dollyStart = new THREE.Vector2();
+            const dollyEnd = new THREE.Vector2();
+            const dollyDelta = new THREE.Vector2();
+            const offset = new THREE.Vector3();
+            const quat = new THREE.Quaternion().setFromUnitVectors(object.up, new THREE.Vector3(0, 1, 0));
+            const quatInverse = quat.clone().invert();
+
+            this.getPolarAngle = function () { return spherical.phi; };
+            this.getAzimuthalAngle = function () { return spherical.theta; };
+            this.update = function () {
+                const position = scope.object.position;
+                offset.copy(position).sub(scope.target);
+                spherical.setFromVector3(offset);
+                if (scope.autoRotate && state === STATE.NONE) {
+                    rotateLeft(getAutoRotationAngle());
+                }
+                spherical.theta += sphericalDelta.theta;
+                spherical.phi += sphericalDelta.phi;
+                spherical.theta = Math.max(scope.minAzimuthAngle, Math.min(scope.maxAzimuthAngle, spherical.theta));
+                spherical.phi = Math.max(scope.minPolarAngle, Math.min(scope.maxPolarAngle, spherical.phi));
+                spherical.makeSafe();
+                spherical.radius *= scale;
+                spherical.radius = Math.max(scope.minDistance, Math.min(scope.maxDistance, spherical.radius));
+                scope.target.add(panOffset);
+                offset.setFromSpherical(spherical);
+                offset.applyQuaternion(quatInverse);
+                position.copy(scope.target).add(offset);
+                scope.object.lookAt(scope.target);
+                if (scope.enableDamping === true) {
+                    sphericalDelta.theta *= (1 - scope.dampingFactor);
+                    sphericalDelta.phi *= (1 - scope.dampingFactor);
+                    panOffset.multiplyScalar(1 - scope.dampingFactor);
+                } else {
+                    sphericalDelta.set(0, 0, 0);
+                    panOffset.set(0, 0, 0);
+                }
+                scale = 1;
+                if (zoomChanged || offset.lengthSq() > EPS || panOffset.lengthSq() > EPS) {
+                    scope.dispatchEvent(changeEvent);
+                    zoomChanged = false;
+                    return true;
+                }
+                return false;
+            };
+
+            function getAutoRotationAngle() { return 2 * Math.PI / 60 / 60 * scope.autoRotateSpeed; }
+            function getZoomScale() { return Math.pow(0.95, scope.zoomSpeed); }
+            function rotateLeft(angle) { sphericalDelta.theta -= angle; }
+            function rotateUp(angle) { sphericalDelta.phi -= angle; }
+            function panLeft(distance, objectMatrix) {
+                const v = new THREE.Vector3();
+                v.setFromMatrixColumn(objectMatrix, 0);
+                v.multiplyScalar(-distance);
+                panOffset.add(v);
+            }
+            function panUp(distance, objectMatrix) {
+                const v = new THREE.Vector3();
+                v.setFromMatrixColumn(objectMatrix, 1);
+                v.multiplyScalar(distance);
+                panOffset.add(v);
+            }
+            function pan(deltaX, deltaY) {
+                const element = scope.domElement;
+                if (scope.object.isPerspectiveCamera) {
+                    const position = scope.object.position;
+                    offset.copy(position).sub(scope.target);
+                    let targetDistance = offset.length();
+                    targetDistance = targetDistance > 0 ? targetDistance : 1;
+                    const c = scope.object.aspect === undefined ? 1 : scope.object.aspect;
+                    panLeft(2 * deltaX * targetDistance / element.clientHeight * c, scope.object.matrix);
+                    panUp(2 * deltaY * targetDistance / element.clientHeight, scope.object.matrix);
+                } else if (scope.object.isOrthographicCamera) {
+                    panLeft(deltaX * (scope.object.right - scope.object.left) / scope.object.zoom / element.clientWidth, scope.object.matrix);
+                    panUp(deltaY * (scope.object.top - scope.object.bottom) / scope.object.zoom / element.clientHeight, scope.object.matrix);
+                } else {
+                    console.warn('WARNING: OrbitControls.js encountered an unknown camera type - pan disabled.');
+                    scope.enablePan = false;
+                }
+            }
+            function dollyOut(dollyScale) {
+                if (scope.object.isPerspectiveCamera) {
+                    scale /= dollyScale;
+                } else if (scope.object.isOrthographicCamera) {
+                    scope.object.zoom = Math.max(scope.minZoom, Math.min(scope.maxZoom, scope.object.zoom * dollyScale));
+                    scope.object.updateProjectionMatrix();
+                    zoomChanged = true;
+                } else {
+                    console.warn('WARNING: OrbitControls.js encountered an unknown camera type - dolly/zoom disabled.');
+                    scope.enableZoom = false;
+                }
+            }
+            function handleMouseDown(event) {
+                if (scope.enabled === false) return;
+                event.preventDefault(); 
+                if (event.button === 0) { 
+                    state = STATE.ROTATE;
+                    rotateStart.set(event.clientX, event.clientY);
+                } else if (event.button === 1) { 
+                    state = STATE.DOLLY;
+                    dollyStart.set(event.clientX, event.clientY);
+                } else if (event.button === 2) { 
+                    state = STATE.PAN;
+                    panStart.set(event.clientX, event.clientY);
+                }
+                if (state !== STATE.NONE) {
+                    scope.domElement.addEventListener('mousemove', handleMouseMove, false);
+                    scope.domElement.addEventListener('mouseup', handleMouseUp, false);
+                    scope.dispatchEvent(startEvent);
+                }
+            }
+            function handleMouseMove(event) {
+                if (scope.enabled === false) return;
+                event.preventDefault();
+                const element = scope.domElement === document ? scope.domElement.body : scope.domElement;
+                if (state === STATE.ROTATE) {
+                    rotateEnd.set(event.clientX, event.clientY);
+                    rotateDelta.subVectors(rotateEnd, rotateStart).multiplyScalar(scope.rotateSpeed);
+                    rotateLeft(2 * Math.PI * rotateDelta.x / element.clientHeight);
+                    rotateUp(2 * Math.PI * rotateDelta.y / element.clientHeight);
+                    rotateStart.copy(rotateEnd);
+                } else if (state === STATE.DOLLY) {
+                    dollyEnd.set(event.clientX, event.clientY);
+                    dollyDelta.subVectors(dollyEnd, dollyStart);
+                    if (dollyDelta.y > 0) {
+                        dollyOut(getZoomScale());
+                    } else if (dollyDelta.y < 0) {
+                        dollyOut(1 / getZoomScale());
+                    }
+                    dollyStart.copy(dollyEnd);
+                } else if (state === STATE.PAN) {
+                    panEnd.set(event.clientX, event.clientY);
+                    panDelta.subVectors(panEnd, panStart).multiplyScalar(scope.panSpeed);
+                    pan(panDelta.x, panDelta.y);
+                    panStart.copy(panEnd);
+                }
+                if (state !== STATE.NONE) scope.update();
+            }
+            function handleMouseUp(event) {
+                if (scope.enabled === false) return;
+                scope.domElement.removeEventListener('mousemove', handleMouseMove, false);
+                scope.domElement.removeEventListener('mouseup', handleMouseUp, false);
+                scope.dispatchEvent(endEvent);
+                state = STATE.NONE;
+            }
+            function handleMouseWheel(event) {
+                if (scope.enabled === false || scope.enableZoom === false || state !== STATE.NONE) return;
+                event.preventDefault();
+                event.stopPropagation();
+                if (event.deltaY < 0) {
+                    dollyOut(1 / getZoomScale());
+                } else if (event.deltaY > 0) {
+                    dollyOut(getZoomScale());
+                }
+                scope.update();
+                scope.dispatchEvent(startEvent);
+                scope.dispatchEvent(endEvent);
+            }
+            this.dispose = function () {
+                scope.domElement.removeEventListener('contextmenu', handleContextMenu, false);
+                scope.domElement.removeEventListener('mousedown', handleMouseDown, false);
+                scope.domElement.removeEventListener('wheel', handleMouseWheel, false);
+                document.removeEventListener('mousemove', handleMouseMove, false);
+                document.removeEventListener('mouseup', handleMouseUp, false);
+            };
+            scope.domElement.addEventListener('contextmenu', function (event) { event.preventDefault(); }, false);
+            scope.domElement.addEventListener('mousedown', handleMouseDown, false);
+            scope.domElement.addEventListener('wheel', handleMouseWheel, false);
+            this.update();
+        };
+        OrbitControls.prototype = Object.create(THREE.EventDispatcher.prototype);
+        OrbitControls.prototype.constructor = OrbitControls;
+
+        // --- Custom Flat Ribbon Geometry Creator ---
+
+        /**
+         * Skapar en platt 3D-bandgeometri (BufferGeometry) baserat på en kurva.
+         * Denna metod använder Frenet Frames för att säkerställa att bandet alltid är orienterat
+         * korrekt längs kurvans normal.
+         * @param {THREE.CatmullRomCurve3} curve - Kurvan som definierar bandets bana.
+         * @param {number} width - Bandets bredd.
+         * @param {number} controlPointsLength - Antal kontrollpunkter i bandets bana.
+         */
+        function createFlatRibbonGeometry(curve, width, controlPointsLength) {
+            // Interpolerar punkter för en slätare kurva
+            const points = curve.getPoints(controlPointsLength * PATH_POINTS_SMOOTHNESS); 
+            
+            if (points.length < 2) {
+                return new THREE.BufferGeometry();
+            }
+
+            const geometry = new THREE.BufferGeometry();
+            const vertices = [];
+            const uvs = [];
+            const indices = [];
+
+            // Beräkna Frenet Frames (tangent, normal, binormal) för orientering
+            const frames = curve.computeFrenetFrames(points.length, false);
+            const halfWidth = width / 2;
+            
+            for (let i = 0; i < points.length; i++) {
+                const p = points[i];
+                // Binormalen används som den lokala X-axeln (breddriktningen) för bandet
+                const binormal = frames.binormals[i]; 
+
+                // Vektor för Point A (vänster kant) och Point B (höger kant)
+                const offsetVectorA = binormal.clone().multiplyScalar(-halfWidth);
+                const offsetVectorB = binormal.clone().multiplyScalar(halfWidth);
+
+                const pointA = p.clone().add(offsetVectorA);
+                const pointB = p.clone().add(offsetVectorB);
+
+                // Lägg till vertices: (A) och (B)
+                vertices.push(pointA.x, pointA.y, pointA.z);
+                vertices.push(pointB.x, pointB.y, pointB.z);
+                
+                // UVs (användbart om en textur skulle läggas till)
+                const u = i / (points.length - 1);
+                uvs.push(u, 0); 
+                uvs.push(u, 1); 
+
+                if (i < points.length - 1) {
+                    const i0 = i * 2;     // Nuvarande segment start (A, B)
+                    const i1 = i * 2 + 2; // Nästa segment start (A', B')
+
+                    // Skapa två trianglar för att bilda en rektangel längs bandet
+                    
+                    // Triangel 1: A, B, A'
+                    indices.push(i0, i0 + 1, i1);
+                    
+                    // Triangel 2: B, B', A'
+                    indices.push(i0 + 1, i1 + 1, i1);
+                }
+            }
+            
+            geometry.setIndex(indices);
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+            geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+            geometry.computeVertexNormals(); // Viktigt för att ljus och reflektioner ska fungera
+
+            return geometry;
+        }
+
+        /**
+         * Skapar ett enskilt bandobjekt.
+         */
+        function createRibbon(startDirection, color) {
+            // Generera en slumpmässig startposition nära centrum
+            const startPosition = new THREE.Vector3(
+                (Math.random() - 0.5) * START_SPREAD,
+                (Math.random() - 0.5) * START_SPREAD,
+                (Math.random() - 0.5) * START_SPREAD
+            );
+
+            let ribbon = {
+                pathPoints: [],
+                currentDirection: startDirection.normalize(),
+                currentPosition: startPosition, // Använd slumpmässig startposition
+                mesh: null,
+                color: color,
+                // Unik tidsoffset för att få banden att svänga oberoende av varandra
+                timeOffset: Math.random() * 100 
+            };
+
+            // Initiala punkter
+            for (let i = 0; i < RIBBON_SEGMENT_POINTS; i++) {
+                ribbon.pathPoints.push(ribbon.currentPosition.clone());
+                ribbon.currentPosition.add(ribbon.currentDirection.clone().multiplyScalar(0.5));
+            }
+
+            // Skapa initial geometri
+            const curve = new THREE.CatmullRomCurve3(ribbon.pathPoints);
+            const initialGeometry = createFlatRibbonGeometry(curve, RIBBON_WIDTH, ribbon.pathPoints.length);
+            
+            // Reflekterande material med DEN ENKLA FÄRGEN
+            const ribbonMaterial = new THREE.MeshStandardMaterial({
+                color: color, 
+                metalness: 1.0, 
+                roughness: 0.05, 
+                envMap: cubeRenderTarget.texture, // Miljökarta för reflektioner
+                side: THREE.DoubleSide // Gör bandet synligt från båda sidor
+            });
+            
+            ribbon.mesh = new THREE.Mesh(initialGeometry, ribbonMaterial);
+            scene.add(ribbon.mesh);
+
+            return ribbon;
+        }
+        
+        /**
+         * Skapar alla band baserat på NUM_RIBBONS. Denna funktion anropas vid initiering och nollställning.
+         */
+        function createAllRibbons() {
+            // Nollställ flaggan vid nollställning (reset)
+            isRibbonGenerationActive = true; 
+            
+            // Skapa banden med unika riktningar och SAMMA färg (mörkgrå/metall)
+            const color = new THREE.Color(0x111111); 
+            const startDirections = [
+                new THREE.Vector3(1, 0, 0),    // +X
+                new THREE.Vector3(-1, 0, 0),   // -X
+                new THREE.Vector3(0, 1, 0),    // +Y (Upp)
+                new THREE.Vector3(0, -1, 0),   // -Y (Ner)
+                new THREE.Vector3(0, 0, 1),    // +Z (Framåt)
+                new THREE.Vector3(0, 0, -1)    // -Z (Bakåt)
+            ];
+            
+            // Använder NUM_RIBBONS för att bestämma hur många band som ska skapas.
+            // Begränsas av antalet definierade startriktningar (6 st).
+            const count = Math.min(NUM_RIBBONS, startDirections.length);
+            for (let i = 0; i < count; i++) {
+                ribbons.push(createRibbon(startDirections[i], color));
+            }
+        }
+
+        /**
+         * Nollställer scenen: tar bort gamla band och skapar nya.
+         */
+        function resetScene() {
+            // 1. Ta bort alla befintliga band från scenen och frigör geometri/material
+            ribbons.forEach(ribbon => {
+                if (ribbon.mesh) {
+                    scene.remove(ribbon.mesh);
+                    ribbon.mesh.geometry.dispose();
+                    ribbon.mesh.material.dispose();
+                }
+            });
+
+            // 2. Töm band-arrayen
+            ribbons = [];
+            
+            // 3. Återskapa alla band
+            createAllRibbons();
+            
+            // Nollställ klockan för att timern ska börja om
+            clock.start(); 
+        }
+
+
+        function init() {
+            // Scen
+            scene = new THREE.Scene();
+            // Använder den nya variabeln BACKGROUND_COLOR_HEX
+            scene.background = new THREE.Color(BACKGROUND_COLOR_HEX); 
+
+            // Kamera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            // Kameran zoomas ut genom att öka startpositionen
+            camera.position.set(30, 30, 30); 
+            camera.lookAt(0, 0, 0);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.shadowMap.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            // Ljus
+            scene.add(new THREE.AmbientLight(0xffffff, 0.3));
+            const keyLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            keyLight.position.set(10, 15, 10);
+            scene.add(keyLight);
+            const fillLight = new THREE.DirectionalLight(0xddddff, 0.5);
+            fillLight.position.set(-10, 5, -15);
+            scene.add(fillLight);
+
+            // Environment Map (för reflektioner)
+            cubeRenderTarget = new THREE.WebGLCubeRenderTarget(256, {
+                format: THREE.RGBFormat,
+                generateMipmaps: true,
+                minFilter: THREE.LinearMipmapLinearFilter
+            });
+            cubeCamera = new THREE.CubeCamera(1, 1000, cubeRenderTarget);
+            scene.add(cubeCamera);
+            
+            // SKAPA BAND: Anropar funktionen för att skapa band
+            createAllRibbons(); 
+
+            // Lägg till kontroller för användarinteraktion
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.dampingFactor = 0.05;
+            controls.minDistance = 5;
+            controls.maxDistance = 100;
+            controls.target.set(0, 0, 0); 
+
+            window.addEventListener('resize', onWindowResize, false);
+            
+            // Lägg till dubbelklick-lyssnare för att nollställa
+            renderer.domElement.addEventListener('dblclick', resetScene, false);
+
+            // Kör den första rendereringen för att få en initial environment map
+            cubeCamera.update(renderer, scene);
+        }
+
+        /**
+         * Uppdaterar banan och geometrin för alla band i varje frame.
+         */
+        function updateRibbons() {
+            const time = clock.getElapsedTime();
+            
+            // Stoppa bandgenereringen efter MAX_RUN_TIME
+            if (isRibbonGenerationActive && time > MAX_RUN_TIME) {
+                isRibbonGenerationActive = false;
+                console.log(`Bandgenerering stoppad efter ${MAX_RUN_TIME} sekunder.`);
+            }
+
+            ribbons.forEach(ribbon => {
+                const ribbonTime = time + ribbon.timeOffset; // Unik tid för varje band
+
+                // Slumpmässig riktningsförändring (Perlin noise-liknande)
+                const rotationX = (Math.sin(ribbonTime * 0.5) * 0.05) + (Math.random() - 0.5) * ROTATION_STRENGTH;
+                const rotationY = (Math.cos(ribbonTime * 0.4) * 0.05) + (Math.random() - 0.5) * ROTATION_STRENGTH;
+                const rotationZ = (Math.sin(ribbonTime * 0.3) * 0.05) + (Math.random() - 0.5) * ROTATION_STRENGTH;
+
+                const tempQuaternion = new THREE.Quaternion();
+                tempQuaternion.setFromEuler(new THREE.Euler(rotationX, rotationY, rotationZ, 'XYZ'));
+
+                ribbon.currentDirection.applyQuaternion(tempQuaternion).normalize();
+
+                // Beräkna ny position
+                const newPoint = ribbon.currentPosition.clone().add(ribbon.currentDirection.clone().multiplyScalar(speed));
+                
+                // Uppdatera bandets faktiska position i 3D-rymden (detta fortsätter även efter att genereringen stoppats)
+                ribbon.currentPosition.copy(newPoint);
+
+                // --- Exempel på beteendeändring baserat på avstånd (MAX_DISTANCE_THRESHOLD) ---
+                const distance = ribbon.currentPosition.length(); // Avstånd från (0, 0, 0)
+                if (distance > MAX_DISTANCE_THRESHOLD) {
+                    // Tvinga riktningen svagt in mot mitten för att undvika att bandet flyger iväg för långt
+                    ribbon.currentDirection.sub(ribbon.currentPosition.clone().normalize().multiplyScalar(0.01)).normalize();
+                }
+                // -----------------------------------------------------------------------------
+
+                if (isRibbonGenerationActive) {
+                    // Lägg till ny punkt i banan ENDAST om genereringen är aktiv
+                    ribbon.pathPoints.push(newPoint);
+                }
+
+                // Uppdatera geometrin baserat på den aktuella banan
+                const curve = new THREE.CatmullRomCurve3(ribbon.pathPoints);
+
+                // Återskapa geometrin som ett platt band
+                // Detta anrop sker varje frame, även när pathPoints inte växer, för att rendera den sista formen
+                const newGeometry = createFlatRibbonGeometry(curve, RIBBON_WIDTH, ribbon.pathPoints.length);
+
+                // Ersätt gammal geometri
+                ribbon.mesh.geometry.dispose();
+                ribbon.mesh.geometry = newGeometry;
+            });
+
+            // Ljuset följer med kameran relativt bandet
+            scene.children[1].position.x = camera.position.x + 5;
+            scene.children[1].position.y = camera.position.y + 5;
+            scene.children[1].position.z = camera.position.z + 5;
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Uppdatera bandens banor
+            updateRibbons();
+
+            // Lägg till svag rotation av hela scenen
+            scene.rotation.y += SCENE_ROTATION_SPEED;
+            scene.rotation.x += SCENE_ROTATION_X_SPEED; // Rotation i höjdled
+
+            // Uppdatera kamerakontroller
+            controls.update();
+
+            // Uppdatera CubeCamera (för reflektioner)
+            if (cubeCamera) {
+                // Flytta kameran för att simulera en "världskamera" som ser reflektioner av omgivningen
+                cubeCamera.position.copy(camera.position); 
+                cubeCamera.update(renderer, scene);
+            }
+
+            // Rendera scenen
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function () {
+            init();
+            animate();
+        };
+
+    </script>
+</body>
+</html>
