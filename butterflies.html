@@ -87,7 +87,8 @@
         const BUTTON_SIZE = 24;
         const BUTTON_PADDING = 16;
         const BUTTON_START_X = 80;
-        const BUTTON_START_Y = 20;
+        // ÄNDRAT: Flyttat ner 4px (20 -> 24)
+        const BUTTON_START_Y = 24; 
 
         // Definierar knapparnas positioner (inuti P5.js canvas)
         const BUTTONS = {
@@ -104,7 +105,10 @@
                 h: BUTTON_SIZE
             }
         };
-
+        
+        // --- KLICK/SVEP HANTERING ---
+        let touchStartX, touchStartY; // Sparar startpositionen vid touch down
+        const TAP_TOLERANCE = 10;     // Max avstånd för att räknas som ett tap/klick
 
         /**
          * Klass för att representera ett enda linjesegment i trädet med last- och fallstatus.
@@ -135,7 +139,7 @@
                 this.acceleration = createVector(0, 0);
                 
                 this.wingLength = random(5, 10); 
-                // ÄNDRAT: Fast vingbredd på 1px för visuellt test
+                // FAST VINGBREDD: Låst till 1px
                 this.strokeWeight = 1; 
                 this.color = random(COLOR_PALETTE); 
                 
@@ -804,12 +808,12 @@
         }
 
         // ------------------------------------------------------------------
-        // NY LOGIK FÖR SKRÄMSELT PÅ BÅDE MUS OCH TOUCH
+        // LOGIK FÖR SKRÄMSELT OCH TAP/KLICK HANTERING
         // ------------------------------------------------------------------
 
         /**
          * Generell funktion för att skrämma fjärilar runt en given koordinat (x, y).
-         * Används av både mouseMoved och touchMoved.
+         * Används av mouseMoved och touchMoved (dvs. svep).
          */
         function scareButterflies(x, y) {
             const isAttractionActive = (treeDrawn && (millis() - treeAnimationStartTime >= MAX_ANIMATION_TIME_MS));
@@ -836,7 +840,71 @@
         }
 
         /**
-         * Hanterar musrörelser (Desktop).
+         * Hanterar mus/touch ned-händelsen.
+         * Används för att registrera startposition och trigga knapp-klick (som ska vara omedelbara).
+         */
+        function mousePressed() {
+            // 1. Kontrollera om en knapp klickades (knapp-logik triggas direkt)
+            if (checkButtonClicks()) {
+                // Om en knapp klickades, stoppas klick-eventet här.
+                return false; 
+            }
+
+            // 2. Lagra startpositionen för att bedöma om det blir ett tap eller en svepning
+            touchStartX = mouseX;
+            touchStartY = mouseY;
+            
+            // Fjärilsskapande sker nu i mouseReleased/touchEnded
+            return false; 
+        }
+
+        /**
+         * Hanterar mus/touch upp-händelsen.
+         * Används för att avgöra om händelsen var ett kort "tap" för att skapa fjärilar.
+         */
+        function mouseReleased() {
+            // Kontrollera att vi har startkoordinater (vilket borde vara sant om mousePressed anropades)
+            if (touchStartX === undefined || touchStartY === undefined) {
+                return false;
+            }
+
+            // Beräkna avståndet mellan nedtryckning och släpp
+            let distance = dist(touchStartX, touchStartY, mouseX, mouseY);
+
+            // Om avståndet är mindre än TAP_TOLERANCE (dvs. ett tap/klick)
+            if (distance < TAP_TOLERANCE) {
+                
+                // Dubbelkolla att vi inte klickade på en knapp (även om mousePressed hanterade det,
+                // förhindrar det att fjärilar skapas om knappen klickades)
+                if (checkButtonClicks()) {
+                    return false;
+                }
+                
+                // SKAPA FJÄRILAR (endast vid tap/klick)
+                const isAttractionActiveOnPress = (treeDrawn && (millis() - treeAnimationStartTime >= MAX_ANIMATION_TIME_MS));
+
+                for (let i = 0; i < BUTTERFLY_COUNT; i++) {
+                    let offsetX = random(-SCATTER_RADIUS, SCATTER_RADIUS);
+                    let offsetY = random(-SCATTER_RADIUS, SCATTER_RADIUS);
+                    
+                    // Använd startkoordinaterna för att säkerställa att fjärilarna skapas där tappen startade
+                    let startX = touchStartX + offsetX; 
+                    let startY = touchStartY + offsetY;
+                    
+                    let newButterfly = new Butterfly(startX, startY, isAttractionActiveOnPress);
+                    butterflies.push(newButterfly);
+                }
+            }
+            
+            // Återställ startkoordinaterna
+            touchStartX = undefined;
+            touchStartY = undefined;
+
+            return false; 
+        }
+        
+        /**
+         * Hanterar musrörelser (Desktop). Utlöser skrämsellogik.
          */
         function mouseMoved() {
             scareButterflies(mouseX, mouseY);
@@ -844,8 +912,7 @@
         }
 
         /**
-         * Hanterar swipe/touch rörelser (Mobil).
-         * P5.js ger oss 'touches' arrayen med touch-punkter.
+         * Hanterar swipe/touch rörelser (Mobil). Utlöser skrämsellogik.
          */
         function touchMoved() {
             // Iterera över alla aktiva touch-punkter
@@ -857,32 +924,6 @@
         }
 
         // ------------------------------------------------------------------
-
-        /**
-         * Skapar fjärilar ELLER triggar en knappklick.
-         */
-        function mousePressed() {
-            // 1. Kontrollera om en knapp klickades
-            if (checkButtonClicks()) {
-                // Om en knapp klickades, stoppa exekveringen HÄR för att undvika att skapa fjärilar.
-                return false; 
-            }
-
-            // 2. Om ingen knapp klickades, skapa fjärilar (gammal logik)
-            const isAttractionActiveOnPress = (treeDrawn && (millis() - treeAnimationStartTime >= MAX_ANIMATION_TIME_MS));
-
-            for (let i = 0; i < BUTTERFLY_COUNT; i++) {
-                let offsetX = random(-SCATTER_RADIUS, SCATTER_RADIUS);
-                let offsetY = random(-SCATTER_RADIUS, SCATTER_RADIUS);
-                
-                let startX = mouseX + offsetX;
-                let startY = mouseY + offsetY;
-                
-                let newButterfly = new Butterfly(startX, startY, isAttractionActiveOnPress);
-                butterflies.push(newButterfly);
-            }
-            return false; 
-        }
         
 
         // Hanterar responsivitet: Ändra canvasstorleken när fönstret ändras
