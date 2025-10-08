@@ -20,6 +20,7 @@
         let ribbons = []; // Array för att hålla alla band-objekt
         let cubeRenderTarget; // För reflektioner
         let cubeCamera; // Den kamera som används för reflektioner
+        let lastTapTime = 0; // Används för att hantera dubbeltryck
 
         // --- TIDSBEGRÄNSNING ---
         const MAX_RUN_TIME = 120; // Stoppa bandgenerering efter 120 sekunder (2 minuter)
@@ -27,18 +28,19 @@
         // -----------------------
 
         // --- NYA VARIABLER FÖR KONTROLL ---
-        const NUM_RIBBONS = 6;              // Ändra detta för att justera antalet band (max 6 med nuvarande startriktningar)
-        const BACKGROUND_COLOR_HEX = 0xF8FBF6; // Ändra detta för att ändra bakgrundsfärg (t.ex. 0x000000 för svart)
+        const NUM_RIBBONS = 8;              // Antal band (NU ANVÄNDS DETTA FULLT UT)
+        const BACKGROUND_COLOR_HEX = 0xF3F1EB; // Bakgrundsfärg  F8FBF6
+        const INITIAL_SCATTER_RANGE = 50.0;  // Stort område för bandens startpositioner
+        const DOUBLE_TAP_DELAY = 300;        // Max tid (ms) mellan tryck för att räknas som dubbeltryck
         // ---------------------------------
         
         // Bandets inställningar
-        const RIBBON_WIDTH = 6.0;         // Bandets bredd i 3D-enheter
-        const RIBBON_SEGMENT_POINTS = 5;  // Initiala startpunkter
-        const PATH_POINTS_SMOOTHNESS = 5; // Antal interpolerade punkter per kontrollpunkt
-        const START_SPREAD = 20.0;         // Max avstånd från centrum för startpunkterna
-        const MAX_DISTANCE_THRESHOLD = 50.0; // Gräns för att ändra beteende (t.ex. tvinga bandet in mot mitten)
+        const RIBBON_WIDTH = 7.0;         // Bandets bredd i 3D-enheter (ÖKAT FRÅN 6.0 TILL 8.0)
+        const RIBBON_SEGMENT_POINTS = 4;  // Initiala startpunkter
+        const PATH_POINTS_SMOOTHNESS = 8; // Antal interpolerade punkter per kontrollpunkt
+        const MAX_DISTANCE_THRESHOLD = 50.0; // Gräns för att ändra beteende
         
-        const speed = 3;             // Hastighet bandet växer med
+        const speed = 1.1;             // Hastighet bandet växer med
         const ROTATION_STRENGTH = 0.4; // Ökad slumpmässig faktor för vildare svängar
         const SCENE_ROTATION_SPEED = 0.001; // Svag rotation av hela scenen (Y-axel)
         const SCENE_ROTATION_X_SPEED = 0.0012; // Svag rotation i höjdled (X-axel)
@@ -265,8 +267,6 @@
 
         /**
          * Skapar en platt 3D-bandgeometri (BufferGeometry) baserat på en kurva.
-         * Denna metod använder Frenet Frames för att säkerställa att bandet alltid är orienterat
-         * korrekt längs kurvans normal.
          * @param {THREE.CatmullRomCurve3} curve - Kurvan som definierar bandets bana.
          * @param {number} width - Bandets bredd.
          * @param {number} controlPointsLength - Antal kontrollpunkter i bandets bana.
@@ -335,17 +335,17 @@
          * Skapar ett enskilt bandobjekt.
          */
         function createRibbon(startDirection, color) {
-            // Generera en slumpmässig startposition nära centrum
+            // Generera en slumpmässig startposition inom det stora spridningsområdet
             const startPosition = new THREE.Vector3(
-                (Math.random() - 0.5) * START_SPREAD,
-                (Math.random() - 0.5) * START_SPREAD,
-                (Math.random() - 0.5) * START_SPREAD
+                (Math.random() - 0.5) * INITIAL_SCATTER_RANGE,
+                (Math.random() - 0.5) * INITIAL_SCATTER_RANGE,
+                (Math.random() - 0.5) * INITIAL_SCATTER_RANGE
             );
 
             let ribbon = {
                 pathPoints: [],
                 currentDirection: startDirection.normalize(),
-                currentPosition: startPosition, // Använd slumpmässig startposition
+                currentPosition: startPosition, 
                 mesh: null,
                 color: color,
                 // Unik tidsoffset för att få banden att svänga oberoende av varandra
@@ -381,25 +381,24 @@
          * Skapar alla band baserat på NUM_RIBBONS. Denna funktion anropas vid initiering och nollställning.
          */
         function createAllRibbons() {
-            // Nollställ flaggan vid nollställning (reset)
             isRibbonGenerationActive = true; 
             
             // Skapa banden med unika riktningar och SAMMA färg (mörkgrå/metall)
             const color = new THREE.Color(0x111111); 
+            // 6 standardriktningar
             const startDirections = [
-                new THREE.Vector3(1, 0, 0),    // +X
-                new THREE.Vector3(-1, 0, 0),   // -X
-                new THREE.Vector3(0, 1, 0),    // +Y (Upp)
-                new THREE.Vector3(0, -1, 0),   // -Y (Ner)
-                new THREE.Vector3(0, 0, 1),    // +Z (Framåt)
-                new THREE.Vector3(0, 0, -1)    // -Z (Bakåt)
+                new THREE.Vector3(1, 0, 0),
+                new THREE.Vector3(-1, 0, 0),
+                new THREE.Vector3(0, 1, 0),
+                new THREE.Vector3(0, -1, 0),
+                new THREE.Vector3(0, 0, 1),
+                new THREE.Vector3(0, 0, -1)
             ];
             
-            // Använder NUM_RIBBONS för att bestämma hur många band som ska skapas.
-            // Begränsas av antalet definierade startriktningar (6 st).
-            const count = Math.min(NUM_RIBBONS, startDirections.length);
-            for (let i = 0; i < count; i++) {
-                ribbons.push(createRibbon(startDirections[i], color));
+            // SKAPAR EXAKT NUM_RIBBONS BAND och återanvänder startriktningarna.
+            for (let i = 0; i < NUM_RIBBONS; i++) {
+                // Använder modulus för att cykliskt välja en startriktning från de 6 definierade.
+                ribbons.push(createRibbon(startDirections[i % startDirections.length], color));
             }
         }
 
@@ -424,6 +423,7 @@
             
             // Nollställ klockan för att timern ska börja om
             clock.start(); 
+            isRibbonGenerationActive = true; 
         }
 
 
@@ -436,7 +436,7 @@
             // Kamera
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             // Kameran zoomas ut genom att öka startpositionen
-            camera.position.set(30, 30, 30); 
+            camera.position.set(50, 50, 50); // Justera kameran för att se det spridda området
             camera.lookAt(0, 0, 0);
 
             // Renderer
@@ -471,13 +471,32 @@
             controls = new OrbitControls(camera, renderer.domElement);
             controls.dampingFactor = 0.05;
             controls.minDistance = 5;
-            controls.maxDistance = 100;
+            controls.maxDistance = 150; // Öka max avstånd på grund av större scen
             controls.target.set(0, 0, 0); 
 
             window.addEventListener('resize', onWindowResize, false);
             
-            // Lägg till dubbelklick-lyssnare för att nollställa
+            // --- Dubbelklick / Dubbeltryck Logik ---
+
+            // 1. Dubbelklick (Desktop)
             renderer.domElement.addEventListener('dblclick', resetScene, false);
+
+            // 2. Dubbeltryck (Touch-enheter)
+            function handleTouchStart(event) {
+                // Vi hanterar bara enkla tryck för att undvika konflikter med OrbitControls multi-touch
+                if (event.touches.length === 1) { 
+                    const currentTime = new Date().getTime();
+                    const tapLength = currentTime - lastTapTime;
+
+                    if (tapLength < DOUBLE_TAP_DELAY && tapLength > 0) {
+                        // Dubbeltryck identifierat
+                        event.preventDefault(); // Förhindra standard zoom/pan-beteende
+                        resetScene();
+                    }
+                    lastTapTime = currentTime;
+                }
+            }
+            renderer.domElement.addEventListener('touchstart', handleTouchStart, false);
 
             // Kör den första rendereringen för att få en initial environment map
             cubeCamera.update(renderer, scene);
@@ -498,7 +517,7 @@
             ribbons.forEach(ribbon => {
                 const ribbonTime = time + ribbon.timeOffset; // Unik tid för varje band
 
-                // Slumpmässig riktningsförändring (Perlin noise-liknande)
+                // Slumpmässig riktningsförändring
                 const rotationX = (Math.sin(ribbonTime * 0.5) * 0.05) + (Math.random() - 0.5) * ROTATION_STRENGTH;
                 const rotationY = (Math.cos(ribbonTime * 0.4) * 0.05) + (Math.random() - 0.5) * ROTATION_STRENGTH;
                 const rotationZ = (Math.sin(ribbonTime * 0.3) * 0.05) + (Math.random() - 0.5) * ROTATION_STRENGTH;
@@ -531,7 +550,6 @@
                 const curve = new THREE.CatmullRomCurve3(ribbon.pathPoints);
 
                 // Återskapa geometrin som ett platt band
-                // Detta anrop sker varje frame, även när pathPoints inte växer, för att rendera den sista formen
                 const newGeometry = createFlatRibbonGeometry(curve, RIBBON_WIDTH, ribbon.pathPoints.length);
 
                 // Ersätt gammal geometri
