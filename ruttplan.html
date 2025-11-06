@@ -171,18 +171,61 @@
       // Distans + export
       const distanceOutput = document.getElementById('distance-output');
       const exportBtn = document.getElementById('export-btn');
-      function setDistanceKm(km) { distanceOutput.textContent = `${km.toFixed(2)} km`; }
 
+      function setDistanceKm(km) {
+        distanceOutput.textContent = `${km.toFixed(2)} km`;
+      }
+      function computeLengthKmFromLatLngs(latlngs) {
+        if (!latlngs || latlngs.length < 2) return 0;
+        const line = L.polyline(latlngs).toGeoJSON();
+        return turf.length(line, { units: 'kilometers' });
+      }
+      function updateExportState() {
+        const ok = !!(drawnRouteLayer && drawnRouteLayer.getLatLngs().length >= 2);
+        exportBtn.disabled = !ok;
+        exportBtn.onclick = ok ? () => exportToGPX(drawnRouteLayer.getLatLngs()) : null;
+      }
+
+      // LIVE: starta ritning
+      map.on(L.Draw.Event.DRAWSTART, (e) => {
+        if (e.layerType === 'polyline') {
+          setDistanceKm(0);
+          // under ritning ska export vara av tills rutten slutförts
+          exportBtn.disabled = true;
+          exportBtn.onclick = null;
+        }
+      });
+
+      // LIVE: varje ny vertex (Leaflet.Draw 1.0.4)
+      map.on(L.Draw.Event.DRAWVERTEX, (e) => {
+        const latlngs = [];
+        e.layers.eachLayer((marker) => latlngs.push(marker.getLatLng()));
+        setDistanceKm(computeLengthKmFromLatLngs(latlngs));
+      });
+
+      // När en ny rutt färdigställs
       map.on(L.Draw.Event.CREATED, (e) => {
-        if (drawnRouteLayer) drawnItems.removeLayer(drawnRouteLayer);
-        drawnRouteLayer = e.layer;
-        drawnItems.addLayer(drawnRouteLayer);
-        setDistanceKm(turf.length(drawnRouteLayer.toGeoJSON(), { units: 'kilometers' }));
-        exportBtn.disabled = false;
-        exportBtn.onclick = () => exportToGPX(drawnRouteLayer.getLatLngs());
+        if (e.layerType === 'polyline') {
+          if (drawnRouteLayer) drawnItems.removeLayer(drawnRouteLayer);
+          drawnRouteLayer = e.layer;
+          drawnItems.addLayer(drawnRouteLayer);
+          setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs()));
+          updateExportState();
+        }
+      });
+
+      // Redigerings-live (vertex flytt/tillägg/borttag)
+      map.on(L.Draw.Event.EDITVERTEX, () => {
+        if (drawnRouteLayer) {
+          setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs()));
+          updateExportState();
+        }
       });
       map.on(L.Draw.Event.EDITED, () => {
-        if (drawnRouteLayer) setDistanceKm(turf.length(drawnRouteLayer.toGeoJSON(), { units: 'kilometers' }));
+        if (drawnRouteLayer) {
+          setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs()));
+          updateExportState();
+        }
       });
 
       // ===== Export: korrekt GPX 1.1 med RTE + TRK =====
@@ -263,7 +306,9 @@
       function clearGpxTrack() {
         if (gpxTrackLayer) map.removeLayer(gpxTrackLayer);
         gpxTrackLayer = null;
+        // Om ingen ritad rutt finns, nollställ
         if (!drawnRouteLayer) setDistanceKm(0);
+        updateExportState();
       }
 
       // ===== Fördefinierade GPX-listan =====
@@ -327,6 +372,9 @@
       window.addEventListener('resize', () => {
         if (panel.classList.contains('open') && trkButtonRef) positionPanelNextTo(trkButtonRef);
       });
+
+      // Init
+      updateExportState();
     });
   </script>
 </body>
