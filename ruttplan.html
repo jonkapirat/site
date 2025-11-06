@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Poly-gpx Orion</title>
+  <title>GPX Orion</title>
 
   <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -154,7 +154,7 @@
 
           // TRK
           const listA = L.DomUtil.create('a', 'gpx-btn', toolbar);
-          listA.textContent = 'TRK';
+          listA.textContent = 'TRKs';
           listA.onclick = (e) => { e.preventDefault(); toggleListPanel(listA); };
           trkButtonRef = listA;
 
