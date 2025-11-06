@@ -192,4 +192,72 @@
 
       function exportToGPX(latlngs) {
         if (!latlngs || latlngs.length < 2) return;
-        const now = new Date().toISOString().split('.')[0] + 'Z
+        const now = new Date().toISOString().split('.')[0] + 'Z';
+        const name = 'Rutt ' + new Date().toLocaleDateString('sv-SE');
+        let gpx = `<?xml version="1.0"?><gpx version="1.1" creator="WebApp"><rte><name>${name}</name>`;
+        latlngs.forEach(p => { gpx += `<rtept lat="${p.lat}" lon="${p.lng}"/>`; });
+        gpx += '</rte></gpx>';
+        const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'rutt.gpx';
+        a.click();
+      }
+
+      function attachGPXLayer(layer) {
+        if (gpxTrackLayer) map.removeLayer(gpxTrackLayer);
+        gpxTrackLayer = layer.addTo(map);
+        layer.on('loaded', e => {
+          map.fitBounds(e.target.getBounds());
+          const len = turf.length(e.target.toGeoJSON(), { units: 'kilometers' });
+          setDistanceKm(len);
+        });
+      }
+
+      function loadGPXFromText(text) {
+        const gpxLayer = new L.GPX(text, { async: true });
+        attachGPXLayer(gpxLayer);
+      }
+      function loadGPXFromURL(url) {
+        const gpxLayer = new L.GPX(url, { async: true });
+        attachGPXLayer(gpxLayer);
+      }
+      function clearGpxTrack() {
+        if (gpxTrackLayer) map.removeLayer(gpxTrackLayer);
+        gpxTrackLayer = null;
+        if (!drawnRouteLayer) setDistanceKm(0);
+      }
+
+      // Lista över fördefinierade GPX
+      const panel = document.getElementById('gpxListPanel');
+      const listEl = document.getElementById('gpxList');
+      const emptyEl = document.getElementById('gpxListEmpty');
+      let loaded = false;
+
+      function toggleListPanel() {
+        if (!loaded) loadTracksList();
+        panel.classList.toggle('open');
+      }
+
+      async function loadTracksList() {
+        loaded = true;
+        listEl.innerHTML = '';
+        try {
+          const res = await fetch('gpx-tracks/manifest.json');
+          const files = await res.json();
+          for (const file of files) {
+            const url = `gpx-tracks/${file}`;
+            const item = document.createElement('div');
+            item.className = 'gpx-list-item';
+            item.textContent = file;
+            item.onclick = () => { loadGPXFromURL(url); panel.classList.remove('open'); };
+            listEl.appendChild(item);
+          }
+        } catch {
+          emptyEl.classList.remove('hidden');
+        }
+      }
+    });
+  </script>
+</body>
+</html>
