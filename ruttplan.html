@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Poly till GPX - Orion</title>
+  <title>Kartläggare med GPX-export</title>
 
   <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -25,9 +25,9 @@
     /* GPX-verktygsrad */
     .gpx-toolbar.leaflet-draw-toolbar.leaflet-bar { margin-top: 4px; }
 
-    /* Panel för fördefinierade spår – nu positionerad dynamiskt bredvid knappen */
+    /* Panel för fördefinierade spår – positioneras bredvid TRK i JS */
     .gpx-list-panel {
-      position: absolute; /* top/left sätts i JS vid öppning */
+      position: absolute; /* top/left sätts dynamiskt */
       z-index: 1000;
       background: #fff;
       border-radius: 0.25rem;
@@ -128,7 +128,7 @@
       let gpxTrackLayer = null;
 
       // GPX-kontroll (Open / TRK / Trash)
-      let trkButtonRef = null; // referens till TRK-knappen för positionering
+      let trkButtonRef = null; // referens till TRK-knappen för panelposition
 
       const GPXControl = L.Control.extend({
         options: { position: 'topleft' },
@@ -185,18 +185,68 @@
         if (drawnRouteLayer) setDistanceKm(turf.length(drawnRouteLayer.toGeoJSON(), { units: 'kilometers' }));
       });
 
+      // ===== Export: korrekt GPX 1.1 med RTE + TRK =====
       function exportToGPX(latlngs) {
         if (!latlngs || latlngs.length < 2) return;
-        const now = new Date().toISOString().split('.')[0] + 'Z';
-        const name = 'Rutt ' + new Date().toLocaleDateString('sv-SE');
-        let gpx = `<?xml version="1.0"?><gpx version="1.1" creator="WebApp"><rte><name>${name}</name>`;
-        latlngs.forEach(p => { gpx += `<rtept lat="${p.lat}" lon="${p.lng}"/>`; });
-        gpx += '</rte></gpx>';
+
+        const now = new Date();
+        const isoNow = now.toISOString().split('.')[0] + 'Z';
+        const routeName =
+          `Rutt_${new Date().toLocaleDateString('sv-SE')}_` +
+          new Date().toLocaleTimeString('sv-SE', { hour12: false }).replace(/:/g, '-');
+
+        let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1"
+     creator="Ruttplan"
+     xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://www.topografix.com/GPX/1/1
+                         http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>${routeName}</name>
+    <time>${isoNow}</time>
+  </metadata>
+
+  <rte>
+    <name>${routeName}</name>
+    <time>${isoNow}</time>`;
+
+        latlngs.forEach((p, i) => {
+          gpx += `
+    <rtept lat="${p.lat.toFixed(6)}" lon="${p.lng.toFixed(6)}">
+      <name>P${i + 1}</name>
+    </rtept>`;
+        });
+
+        gpx += `
+  </rte>
+
+  <trk>
+    <name>${routeName}</name>
+    <trkseg>`;
+
+        latlngs.forEach((p, i) => {
+          const t = new Date(now.getTime() + i * 1000).toISOString().split('.')[0] + 'Z';
+          gpx += `
+      <trkpt lat="${p.lat.toFixed(6)}" lon="${p.lng.toFixed(6)}">
+        <time>${t}</time>
+      </trkpt>`;
+        });
+
+        gpx += `
+    </trkseg>
+  </trk>
+</gpx>`;
+
         const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = 'rutt.gpx';
+        a.href = url;
+        a.download = routeName.replace(/ /g, '_') + '.gpx';
+        document.body.appendChild(a);
         a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
       }
 
       function attachGPXLayer(layer) {
@@ -216,7 +266,7 @@
         if (!drawnRouteLayer) setDistanceKm(0);
       }
 
-      // Lista fördefinierade GPX
+      // ===== Fördefinierade GPX-listan =====
       const panel = document.getElementById('gpxListPanel');
       const listEl = document.getElementById('gpxList');
       const emptyEl = document.getElementById('gpxListEmpty');
@@ -224,23 +274,16 @@
       let outsideClickHandler = null;
 
       function toggleListPanel(anchorEl) {
-        if (panel.classList.contains('open')) {
-          closeListPanel();
-          return;
-        }
-        // Positionera panelen precis till höger om knappen
+        if (panel.classList.contains('open')) { closeListPanel(); return; }
         positionPanelNextTo(anchorEl);
         if (!loaded) loadTracksList();
         panel.classList.add('open');
-
-        // Stäng vid klick utanför eller på knappen igen
         outsideClickHandler = (ev) => {
           if (panel.contains(ev.target) || (anchorEl && anchorEl.contains(ev.target))) return;
           closeListPanel();
         };
         document.addEventListener('click', outsideClickHandler);
       }
-
       function closeListPanel() {
         panel.classList.remove('open');
         if (outsideClickHandler) {
@@ -248,13 +291,12 @@
           outsideClickHandler = null;
         }
       }
-
       function positionPanelNextTo(anchorEl) {
         if (!anchorEl) return;
         const mapRect = map.getContainer().getBoundingClientRect();
         const r = anchorEl.getBoundingClientRect();
-        const top = r.top - mapRect.top;            // lodrät pos relativt kartan
-        const left = r.right - mapRect.left + 8;    // 8px luft till höger
+        const top = r.top - mapRect.top;
+        const left = r.right - mapRect.left + 8; // 8px luft
         panel.style.top = `${top}px`;
         panel.style.left = `${left}px`;
       }
@@ -282,12 +324,8 @@
           emptyEl.classList.remove('hidden');
         }
       }
-
-      // Om fönstret ändras i storlek – flytta panelen så den fortsätter ligga rätt
       window.addEventListener('resize', () => {
-        if (panel.classList.contains('open') && trkButtonRef) {
-          positionPanelNextTo(trkButtonRef);
-        }
+        if (panel.classList.contains('open') && trkButtonRef) positionPanelNextTo(trkButtonRef);
       });
     });
   </script>
