@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Kartläggare med GPX-export</title>
+  <title>Rutt till gpx Orion</title>
 
   <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -16,7 +16,7 @@
     body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; }
     #map { height: 100vh; width: 100vw; position: relative; z-index: 1; background: #fff; }
 
-    /* Kompakt panel: distans + export uppe till vänster (höger om +) */
+    /* Distans + export “pill” */
     #info-panel { position: absolute; top: 10px; left: 56px; }
     .leaflet-control-container .leaflet-draw {
       box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
@@ -25,8 +25,20 @@
 
     /* Vår GPX-verktygsrad ska se ut som Draws egen toolbar */
     .gpx-toolbar.leaflet-draw-toolbar.leaflet-bar {
-      margin-top: 4px; /* en liten luft under Draw-kontrollen */
+      margin-top: 4px; /* liten luft under Draw-kontrollen */
     }
+    /* Gemensam knappstil (samma storlek som Leaflet-knappar) */
+    .gpx-btn {
+      width: 30px; height: 30px;
+      display: flex; align-items: center; justify-content: center;
+      line-height: 0; padding: 0;
+      background-position: center; background-repeat: no-repeat; background-size: 18px 18px;
+    }
+    .gpx-btn + .gpx-btn { border-top: 1px solid #ccc; }
+
+    /* Använd dina SVG:er som icons */
+    .gpx-btn-open { background-image: url('gpx-tracks/open.svg'); }
+    .gpx-btn-view { background-image: url('gpx-tracks/view.svg'); }
 
     /* Panel för listan */
     .gpx-list-panel {
@@ -132,19 +144,16 @@
       let gpxTrackLayer = null;    // inläst GPX-spår
       let distanceSource = 'none'; // 'drawn' | 'gpx' | 'temp' | 'none'
 
-      // === GPX-kontroll (3 knappar) med sprite-ikoner från Leaflet.Draw ===
+      // === GPX-kontroll (3 knappar) — nu med dina SVG-ikoner för öppna/visa ===
       const GPXControl = L.Control.extend({
         options: { position: 'topleft' },
         onAdd: function () {
-          // Bygg en "toolbar" med samma klasser som Leaflet.Draw använder
           const toolbar = L.DomUtil.create('div', 'gpx-toolbar leaflet-draw-toolbar leaflet-bar');
-
-          // stoppa kartinteraktion när man klickar i kontrollen
           L.DomEvent.disableClickPropagation(toolbar);
           L.DomEvent.disableScrollPropagation(toolbar);
 
-          // 1) Öppna GPX (ikon = "edit/pencil")
-          const openA = L.DomUtil.create('a', 'leaflet-draw-edit-edit', toolbar);
+          // 1) Öppna GPX (din open.svg)
+          const openA = L.DomUtil.create('a', 'gpx-btn gpx-btn-open', toolbar);
           openA.href = '#';
           openA.title = 'Öppna GPX-spår';
           openA.setAttribute('aria-label', 'Öppna GPX-spår');
@@ -169,8 +178,8 @@
             reader.readAsText(file);
           });
 
-          // 2) Visa spår (ikon = "draw polyline")
-          const listA = L.DomUtil.create('a', 'leaflet-draw-draw-polyline', toolbar);
+          // 2) Visa spår (din view.svg)
+          const listA = L.DomUtil.create('a', 'gpx-btn gpx-btn-view', toolbar);
           listA.href = '#';
           listA.title = 'Visa fördefinierade spår';
           listA.setAttribute('aria-label', 'Visa fördefinierade spår');
@@ -179,7 +188,7 @@
             toggleListPanel();
           });
 
-          // 3) Rensa spår (ikon = "remove/trash" från editeringsverktygen)
+          // 3) Rensa spår (behåll Leaflet.Draws trash-ikon för tydlighet)
           const clearA = L.DomUtil.create('a', 'leaflet-draw-edit-remove', toolbar);
           clearA.href = '#';
           clearA.title = 'Rensa inläst GPX-spår';
@@ -204,17 +213,12 @@
         return turf.length(line, { units: 'kilometers' });
       }
 
-      function setDistanceKm(km) {
-        distanceOutput.textContent = `${km.toFixed(2)} km`;
-      }
+      function setDistanceKm(km) { distanceOutput.textContent = `${km.toFixed(2)} km`; }
 
       function updateExportState() {
-        // Export gäller bara ritad rutt
         const canExport = !!(drawnRouteLayer && drawnRouteLayer.getLatLngs().length >= 2);
         exportBtn.disabled = !canExport;
-        exportBtn.onclick = canExport
-          ? () => exportToGPX(drawnRouteLayer.getLatLngs())
-          : null;
+        exportBtn.onclick = canExport ? () => exportToGPX(drawnRouteLayer.getLatLngs()) : null;
       }
 
       function updateDistanceFromDrawn() {
@@ -234,21 +238,18 @@
         updateExportState();
       }
 
-      // Live-uppdatering under ritning (tillfälliga vertices)
+      // Live-uppdatering under ritning
       map.on(L.Draw.Event.DRAWVERTEX, (e) => {
         const latlngs = [];
         e.layers.eachLayer(marker => latlngs.push(marker.getLatLng()));
         const lengthKm = computeLengthKmFromLatLngs(latlngs);
         setDistanceKm(lengthKm);
         distanceSource = 'temp';
-        // export förblir kopplad till ritad rutt (när den väl finns)
       });
-
       map.on(L.Draw.Event.DRAWSTART, (e) => {
         if (e.layerType === 'polyline') {
           setDistanceKm(0);
           distanceSource = 'temp';
-          // export uppdateras när ritningen slutförs
           updateExportState();
         }
       });
@@ -256,7 +257,6 @@
       // När en ny rutt färdigställs
       map.on(L.Draw.Event.CREATED, function (e) {
         if (e.layerType === 'polyline') {
-          // Om du bara vill tillåta en ritad rutt åt gången, ta bort tidigare
           if (drawnRouteLayer) drawnItems.removeLayer(drawnRouteLayer);
           drawnItems.addLayer(e.layer);
           drawnRouteLayer = e.layer;
@@ -264,11 +264,10 @@
         }
       });
 
-      // Redigering: vertex drag/lagd/borttagen
+      // Redigering
       map.on(L.Draw.Event.EDITVERTEX, function () {
         if (distanceSource !== 'gpx') updateDistanceFromDrawn();
       });
-
       map.on(L.Draw.Event.EDITED, function (e) {
         e.layers.eachLayer(function (layer) {
           if (layer === drawnRouteLayer && distanceSource !== 'gpx') {
@@ -276,17 +275,12 @@
           }
         });
       });
-
       map.on(L.Draw.Event.DELETED, function (e) {
         e.layers.eachLayer(function (layer) {
-          if (layer === drawnRouteLayer) {
-            drawnRouteLayer = null;
-          }
+          if (layer === drawnRouteLayer) drawnRouteLayer = null;
         });
         if (distanceSource === 'drawn') {
-          // fall tillbaka till GPX om det finns, annars 0
           if (gpxTrackLayer && gpxTrackLayer._bounds) {
-            // räkna om GPX (säkerhetsåtgärd)
             computeGpxDistanceAndShow(gpxTrackLayer);
           } else {
             setDistanceKm(0);
@@ -309,18 +303,15 @@
   <rte>
     <name>${routeName}</name>
     <time>${now}</time>`;
-
         latlngs.forEach((p, i) => {
           gpx += `
     <rtept lat="${p.lat.toFixed(6)}" lon="${p.lng.toFixed(6)}">
       <name>P${i + 1}</name>
     </rtept>`;
         });
-
         gpx += `
   </rte>
 </gpx>`;
-
         const blob = new Blob([gpx], { type: 'application/gpx+xml' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -334,22 +325,14 @@
 
       // ===== GPX: ladda från text/URL och lägg på kartan =====
       function attachGPXLayer(gpxLayer) {
-        // Lägg på kartan
         gpxLayer.addTo(map);
-
-        // Ta bort tidigare GPX-lager om det fanns
-        if (gpxTrackLayer && map.hasLayer(gpxTrackLayer)) {
-          map.removeLayer(gpxTrackLayer);
-        }
+        if (gpxTrackLayer && map.hasLayer(gpxTrackLayer)) map.removeLayer(gpxTrackLayer);
         gpxTrackLayer = gpxLayer;
-
-        // Fit bounds & räkna distans när GPX:et laddat klart
         gpxLayer.on('loaded', function (e) {
           map.fitBounds(e.target.getBounds(), { padding: [20, 20] });
           computeGpxDistanceAndShow(e.target);
         });
       }
-
       function computeGpxDistanceAndShow(layer) {
         try {
           const g = layer.toGeoJSON();
@@ -363,11 +346,8 @@
             }
           });
           updateDistanceFromGPX(totalKm);
-        } catch (_) {
-          // om något går fel, behåll nuvarande visning
-        }
+        } catch (_) {}
       }
-
       function loadGPXFromText(text) {
         const gpxLayer = new L.GPX(text, {
           async: true,
@@ -375,7 +355,6 @@
         });
         attachGPXLayer(gpxLayer);
       }
-
       function loadGPXFromURL(url) {
         const gpxLayer = new L.GPX(url, {
           async: true,
@@ -383,37 +362,23 @@
         });
         attachGPXLayer(gpxLayer);
       }
-
       function clearGpxTrack() {
-        if (gpxTrackLayer && map.hasLayer(gpxTrackLayer)) {
-          map.removeLayer(gpxTrackLayer);
-        }
+        if (gpxTrackLayer && map.hasLayer(gpxTrackLayer)) map.removeLayer(gpxTrackLayer);
         gpxTrackLayer = null;
-
-        // Återställ distansen: om ritad rutt finns → visa den, annars 0
-        if (drawnRouteLayer) {
-          updateDistanceFromDrawn();
-        } else {
-          setDistanceKm(0);
-          distanceSource = 'none';
-        }
+        if (drawnRouteLayer) updateDistanceFromDrawn();
+        else { setDistanceKm(0); distanceSource = 'none'; }
       }
 
       // ===== Lista över fördefinierade spår via manifest.json =====
       const panelEl = document.getElementById('gpxListPanel');
       const listEl  = document.getElementById('gpxList');
       const emptyEl = document.getElementById('gpxListEmpty');
-
       let manifestLoadedOnce = false;
 
       function toggleListPanel() {
-        if (!manifestLoadedOnce) {
-          loadTracksList();
-          manifestLoadedOnce = true;
-        }
+        if (!manifestLoadedOnce) { loadTracksList(); manifestLoadedOnce = true; }
         panelEl.classList.toggle('open');
       }
-
       async function loadTracksList() {
         listEl.innerHTML = '';
         emptyEl.classList.add('hidden');
@@ -427,7 +392,6 @@
           emptyEl.classList.remove('hidden');
           return;
         }
-
         if (!Array.isArray(files) || files.length === 0) {
           emptyEl.classList.remove('hidden');
           return;
@@ -436,7 +400,6 @@
         for (const file of files) {
           const url = `gpx-tracks/${file}`;
           let title = file;
-
           try {
             const t = await fetch(url, { cache: 'no-cache' });
             if (t.ok) {
@@ -465,7 +428,7 @@
         }
       }
 
-      // Init: se till att export-knappen speglar ritstatus
+      // Init: uppdatera export status
       updateExportState();
     });
   </script>
