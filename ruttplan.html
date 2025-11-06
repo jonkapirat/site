@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Kartläggare med GPX-export</title>
+  <title>Poly till GPX - Orion</title>
 
   <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -23,15 +23,11 @@
     }
 
     /* GPX-verktygsrad */
-    .gpx-toolbar.leaflet-draw-toolbar.leaflet-bar {
-      margin-top: 4px;
-    }
+    .gpx-toolbar.leaflet-draw-toolbar.leaflet-bar { margin-top: 4px; }
 
-    /* Panel för fördefinierade spår */
+    /* Panel för fördefinierade spår – nu positionerad dynamiskt bredvid knappen */
     .gpx-list-panel {
-      position: absolute;
-      top: 90px;
-      left: 10px;
+      position: absolute; /* top/left sätts i JS vid öppning */
       z-index: 1000;
       background: #fff;
       border-radius: 0.25rem;
@@ -44,34 +40,20 @@
     .gpx-list-item { padding: 8px 10px; cursor: pointer; }
     .gpx-list-item:hover { background: #f3f4f6; }
 
-    /* Våra textknappar exakt som Leaflet-knappar */
+    /* Våra textknappar exakt som Leaflet-knappar (fyrkantiga) */
     .leaflet-draw-toolbar .gpx-btn {
-      width: 30px;
-      height: 30px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      width: 30px; height: 30px;
+      display: flex; align-items: center; justify-content: center;
       background-color: #fff;
       border: 1px solid #ccc;
       border-bottom: none;
       color: #464646;
-      font-size: 10px;
-      font-weight: 400;
-      line-height: 30px;
-      text-decoration: none;
-      cursor: pointer;
-      box-sizing: border-box;
+      font-size: 10px; font-weight: 400;
+      line-height: 30px; text-decoration: none; cursor: pointer; box-sizing: border-box;
+      background-image: none !important; /* stäng av spriten */
     }
-    .leaflet-draw-toolbar .gpx-btn:last-of-type {
-      border-bottom: 1px solid #ccc;
-    }
-    .leaflet-draw-toolbar .gpx-btn:hover {
-      background-color: #f4f4f4;
-    }
-    /* stäng av bakgrundsikon från sprite */
-    .leaflet-draw-toolbar .gpx-btn {
-      background-image: none !important;
-    }
+    .leaflet-draw-toolbar .gpx-btn:last-of-type { border-bottom: 1px solid #ccc; }
+    .leaflet-draw-toolbar .gpx-btn:hover { background-color: #f4f4f4; }
   </style>
 </head>
 <body>
@@ -89,7 +71,7 @@
     </div>
   </div>
 
-  <!-- Fördefinierade spår -->
+  <!-- Fördefinierade spår (placeras bredvid TRK-knappen i JS) -->
   <div id="gpxListPanel" class="gpx-list-panel">
     <div class="px-3 py-2 text-sm font-semibold border-b border-gray-200">Fördefinierade spår</div>
     <div id="gpxList" class="max-h-72 overflow-auto"></div>
@@ -146,6 +128,8 @@
       let gpxTrackLayer = null;
 
       // GPX-kontroll (Open / TRK / Trash)
+      let trkButtonRef = null; // referens till TRK-knappen för positionering
+
       const GPXControl = L.Control.extend({
         options: { position: 'topleft' },
         onAdd: function () {
@@ -171,7 +155,8 @@
           // TRK
           const listA = L.DomUtil.create('a', 'gpx-btn', toolbar);
           listA.textContent = 'TRK';
-          listA.onclick = (e) => { e.preventDefault(); toggleListPanel(); };
+          listA.onclick = (e) => { e.preventDefault(); toggleListPanel(listA); };
+          trkButtonRef = listA;
 
           // Trash
           const clearA = L.DomUtil.create('a', 'leaflet-draw-edit-remove', toolbar);
@@ -236,30 +221,74 @@
       const listEl = document.getElementById('gpxList');
       const emptyEl = document.getElementById('gpxListEmpty');
       let loaded = false;
+      let outsideClickHandler = null;
 
-      function toggleListPanel() {
+      function toggleListPanel(anchorEl) {
+        if (panel.classList.contains('open')) {
+          closeListPanel();
+          return;
+        }
+        // Positionera panelen precis till höger om knappen
+        positionPanelNextTo(anchorEl);
         if (!loaded) loadTracksList();
-        panel.classList.toggle('open');
+        panel.classList.add('open');
+
+        // Stäng vid klick utanför eller på knappen igen
+        outsideClickHandler = (ev) => {
+          if (panel.contains(ev.target) || (anchorEl && anchorEl.contains(ev.target))) return;
+          closeListPanel();
+        };
+        document.addEventListener('click', outsideClickHandler);
+      }
+
+      function closeListPanel() {
+        panel.classList.remove('open');
+        if (outsideClickHandler) {
+          document.removeEventListener('click', outsideClickHandler);
+          outsideClickHandler = null;
+        }
+      }
+
+      function positionPanelNextTo(anchorEl) {
+        if (!anchorEl) return;
+        const mapRect = map.getContainer().getBoundingClientRect();
+        const r = anchorEl.getBoundingClientRect();
+        const top = r.top - mapRect.top;            // lodrät pos relativt kartan
+        const left = r.right - mapRect.left + 8;    // 8px luft till höger
+        panel.style.top = `${top}px`;
+        panel.style.left = `${left}px`;
       }
 
       async function loadTracksList() {
         loaded = true;
         listEl.innerHTML = '';
+        emptyEl.classList.add('hidden');
         try {
           const res = await fetch('gpx-tracks/manifest.json');
           const files = await res.json();
+          if (!Array.isArray(files) || files.length === 0) {
+            emptyEl.classList.remove('hidden');
+            return;
+          }
           for (const file of files) {
             const url = `gpx-tracks/${file}`;
             const item = document.createElement('div');
             item.className = 'gpx-list-item';
             item.textContent = file;
-            item.onclick = () => { loadGPXFromURL(url); panel.classList.remove('open'); };
+            item.onclick = () => { loadGPXFromURL(url); closeListPanel(); };
             listEl.appendChild(item);
           }
         } catch {
           emptyEl.classList.remove('hidden');
         }
       }
+
+      // Om fönstret ändras i storlek – flytta panelen så den fortsätter ligga rätt
+      window.addEventListener('resize', () => {
+        if (panel.classList.contains('open') && trkButtonRef) {
+          positionPanelNextTo(trkButtonRef);
+        }
+      });
     });
   </script>
 </body>
