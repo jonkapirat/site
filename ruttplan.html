@@ -13,18 +13,19 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
 
   <style>
-    body { margin: 0; overflow: hidden; font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-    #map { height: 100vh; width: 100vw; position: relative; z-index: 1; background: #fff; }
+    body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; }
+    #map { height: 100vh; width: 100vw; background: #fff; }
 
     /* Distans + export “pill” */
     #info-panel { position: absolute; top: 10px; left: 56px; }
     .leaflet-control-container .leaflet-draw {
       box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-      border-radius: 0.5rem;
     }
 
-    /* GPX-verktygsrad under soptunnan */
-    .gpx-toolbar.leaflet-draw-toolbar.leaflet-bar { margin-top: 4px; }
+    /* GPX-verktygsrad */
+    .gpx-toolbar.leaflet-draw-toolbar.leaflet-bar {
+      margin-top: 4px;
+    }
 
     /* Panel för fördefinierade spår */
     .gpx-list-panel {
@@ -33,7 +34,7 @@
       left: 10px;
       z-index: 1000;
       background: #fff;
-      border-radius: 0.5rem;
+      border-radius: 0.25rem;
       box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -2px rgb(0 0 0 / 0.1);
       width: 240px;
       overflow: hidden;
@@ -43,21 +44,34 @@
     .gpx-list-item { padding: 8px 10px; cursor: pointer; }
     .gpx-list-item:hover { background: #f3f4f6; }
 
-    /* Knapparna "Open" och "TRK" */
-    .gpx-btn {
-      width: 30px; height: 30px;
-      display: flex; align-items: center; justify-content: center;
-      background: white;
+    /* Våra textknappar exakt som Leaflet-knappar */
+    .leaflet-draw-toolbar .gpx-btn {
+      width: 30px;
+      height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background-color: #fff;
+      border: 1px solid #ccc;
+      border-bottom: none;
       color: #464646;
       font-size: 10px;
       font-weight: 400;
-      text-decoration: none;
-      border-top: 1px solid #ccc;
       line-height: 30px;
+      text-decoration: none;
       cursor: pointer;
+      box-sizing: border-box;
     }
-    .gpx-btn:first-child { border-top: none; }
-    .gpx-btn:hover { background: #f3f3f3; }
+    .leaflet-draw-toolbar .gpx-btn:last-of-type {
+      border-bottom: 1px solid #ccc;
+    }
+    .leaflet-draw-toolbar .gpx-btn:hover {
+      background-color: #f4f4f4;
+    }
+    /* stäng av bakgrundsikon från sprite */
+    .leaflet-draw-toolbar .gpx-btn {
+      background-image: none !important;
+    }
   </style>
 </head>
 <body>
@@ -131,7 +145,7 @@
       let drawnRouteLayer = null;
       let gpxTrackLayer = null;
 
-      // GPX-kontroll (Open, TRK, Trash)
+      // GPX-kontroll (Open / TRK / Trash)
       const GPXControl = L.Control.extend({
         options: { position: 'topleft' },
         onAdd: function () {
@@ -169,25 +183,21 @@
       });
       map.addControl(new GPXControl());
 
+      // Distans + export
       const distanceOutput = document.getElementById('distance-output');
       const exportBtn = document.getElementById('export-btn');
-
-      function computeLengthKmFromLatLngs(latlngs) {
-        if (!latlngs || latlngs.length < 2) return 0;
-        return turf.length(L.polyline(latlngs).toGeoJSON(), { units: 'kilometers' });
-      }
       function setDistanceKm(km) { distanceOutput.textContent = `${km.toFixed(2)} km`; }
 
       map.on(L.Draw.Event.CREATED, (e) => {
         if (drawnRouteLayer) drawnItems.removeLayer(drawnRouteLayer);
         drawnRouteLayer = e.layer;
         drawnItems.addLayer(drawnRouteLayer);
-        setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs()));
+        setDistanceKm(turf.length(drawnRouteLayer.toGeoJSON(), { units: 'kilometers' }));
         exportBtn.disabled = false;
         exportBtn.onclick = () => exportToGPX(drawnRouteLayer.getLatLngs());
       });
       map.on(L.Draw.Event.EDITED, () => {
-        if (drawnRouteLayer) setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs()));
+        if (drawnRouteLayer) setDistanceKm(turf.length(drawnRouteLayer.toGeoJSON(), { units: 'kilometers' }));
       });
 
       function exportToGPX(latlngs) {
@@ -213,22 +223,15 @@
           setDistanceKm(len);
         });
       }
-
-      function loadGPXFromText(text) {
-        const gpxLayer = new L.GPX(text, { async: true });
-        attachGPXLayer(gpxLayer);
-      }
-      function loadGPXFromURL(url) {
-        const gpxLayer = new L.GPX(url, { async: true });
-        attachGPXLayer(gpxLayer);
-      }
+      function loadGPXFromText(text) { attachGPXLayer(new L.GPX(text, { async: true })); }
+      function loadGPXFromURL(url) { attachGPXLayer(new L.GPX(url, { async: true })); }
       function clearGpxTrack() {
         if (gpxTrackLayer) map.removeLayer(gpxTrackLayer);
         gpxTrackLayer = null;
         if (!drawnRouteLayer) setDistanceKm(0);
       }
 
-      // Lista över fördefinierade GPX
+      // Lista fördefinierade GPX
       const panel = document.getElementById('gpxListPanel');
       const listEl = document.getElementById('gpxList');
       const emptyEl = document.getElementById('gpxListEmpty');
