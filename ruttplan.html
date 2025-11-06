@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Kartläggare med GPX-export</title>
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <!-- Leaflet.Draw CSS -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+
+  <style>
+    body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; }
+    #map { height: 100vh; width: 100vw; position: relative; z-index: 1; }
+    .leaflet-control-container .leaflet-draw {
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      border-radius: 0.5rem;
+    }
+    /* Gör info-panelen som en "pill" direkt höger om zoom + */
+    #info-panel {
+      position: absolute;
+      top: 10px;
+      left: 56px; /* ungefärlig bredd av zoom-kontrollen så panelen hamnar precis till höger */
+    }
+  </style>
+</head>
+<body>
+
+  <div id="map"></div>
+
+  <!-- Kompakt panel: Distans + Export-knapp (vänster uppe, som på bilden) -->
+  <div id="info-panel" class="z-[1000]">
+    <div class="flex items-center gap-3 bg-white/95 backdrop-blur px-4 py-2 rounded-full shadow">
+      <span class="text-sm text-gray-700">
+        <span class="hidden sm:inline">Distans:</span>
+        <span class="sm:ml-1 text-red-600 font-bold" id="distance-output">0.00 km</span>
+      </span>
+      <button id="export-btn" disabled
+        class="px-4 py-1.5 rounded-full text-sm font-semibold text-white bg-black
+               disabled:opacity-50 disabled:cursor-not-allowed">
+        Exportera GPX
+      </button>
+    </div>
+  </div>
+
+  <!-- 1) Leaflet -->
+  <script defer src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <!-- 2) Leaflet.Draw -->
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+  <!-- 3) Turf -->
+  <script defer src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
+  <!-- 4) App -->
+  <script defer>
+    document.addEventListener('DOMContentLoaded', function () {
+      // --- Startvy (map=15/56.15666/15.84580) ---
+      const START = { lat: 56.15666, lng: 15.84580, zoom: 15 };
+
+      // --- Baslager ---
+      const orion = L.tileLayer(
+        'https://okorion.com/maptiles/orienteering/wgs84/{z}/{x}/{y}.png',
+        {
+          maxZoom: 22,
+          attribution: '© OK Orion',
+          // tms: false  // URL-strukturen ser ut som XYZ; lämna TMS av
+        }
+      );
+
+      const osm = L.tileLayer(
+        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        {
+          maxZoom: 19,
+          attribution: '© OpenStreetMap-bidragsgivare'
+        }
+      );
+
+      // Öppen satellit (Esri World Imagery)
+      const esriSat = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        {
+          maxZoom: 19,
+          attribution:
+            'Imagery © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+        }
+      );
+
+      // --- Initiera karta med Orion som default ---
+      const map = L.map('map', {
+        center: [START.lat, START.lng],
+        zoom: START.zoom,
+        layers: [orion]  // default
+      });
+
+      // Lagerkontroll
+      const baseLayers = {
+        'OK Orion (default)': orion,
+        'OpenStreetMap': osm,
+        'Satellit (Esri World Imagery)': esriSat
+      };
+      L.control.layers(baseLayers, null, { position: 'topright' }).addTo(map);
+
+      // --- Ritfunktionalitet (Leaflet.Draw) ---
+      const drawnItems = new L.FeatureGroup();
+      map.addLayer(drawnItems);
+
+      const drawControl = new L.Control.Draw({
+        edit: {
+          featureGroup: drawnItems,
+          remove: true,
+          poly: { allowIntersection: false }
+        },
+        draw: {
+          polyline: {
+            shapeOptions: { color: '#dc2626', weight: 6, opacity: 0.9 }
+          },
+          polygon: false,
+          rectangle: false,
+          circle: false,
+          marker: false,
+          circlemarker: false
+        }
+      });
+      map.addControl(drawControl);
+
+      // --- Distans + export ---
+      let currentRouteLayer = null;
+      const distanceOutput = document.getElementById('distance-output');
+      const exportBtn = document.getElementById('export-btn');
+
+      function updateDistance(layer) {
+        if (layer) {
+          const latlngs = layer.getLatLngs();
+          const line = L.polyline(latlngs).toGeoJSON();
+          const length = turf.length(line, { units: 'kilometers' });
+          distanceOutput.textContent = `${length.toFixed(2)} km`;
+          exportBtn.disabled = false;
+          exportBtn.onclick = () => exportToGPX(latlngs);
+        } else {
+          distanceOutput.textContent = '0.00 km';
+          exportBtn.disabled = true;
+          exportBtn.onclick = null;
+        }
+      }
+
+      map.on(L.Draw.Event.CREATED, function (e) {
+        const layer = e.layer;
+        if (currentRouteLayer) drawnItems.removeLayer(currentRouteLayer);
+        drawnItems.addLayer(layer);
+        currentRouteLayer = layer;
+        updateDistance(layer);
+      });
+
+      map.on(L.Draw.Event.EDITED, function (e) {
+        e.layers.eachLayer(function (layer) {
+          if (layer === currentRouteLayer) updateDistance(layer);
+        });
+      });
+
+      map.on(L.Draw.Event.DELETED, function (e) {
+        e.layers.eachLayer(function (layer) {
+          if (layer === currentRouteLayer) {
+            currentRouteLayer = null;
+            updateDistance(null);
+          }
+        });
+      });
+
+      function exportToGPX(latlngs) {
+        if (!latlngs || latlngs.length < 2) return;
+
+        const now = new Date().toISOString().split('.')[0] + 'Z';
+        const routeName =
+          `Rutt_${new Date().toLocaleDateString('sv-SE')}_` +
+          new Date().toLocaleTimeString('sv-SE', { hour12: false }).replace(/:/g, '-');
+
+        let gpx = `<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<gpx xmlns="http://www.topografix.com/GPX/1/1" version="1.1" creator="WebApp Kartläggare">
+  <rte>
+    <name>${routeName}</name>
+    <time>${now}</time>`;
+
+        latlngs.forEach((p, i) => {
+          gpx += `
+    <rtept lat="${p.lat.toFixed(6)}" lon="${p.lng.toFixed(6)}">
+      <name>P${i + 1}</name>
+    </rtept>`;
+        });
+
+        gpx += `
+  </rte>
+</gpx>`;
+
+        const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = routeName.replace(/ /g, '_') + '.gpx';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+    });
+  </script>
+</body>
+</html>
