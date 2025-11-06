@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Poly till GPX-export</title>
+  <title>Poly till GPX Orion</title>
 
   <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -15,24 +15,20 @@
 
   <style>
     body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; }
-    #map { height: 100vh; width: 100vw; position: relative; z-index: 1; }
+    #map { height: 100vh; width: 100vw; position: relative; z-index: 1; background: #fff; }
     .leaflet-control-container .leaflet-draw {
       box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
       border-radius: 0.5rem;
     }
-    /* Gör info-panelen som en "pill" direkt höger om zoom + */
-    #info-panel {
-      position: absolute;
-      top: 10px;
-      left: 56px;
-    }
+    /* Kompakt panel: placera till höger om zoom “+” */
+    #info-panel { position: absolute; top: 10px; left: 56px; }
   </style>
 </head>
 <body>
 
   <div id="map"></div>
 
-  <!-- Kompakt panel: Distans + Export-knapp -->
+  <!-- Distans + Export (kompakt “pill”) -->
   <div id="info-panel" class="z-[1000]">
     <div class="flex items-center gap-3 bg-white/95 backdrop-blur px-4 py-2 rounded-full shadow">
       <span class="text-sm text-gray-700">
@@ -61,39 +57,50 @@
       const MAX_ZOOM = 17; // 🔧 ändra här för att testa olika max zoomnivåer
       const START = { lat: 56.15666, lng: 15.84580, zoom: 15 };
 
-      // === BASLAGER ===
-      const orion = L.tileLayer(
-        'https://okorion.com/maptiles/orienteering/wgs84/{z}/{x}/{y}.png',
-        { maxZoom: MAX_ZOOM, attribution: '© OK Orion' }
-      );
+      // --- BASLAGER: OpenStreetMap (täckning över hela världen) ---
+      const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        noWrap: true,
+        maxZoom: MAX_ZOOM,
+        attribution: '© OpenStreetMap-bidragsgivare'
+      });
 
-      const osm = L.tileLayer(
-        'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        { maxZoom: MAX_ZOOM, attribution: '© OpenStreetMap-bidragsgivare' }
-      );
-
+      // (Valbart baslager) Esri World Imagery – satellit
       const esriSat = L.tileLayer(
         'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
         {
+          noWrap: true,
           maxZoom: MAX_ZOOM,
-          attribution:
-            'Imagery © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
+          attribution: 'Imagery © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community'
         }
       );
 
-      // === INITIERA KARTA ===
+      // --- OVERLAY: OK Orion ovanpå baslagret (ingen transparens-hack) ---
+      const orionOverlay = L.tileLayer(
+        'https://okorion.com/maptiles/orienteering/wgs84/{z}/{x}/{y}.png',
+        {
+          noWrap: true,
+          maxZoom: MAX_ZOOM,
+          attribution: '© OK Orion',
+          opacity: 1.0
+        }
+      );
+
+      // --- Initiera karta: OSM + Orion aktivt från start ---
       const map = L.map('map', {
         center: [START.lat, START.lng],
         zoom: START.zoom,
-        layers: [orion]
+        layers: [osm, orionOverlay]
       });
 
+      // Lagerkontroll: Bas (OSM / Satellit) och Orion-överlägg
       const baseLayers = {
-        'OK Orion (default)': orion,
-        'OpenStreetMap': osm,
+        'OpenStreetMap (bas)': osm,
         'Satellit (Esri World Imagery)': esriSat
       };
-      L.control.layers(baseLayers, null, { position: 'topright' }).addTo(map);
+      const overlays = {
+        'OK Orion (överlagrat)': orionOverlay
+      };
+      L.control.layers(baseLayers, overlays, { position: 'topright' }).addTo(map);
 
       // === RITVERKTYG ===
       const drawnItems = new L.FeatureGroup();
@@ -102,14 +109,8 @@
       const drawControl = new L.Control.Draw({
         edit: { featureGroup: drawnItems, remove: true, poly: { allowIntersection: false } },
         draw: {
-          polyline: {
-            shapeOptions: { color: '#dc2626', weight: 6, opacity: 0.9 }
-          },
-          polygon: false,
-          rectangle: false,
-          circle: false,
-          marker: false,
-          circlemarker: false
+          polyline: { shapeOptions: { color: '#dc2626', weight: 6, opacity: 0.9 } },
+          polygon: false, rectangle: false, circle: false, marker: false, circlemarker: false
         }
       });
       map.addControl(drawControl);
