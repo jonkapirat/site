@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Rotator</title>
+  <title>kart</title>
 
   <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -120,30 +120,53 @@
 
   <script>
   document.addEventListener('DOMContentLoaded', function () {
-    const MAX_ZOOM = 17; // ändra här om du vill testa annat maxzoom
+    const MAX_ZOOM = 17;                   // justerbar maxzoon
     const START = { lat: 56.15666, lng: 15.84580, zoom: 15 };
 
     // === Heading/rotator config ===
     const DEFAULT_FAN_DEG = 60, MIN_FAN_DEG = 20, MAX_FAN_DEG = 120;
     const FAN_FILL = '#3b82f6', FAN_OPACITY = 0.18;
     const HEADING_SMOOTH = 0.15;   // 0..1 (högre = snabbare)
-    const ROT_SCALE = 1.03;        // dölja tile-kanter vid rotation
 
-    // === Baslager ===
+    // === Skapa karta ===
+    const map = L.map('map', { center: [START.lat, START.lng], zoom: START.zoom });
+
+    // === Skapa rotator-wrapper innan vi lägger lager ===
+    const mapPane = map.getPane('mapPane');
+    const tilePane = map.getPane('tilePane');
+    const overlayPane = map.getPane('overlayPane');
+    const rotator = document.createElement('div');
+    rotator.className = 'bearing-rotator';
+    rotator.style.transform = 'translateZ(0) rotate(0deg)'; // OBS: ingen scale()
+    mapPane.appendChild(rotator);
+    rotator.appendChild(tilePane);
+    rotator.appendChild(overlayPane);
+    function getCurrentRotDeg(){ const v = rotator.getAttribute('data-rot'); return v ? parseFloat(v) : 0; }
+    function setRotDeg(deg){ rotator.style.transform = `translateZ(0) rotate(${deg}deg)`; rotator.setAttribute('data-rot', String(deg)); }
+
+    // === Baslager (läggs på efter rotatorn) ===
     const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       noWrap: true, maxZoom: MAX_ZOOM, attribution: '© OpenStreetMap-bidragsgivare'
-    });
+    }).addTo(map);
+
     const esriSat = L.tileLayer(
       'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
       { noWrap: true, maxZoom: MAX_ZOOM, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' }
     );
+
     const orionOverlay = L.tileLayer(
       'https://okorion.com/maptiles/orienteering/wgs84/{z}/{x}/{y}.png',
-      { noWrap: true, maxZoom: MAX_ZOOM, attribution: '© OK Orion', opacity: 1.0 }
-    );
+      {
+        noWrap: true,
+        maxZoom: MAX_ZOOM,
+        attribution: '© OK Orion',
+        pane: 'overlayPane',
+        zIndex: 400,
+        detectRetina: false   // undvik @2x-förfrågningar
+      }
+    ).addTo(map);
 
-    const map = L.map('map', { center: [START.lat, START.lng], zoom: START.zoom, layers: [osm, orionOverlay] });
-
+    // Lagerkontroll
     L.control.layers(
       { 'OpenStreetMap (bas)': osm, 'Satellit (Esri World Imagery)': esriSat },
       { 'OK Orion (överlagrat)': orionOverlay },
@@ -224,7 +247,7 @@
         const btn = L.DomUtil.create('a', 'rot-btn', div);
         btn.textContent = 'ROT';
         btn.href = '#';
-        btn.title = 'Rotatorläge (karta roterar, pil pekar upp, position i mitten)';
+        btn.title = 'Rotatorläge (karta roterar, pil uppåt, position i mitten)';
         btn.onclick = (e) => { e.preventDefault(); toggleRotator(btn); };
         return div;
       }
@@ -306,6 +329,7 @@
       URL.revokeObjectURL(url);
     }
 
+    // === GPX-in/ut ===
     function attachGPXLayer(layer) {
       if (gpxTrackLayer) map.removeLayer(gpxTrackLayer);
       gpxTrackLayer = layer.addTo(map);
@@ -344,10 +368,7 @@
     }
     function closeListPanel() {
       panel.classList.remove('open');
-      if (outsideClickHandler) {
-        document.removeEventListener('click', outsideClickHandler);
-        outsideClickHandler = null;
-      }
+      if (outsideClickHandler) { document.removeEventListener('click', outsideClickHandler); outsideClickHandler = null; }
     }
     function positionPanelNextTo(anchorEl) {
       if (!anchorEl) return;
@@ -355,31 +376,22 @@
       const r = anchorEl.getBoundingClientRect();
       const top = r.top - mapRect.top;
       const left = r.right - mapRect.left + 8;
-      panel.style.top = `${top}px`;
-      panel.style.left = `${left}px`;
+      panel.style.top = `${top}px`; panel.style.left = `${left}px`;
     }
     async function loadTracksList() {
-      loaded = true;
-      listEl.innerHTML = '';
-      emptyEl.classList.add('hidden');
+      loaded = true; listEl.innerHTML = ''; emptyEl.classList.add('hidden');
       try {
         const res = await fetch('gpx-tracks/manifest.json');
         const files = await res.json();
-        if (!Array.isArray(files) || files.length === 0) {
-          emptyEl.classList.remove('hidden');
-          return;
-        }
+        if (!Array.isArray(files) || files.length === 0) { emptyEl.classList.remove('hidden'); return; }
         for (const file of files) {
           const url = `gpx-tracks/${file}`;
           const item = document.createElement('div');
-          item.className = 'gpx-list-item';
-          item.textContent = file;
+          item.className = 'gpx-list-item'; item.textContent = file;
           item.onclick = () => { loadGPXFromURL(url); closeListPanel(); };
           listEl.appendChild(item);
         }
-      } catch {
-        emptyEl.classList.remove('hidden');
-      }
+      } catch { emptyEl.classList.remove('hidden'); }
     }
     window.addEventListener('resize', () => {
       if (panel.classList.contains('open') && trkButtonRef) positionPanelNextTo(trkButtonRef);
@@ -396,22 +408,10 @@
     let headingAccuracyDeg = null; // iOS: webkitCompassAccuracy
     let orientationActive = false;
 
-    // Smoothing för heading (används för kartrotation; pilen kan vara fast)
+    // Smoothing för heading (för pil=av/rotator=på)
     let smoothHeading = 0;
-    const HEADING_ALPHA = HEADING_SMOOTH;
     let needFrame = false;
 
-    // Skapa egen rotator-wrapper och flytta in tile+overlay dit
-    const mapPane = map.getPane('mapPane');
-    const tilePane = map.getPane('tilePane');
-    const overlayPane = map.getPane('overlayPane');
-    const rotator = document.createElement('div');
-    rotator.className = 'bearing-rotator';
-    mapPane.appendChild(rotator);
-    rotator.appendChild(tilePane);
-    rotator.appendChild(overlayPane);
-
-    // Position marker & accuracy
     function makeHeadingIcon() {
       return L.divIcon({
         className: 'heading-marker heading-unknown',
@@ -437,48 +437,34 @@
       btn.classList.toggle('gps-active', following);
       if (following) {
         startGeolocation();
-        ensureOrientation(); // behövs både för pil och rotator
+        ensureOrientation();
       } else {
         stopGeolocation();
         if (!rotatorOn) disableOrientation();
       }
     }
-
     function startGeolocation() {
       if (!navigator.geolocation) return alert('Geolocation stöds inte i denna webbläsare.');
       watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, {
-        enableHighAccuracy: true,
-        timeout: 15000,
-        maximumAge: 0
+        enableHighAccuracy: true, timeout: 15000, maximumAge: 0
       });
     }
     function stopGeolocation() {
-      if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
-        watchId = null;
-      }
+      if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
     }
     function onPosition(pos) {
       const { latitude, longitude, accuracy } = pos.coords;
       const ll = [latitude, longitude];
 
-      if (!posMarker) {
-        posMarker = L.marker(ll, { icon: makeHeadingIcon(), interactive: false }).addTo(map);
-      } else {
-        posMarker.setLatLng(ll);
-      }
-      if (!accCircle) {
-        accCircle = L.circle(ll, { radius: accuracy, color: '#3b82f6', weight: 1, fillColor: '#60a5fa', fillOpacity: 0.15, interactive: false }).addTo(map);
-      } else {
-        accCircle.setLatLng(ll).setRadius(accuracy);
-      }
+      if (!posMarker) { posMarker = L.marker(ll, { icon: makeHeadingIcon(), interactive: false }).addTo(map); }
+      else { posMarker.setLatLng(ll); }
 
-      if (rotatorOn) {
-        // håll position i mitten – ingen animation för att undvika driv/lagg
-        map.setView(ll, map.getZoom(), { animate: false });
-      } else if (following) {
-        map.setView(ll, Math.max(map.getZoom(), 15), { animate: true });
-      }
+      if (!accCircle) {
+        accCircle = L.circle(ll, { radius: accuracy, color:'#3b82f6', weight:1, fillColor:'#60a5fa', fillOpacity:0.15, interactive:false }).addTo(map);
+      } else { accCircle.setLatLng(ll).setRadius(accuracy); }
+
+      if (rotatorOn) map.setView(ll, map.getZoom(), { animate: false });
+      else if (following) map.setView(ll, Math.max(map.getZoom(), 15), { animate: true });
 
       queueFrame();
     }
@@ -489,12 +475,9 @@
       const needIOSPermission = typeof DeviceOrientationEvent !== 'undefined' &&
                                 typeof DeviceOrientationEvent.requestPermission === 'function';
       if (needIOSPermission) {
-        DeviceOrientationEvent.requestPermission().then(state => {
-          if (state === 'granted') startOrientation();
-        }).catch(() => {/* ignorerad */});
-      } else {
-        startOrientation();
-      }
+        DeviceOrientationEvent.requestPermission().then(state => { if (state === 'granted') startOrientation(); })
+          .catch(()=>{});
+      } else { startOrientation(); }
     }
     function startOrientation() {
       if (orientationActive) return;
@@ -502,110 +485,61 @@
       window.addEventListener('deviceorientation', onOrientation, true);
       window.addEventListener('deviceorientationabsolute', onOrientation, true);
     }
-    function disableOrientation() {
-      orientationActive = false;
-      // (lämna listeners – låg kostnad, men kan tas bort om du vill)
-    }
+    function disableOrientation() { orientationActive = false; }
 
     function onOrientation(e) {
       const screenAngle = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : 0;
 
       if (typeof e.webkitCompassHeading === 'number') {
-        // iOS
         headingDeg = normalizeDeg(e.webkitCompassHeading);
         headingAccuracyDeg = (typeof e.webkitCompassAccuracy === 'number' && isFinite(e.webkitCompassAccuracy))
-            ? Math.max(0, Math.min(180, e.webkitCompassAccuracy))
-            : null;
+          ? Math.max(0, Math.min(180, e.webkitCompassAccuracy)) : null;
       } else if (typeof e.alpha === 'number') {
-        // Android/Chrome
-        const alpha = e.alpha;
-        let h = 360 - alpha;       // 0=norr, medurs
-        h = h - screenAngle;       // kompensera skärmvinkel
-        headingDeg = normalizeDeg(h);
+        let h = 360 - e.alpha; h = h - screenAngle; headingDeg = normalizeDeg(h);
         headingAccuracyDeg = null;
-      } else {
-        headingDeg = null;
-      }
+      } else { headingDeg = null; }
+
       queueFrame();
     }
 
-    function normalizeDeg(a) { a = a % 360; if (a < 0) a += 360; return a; }
+    function normalizeDeg(a){ a = a % 360; if (a<0) a+=360; return a; }
     function shortestDelta(a,b){ let d = (b - a + 540) % 360 - 180; return d; }
-    function smoothTowards(current, target, k){
-      const d = shortestDelta(current, target);
-      return normalizeDeg(current + d * k);
-    }
+    function smoothTowards(current, target, k){ const d = shortestDelta(current, target); return normalizeDeg(current + d * k); }
 
-    // === Fan-path beräkning ===
     function fanPathD(fanDeg) {
-      const cx = 32, cy = 32, r = 28; // center + radie i 64x64
-      const half = fanDeg / 2;
-      const start = (-90 - half) * Math.PI / 180;
-      const end   = (-90 + half) * Math.PI / 180;
-      const x1 = cx + r * Math.cos(start);
-      const y1 = cy + r * Math.sin(start);
-      const x2 = cx + r * Math.cos(end);
-      const y2 = cy + r * Math.sin(end);
-      const largeArc = (fanDeg > 180) ? 1 : 0;
+      const cx=32, cy=32, r=28, half=fanDeg/2;
+      const start=(-90 - half)*Math.PI/180, end=(-90 + half)*Math.PI/180;
+      const x1=cx + r*Math.cos(start), y1=cy + r*Math.sin(start);
+      const x2=cx + r*Math.cos(end),   y2=cy + r*Math.sin(end);
+      const largeArc=(fanDeg>180)?1:0;
       return `M ${cx} ${cy} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${largeArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`;
     }
-    function currentFanDeg() {
-      if (headingAccuracyDeg != null) {
-        return Math.max(MIN_FAN_DEG, Math.min(MAX_FAN_DEG, headingAccuracyDeg * 2));
-      }
-      return DEFAULT_FAN_DEG;
-    }
+    function currentFanDeg(){ return (headingAccuracyDeg!=null) ? Math.max(MIN_FAN_DEG, Math.min(MAX_FAN_DEG, headingAccuracyDeg*2)) : DEFAULT_FAN_DEG; }
 
-    // === rAF-uppdatering (pilen + rotator) ===
-    function queueFrame(){
-      if (needFrame) return;
-      needFrame = true;
-      requestAnimationFrame(tick);
-    }
-    function tick(){
-      needFrame = false;
-      updateMarkerAndRotation();
-    }
+    function queueFrame(){ if (needFrame) return; needFrame = true; requestAnimationFrame(tick); }
+    function tick(){ needFrame = false; updateMarkerAndRotation(); }
 
     function updateMarkerAndRotation() {
-      // Uppdatera pil + fan
+      // Pil + fan
       if (posMarker) {
-        const el = posMarker.getElement();
-        if (el) {
-          const wrap = el.querySelector('.arrow-wrap');
-          const fanPath = el.querySelector('.fan');
+        const el = posMarker.getElement(); if (el) {
+          const wrap = el.querySelector('.arrow-wrap'); const fanPath = el.querySelector('.fan');
           if (wrap && fanPath) {
-            // Sätt pilens rotation:
-            // - Rotator PÅ: pilen SKA peka uppåt => 0°
-            // - Rotator AV: pilen följer heading mjukt
-            if (headingDeg == null) {
-              el.classList.add('heading-unknown');
-              smoothHeading = smoothTowards(smoothHeading, 0, HEADING_ALPHA);
-            } else {
-              el.classList.remove('heading-unknown');
-              const target = rotatorOn ? 0 : headingDeg;
-              smoothHeading = smoothTowards(smoothHeading, target, HEADING_ALPHA);
-            }
+            if (headingDeg==null) { el.classList.add('heading-unknown'); }
+            else { el.classList.remove('heading-unknown'); }
+            const target = rotatorOn ? 0 : (headingDeg ?? 0); // ROT: pil uppåt
+            smoothHeading = smoothTowards(smoothHeading, target, HEADING_SMOOTH);
             wrap.style.transform = `rotate(${smoothHeading}deg)`;
-
-            // Fan-bredd utifrån accuracy
-            const fanDeg = currentFanDeg();
-            fanPath.setAttribute('d', fanPathD(fanDeg));
+            fanPath.setAttribute('d', fanPathD(currentFanDeg()));
           }
         }
       }
-
-      // Rotera karta om rotator är på
+      // Karta roteras endast i ROT-läge
       if (rotatorOn) {
-        const targetBearing = (headingDeg == null) ? 0 : -headingDeg; // karta motsols
-        const newBearing = smoothTowards(getCurrentRotDeg(), targetBearing, HEADING_ALPHA);
-        rotator.style.transform = `translateZ(0) rotate(${newBearing}deg) scale(${ROT_SCALE})`;
-        rotator.setAttribute('data-rot', newBearing.toFixed(3));
+        const targetBearing = (headingDeg==null) ? 0 : -headingDeg; // karta motsols
+        const newBearing = smoothTowards(getCurrentRotDeg(), targetBearing, HEADING_SMOOTH);
+        setRotDeg(newBearing);
       }
-    }
-    function getCurrentRotDeg(){
-      const v = rotator.getAttribute('data-rot');
-      return v ? parseFloat(v) : 0;
     }
 
     // === Rotatorläge on/off ===
@@ -613,27 +547,67 @@
       rotatorOn = !rotatorOn;
       btn.classList.toggle('rot-active', rotatorOn);
       if (rotatorOn) {
-        // se till att vi har sensorer och följer användaren
-        if (!following) {
-          following = true;
-          // markera GPS-knappen om du vill – hoppa det visuella om du inte har dess ref
-          startGeolocation();
-        }
         ensureOrientation();
-        // nollställ rotation
-        rotator.style.transform = `translateZ(0) rotate(0deg) scale(${ROT_SCALE})`;
-        rotator.setAttribute('data-rot', '0');
+        if (!following) { startGeolocation(); following = true; }
+        if (posMarker) map.setView(posMarker.getLatLng(), map.getZoom(), { animate:false });
+        setRotDeg(0);
         queueFrame();
       } else {
-        // återställ
-        rotator.style.transform = 'translateZ(0) rotate(0deg) scale(1)';
-        rotator.removeAttribute('data-rot');
-        // pilen återgår till att visa heading i tick()
+        setRotDeg(0);
         if (!following) disableOrientation();
       }
     }
 
-    // === Init ===
+    // === Fördefinierade GPX ===
+    let trkButtonRef = null; // redan satt i GPXControl.onAdd
+    const panel = document.getElementById('gpxListPanel');
+    const listEl = document.getElementById('gpxList');
+    const emptyEl = document.getElementById('gpxListEmpty');
+    let loaded = false, outsideClickHandler = null;
+
+    function toggleListPanel(anchorEl) {
+      if (panel.classList.contains('open')) { closeListPanel(); return; }
+      positionPanelNextTo(anchorEl);
+      if (!loaded) loadTracksList();
+      panel.classList.add('open');
+      outsideClickHandler = (ev) => {
+        if (panel.contains(ev.target) || (anchorEl && anchorEl.contains(ev.target))) return;
+        closeListPanel();
+      };
+      document.addEventListener('click', outsideClickHandler);
+    }
+    function closeListPanel() {
+      panel.classList.remove('open');
+      if (outsideClickHandler) { document.removeEventListener('click', outsideClickHandler); outsideClickHandler = null; }
+    }
+    function positionPanelNextTo(anchorEl) {
+      if (!anchorEl) return;
+      const mapRect = map.getContainer().getBoundingClientRect();
+      const r = anchorEl.getBoundingClientRect();
+      const top = r.top - mapRect.top;
+      const left = r.right - mapRect.left + 8;
+      panel.style.top = `${top}px`; panel.style.left = `${left}px`;
+    }
+    async function loadTracksList() {
+      loaded = true; listEl.innerHTML = ''; emptyEl.classList.add('hidden');
+      try {
+        const res = await fetch('gpx-tracks/manifest.json');
+        const files = await res.json();
+        if (!Array.isArray(files) || files.length === 0) { emptyEl.classList.remove('hidden'); return; }
+        for (const file of files) {
+          const url = `gpx-tracks/${file}`;
+          const item = document.createElement('div');
+          item.className = 'gpx-list-item'; item.textContent = file;
+          item.onclick = () => { loadGPXFromURL(url); closeListPanel(); };
+          listEl.appendChild(item);
+        }
+      } catch { emptyEl.classList.remove('hidden'); }
+    }
+    window.addEventListener('resize', () => {
+      if (panel.classList.contains('open') && trkButtonRef) positionPanelNextTo(trkButtonRef);
+    });
+
+    // Init export-knapp
     updateExportState();
   });
   </script>
