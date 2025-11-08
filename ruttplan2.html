@@ -6,11 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- Tailwind för UI -->
-  <script src="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.14/lib/index.min.js"></script>
-  <script>
-    // Tailwind lite: undvik JIT på GitHub Pages
-    window.tailwind = { config: { corePlugins: { preflight: true } } };
-  </script>
+  <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- MapLibre -->
   <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
@@ -23,16 +19,16 @@
   <script src="https://unpkg.com/@tmcw/togeojson/dist/togeojson.umd.js"></script>
 
   <style>
-    html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Inter, sans-serif; }
+    html, body { height: 100%; margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
     #map { position: absolute; inset: 0; }
 
-    /* Distans + Export “pill” uppe till vänster */
+    /* Distans + Export uppe till vänster */
     #info-panel { position: absolute; top: 10px; left: 56px; z-index: 10; }
 
     /* Vänster verktygsrad (under MapLibre-zoom) */
     .left-toolbar {
       position: absolute;
-      top: 94px;  /* direkt under zoomknapparna */
+      top: 94px;      /* under zoomknapparna */
       left: 10px;
       z-index: 10;
       display: flex;
@@ -52,15 +48,9 @@
 
     /* TRK-lista */
     .tracks-panel {
-      position: absolute;
-      z-index: 12;
-      background: #fff;
-      width: 260px;
-      border-radius: .25rem;
+      position: absolute; z-index: 12; background: #fff; width: 260px; border-radius: .25rem;
       box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -2px rgb(0 0 0 / 0.1);
-      display: none;
-      max-height: 75vh;
-      overflow: auto;
+      display: none; max-height: 75vh; overflow: auto;
     }
     .tracks-panel.open { display: block; }
     .trk-item { padding: 8px 10px; cursor: pointer; }
@@ -98,11 +88,11 @@
     <div id="trkList"></div>
   </div>
 
-  <!-- Osynlig filinput för "Open" -->
+  <!-- Filinput för Open -->
   <input type="file" id="fileInput" accept=".gpx,application/gpx+xml,application/xml,text/xml" style="display:none" />
 
   <script>
-  (async function() {
+  (async function () {
     // ======================
     // ===== KONFIG ========
     // ======================
@@ -114,12 +104,13 @@
     const ESRI_URL  = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
     const ORION_URL = 'https://okorion.com/maptiles/orienteering/wgs84/{z}/{x}/{y}.png';
 
-    // ROT-parametrar (justerbara)
-    const HEADING_FLIP = -1;       // <— DU bad om “flippa igen”: -1 = invertera riktning
-    const HEADING_CAL_OFFSET = 0;  // <— kalibrera (grader), t.ex. +10 / −10 om “lite snett”
-    const HEADING_LPF = 0.15;      // lågpassfilter (0..1) – högre = snabbare, mer jitter
-    const BEARING_STEP_DEG = 2;    // max ändring per frame (grader)
-    const BEARING_EPS = 0.15;      // tröskel för “nära nog” (grader)
+    // ROT-parametrar
+    const HEADING_FLIP = -1;      // flip sign (sätt till +1 om du vill “oflippa”)
+    const HEADING_CAL_OFFSET = 0; // grader (t.ex. +10/−10 om det känns snett)
+    const MEDIAN_N = 7;           // storlek på medianfönster (udda tal)
+    const HEADING_LPF = 0.15;     // lågpass 0..1 (högre = snabbare, mer jitter)
+    const BEARING_STEP_DEG = 2;   // max bearingändring per frame
+    const BEARING_EPS = 0.15;     // närme-tröskel
 
     // ======================
     // ===== STYLE =========
@@ -154,6 +145,7 @@
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left');
 
+    // ===== Baslager-växling (om du vill använda i UI senare) =====
     function setBase(base) {
       map.setLayoutProperty('osm',  'visibility', base === 'osm'  ? 'visible' : 'none');
       map.setLayoutProperty('esri', 'visibility', base === 'esri' ? 'visible' : 'none');
@@ -182,6 +174,7 @@
     let followOn = false;
     let rotOn = false;
     let watchId = null;
+    let lastLL = null;
 
     const btnOpen  = document.getElementById('btnOpen');
     const btnTRK   = document.getElementById('btnTRK');
@@ -211,7 +204,7 @@
       // Rita – linje + punkter
       map.addSource(drawSourceId, { type:'geojson', data: emptyFC() });
       map.addLayer({ id: drawLayerId, type:'line', source: drawSourceId,
-        paint:{ 'line-color':'#dc2626', 'line-width':4, 'line-opacity': 0.9 }});
+        paint:{ 'line-color':'#dc2626', 'line-width':4, 'line-opacity':0.9 }});
       map.addSource(drawPointsId, { type:'geojson', data: emptyFC() });
       map.addLayer({ id: drawPointsLy, type:'circle', source: drawPointsId,
         paint:{ 'circle-color':'#dc2626', 'circle-radius':3, 'circle-stroke-color':'#ffffff', 'circle-stroke-width':1 }});
@@ -244,6 +237,10 @@
         isDrawing = false;
         btnDraw.classList.remove('tool-active');
       });
+
+      // Pausa bearing-loop under manuell interaktion (mindre glitch)
+      map.on('movestart', stopBearingLoop);
+      map.on('moveend', () => { if (rotOn) startBearingLoop(); });
 
       refreshExportState();
     });
@@ -377,7 +374,6 @@
       else stopGeolocation();
     };
 
-    let lastLL = null;
     function startGeolocation(){
       if (!navigator.geolocation) return alert('Geolocation saknas.');
       watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, {
@@ -392,17 +388,19 @@
     function onPosition(pos){
       const { latitude, longitude, accuracy } = pos.coords;
       const ll = [longitude, latitude];
-      // Uppdatera position
-      map.getSource(posSrcId).setData({ type:'FeatureCollection', features:[{ type:'Feature', properties:{}, geometry:{ type:'Point', coordinates: ll } }]});
-      // Noggrannhetspolygon
+      lastLL = ll;
+
+      // Position
+      map.getSource(posSrcId).setData({
+        type:'FeatureCollection',
+        features:[{ type:'Feature', properties:{}, geometry:{ type:'Point', coordinates: ll } }]
+      });
+
+      // Noggrannhet (polygon)
       const accPoly = turf.circle(ll, Math.max(accuracy, 5), { steps: 64, units: 'meters' });
       map.getSource(accSrcId).setData(accPoly);
 
-      // Debounce små rörelser (< ~5m)
-      const movedEnough = !lastLL || turf.distance(turf.point(lastLL), turf.point(ll), { units:'kilometers' }) > 0.005; // ~5 m
-      lastLL = ll;
-
-      if ((followOn || rotOn) && movedEnough) {
+      if (followOn || rotOn) {
         map.easeTo({ center: ll, duration: 300, zoom: Math.max(map.getZoom(), 15) });
       }
     }
@@ -415,10 +413,12 @@
       if (rotOn) {
         ensureOrientation();
         if (lastLL) map.jumpTo({ center: lastLL, zoom: Math.max(map.getZoom(), 15) });
-        startBearingLoop(); // starta rAF-slingan
+        startBearingLoop();
       } else {
         stopBearingLoop();
         desiredBearing = 0;
+        filteredHeading = 0;
+        headingRing.length = 0;
         map.easeTo({ bearing: 0, duration: 300 });
         if (!followOn) disableOrientation();
       }
@@ -426,54 +426,100 @@
 
     // ===== Heading / Bearing stabilisering =====
     let orientationOn = false;
-    let filteredHeading = 0;    // lågpassfiltrerat värde
-    let desiredBearing = 0;     // mål-bearing (grader)
+    let useSensor = false;
+    let desiredBearing = 0;
+    let filteredHeading = 0;             // LPF-utgång
+    const headingRing = [];              // för median
     let rafId = 0;
 
     function ensureOrientation(){
-      const needIOS = typeof DeviceOrientationEvent !== 'undefined' &&
-                      typeof DeviceOrientationEvent.requestPermission === 'function';
-      if (needIOS) {
-        DeviceOrientationEvent.requestPermission()
-          .then(state => { if (state === 'granted') startOrientation(); })
-          .catch(()=>{});
-      } else startOrientation();
+      // Försök Web Sensors API först
+      tryStartAbsoluteSensor();
+      if (!useSensor) {
+        // Fallback: DeviceOrientation
+        const needIOS = typeof DeviceOrientationEvent !== 'undefined' &&
+                        typeof DeviceOrientationEvent.requestPermission === 'function';
+        if (needIOS) {
+          DeviceOrientationEvent.requestPermission()
+            .then(state => { if (state === 'granted') startDeviceOrientation(); })
+            .catch(()=>{});
+        } else startDeviceOrientation();
+      }
     }
-    function startOrientation(){
+
+    function startDeviceOrientation(){
       if (orientationOn) return;
       orientationOn = true;
-      window.addEventListener('deviceorientation', onOrientation, true);
-      window.addEventListener('deviceorientationabsolute', onOrientation, true);
+      window.addEventListener('deviceorientation', onDeviceOrientation, true);
+      window.addEventListener('deviceorientationabsolute', onDeviceOrientation, true);
     }
-    function disableOrientation(){ orientationOn = false; /* behåll lyssnare – låg overhead */ }
+    function disableOrientation(){ orientationOn = false; /* behåll listeners – låg overhead */ }
+
+    function tryStartAbsoluteSensor(){
+      try {
+        const sensor = new AbsoluteOrientationSensor({ frequency: 30, referenceFrame: 'device' });
+        sensor.addEventListener('reading', () => {
+          // quaternion -> yaw (Z) i grader, 0..360 medurs från norr
+          const [qx, qy, qz, qw] = sensor.quaternion;
+          // Yaw ur quaternion (Tait-Bryan ZYX):
+          const siny_cosp = 2 * (qw*qz + qx*qy);
+          const cosy_cosp = 1 - 2 * (qy*qy + qz*qz);
+          let yaw = Math.atan2(siny_cosp, cosy_cosp) * 180 / Math.PI; // -180..180
+          if (yaw < 0) yaw += 360;
+
+          processHeading(yaw);
+        });
+        sensor.addEventListener('error', () => { useSensor = false; });
+        sensor.start();
+        useSensor = true;
+      } catch (e) {
+        useSensor = false;
+      }
+    }
+
+    function onDeviceOrientation(e){
+      if (!orientationOn) return;
+      const screenAngle = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : 0;
+
+      let heading = null;
+      if (typeof e.webkitCompassHeading === 'number' && e.webkitCompassHeading >= 0) {
+        // iOS: 0=norr, medurs
+        heading = e.webkitCompassHeading;
+      } else if (typeof e.alpha === 'number') {
+        // Android: alpha 0..360, kompensera skärmvinkel
+        heading = (e.alpha + screenAngle) % 360;
+      }
+      if (heading == null) return;
+
+      processHeading(heading);
+    }
 
     function normalizeDeg(a){ a = a % 360; if (a < 0) a += 360; return a; }
     function shortestDelta(a, b){ return (b - a + 540) % 360 - 180; }
 
-    // Läsning av rubrik + filtrering + flipp + offset
-    function onOrientation(e){
-      let heading = null;
-      const screenAngle = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : 0;
+    function pushMedian(h){
+      headingRing.push(h);
+      if (headingRing.length > MEDIAN_N) headingRing.shift();
 
-      if (typeof e.webkitCompassHeading === 'number') {
-        // iOS: 0=norr, medurs
-        heading = e.webkitCompassHeading;
-      } else if (typeof e.alpha === 'number') {
-        // Android: använd alpha och kompensera skärmvinkel
-        let h = e.alpha + screenAngle;
-        heading = normalizeDeg(h);
-      }
+      // “cirkulär median” via vektormedel (ger robust resultat)
+      const vec = headingRing.map(a => [Math.cos(a*Math.PI/180), Math.sin(a*Math.PI/180)]);
+      const sx = vec.reduce((s,v)=>s+v[0],0), sy = vec.reduce((s,v)=>s+v[1],0);
+      let ang = Math.atan2(sy, sx)*180/Math.PI; if (ang < 0) ang += 360;
+      return ang;
+    }
 
-      if (heading == null) return;
+    function processHeading(raw){
+      // flip + offset
+      let h = normalizeDeg(HEADING_FLIP * raw + HEADING_CAL_OFFSET);
 
-      // Flippa & kalibrera
-      heading = normalizeDeg(HEADING_FLIP * heading + HEADING_CAL_OFFSET);
+      // median
+      h = pushMedian(h);
 
-      // Lågpassfilter (mjukare rörelse, mindre glitch)
-      const d = shortestDelta(filteredHeading, heading);
+      // lågpass
+      const d = shortestDelta(filteredHeading, h);
       filteredHeading = normalizeDeg(filteredHeading + d * HEADING_LPF);
 
-      // I track-up vill vi att kartan “pekar” dit vi går: bearing = filteredHeading
+      // vi vill att kartan pekar åt samma håll:
       desiredBearing = filteredHeading;
 
       if (rotOn) scheduleBearingStep();
@@ -490,10 +536,10 @@
 
       if (Math.abs(delta) < BEARING_EPS) return;
 
-      const step = Math.sign(delta) * Math.min(Math.abs(delta), BEARING_STEP_DEG); // max 2°/frame
+      const step = Math.sign(delta) * Math.min(Math.abs(delta), BEARING_STEP_DEG);
       const next = current + step;
 
-      // jumpTo undviker “blinkande easing” när vi uppdaterar ofta
+      // undvik blink/easing-loopar
       map.jumpTo({ bearing: next });
 
       // fortsätt tills vi är nära
@@ -535,9 +581,63 @@
       }catch(err){ console.error('Kunde inte tolka GPX:', err); }
     }
 
+    // ===== Open / TRK =====
+    btnOpen.onclick = () => fileInput.click();
+    fileInput.onchange = async (e) => {
+      const file = e.target.files[0]; if (!file) return;
+      const text = await file.text(); showGpxText(text);
+    };
+
+    btnTRK.onclick = (e) => { e.preventDefault(); toggleTracksPanel(btnTRK); };
+    function toggleTracksPanel(anchorBtn){
+      const panel = document.getElementById('tracksPanel');
+      if (panel.classList.contains('open')) { panel.classList.remove('open'); return; }
+      positionPanelRightOf(anchorBtn);
+      populateTracksList(panel);
+      panel.classList.add('open');
+      const closeOnOutside = (ev) => {
+        if (!panel.contains(ev.target) && ev.target !== anchorBtn) {
+          panel.classList.remove('open'); document.removeEventListener('click', closeOnOutside);
+        }
+      };
+      setTimeout(()=>document.addEventListener('click', closeOnOutside),0);
+    }
+    function positionPanelRightOf(anchorBtn){
+      const panel = document.getElementById('tracksPanel');
+      const mapRect = map.getContainer().getBoundingClientRect();
+      const r = anchorBtn.getBoundingClientRect();
+      panel.style.top = `${r.top - mapRect.top}px`;
+      panel.style.left = `${r.right - mapRect.left + 8}px`;
+    }
+    async function populateTracksList(panel){
+      const list = document.getElementById('trkList');
+      list.innerHTML = '';
+      try{
+        const res = await fetch('gpx-tracks/manifest.json');
+        const files = await res.json();
+        if (!Array.isArray(files) || files.length === 0) {
+          list.innerHTML = `<div class="p-3 text-xs text-gray-500">Inga spår funna.</div>`;
+          return;
+        }
+        files.forEach((f)=>{
+          const item = document.createElement('div');
+          item.className = 'trk-item';
+          item.textContent = f;
+          item.onclick = async () => {
+            const url = `gpx-tracks/${f}`;
+            const txt = await (await fetch(url)).text();
+            showGpxText(txt);
+            panel.classList.remove('open');
+          };
+          list.appendChild(item);
+        });
+      }catch{
+        list.innerHTML = `<div class="p-3 text-xs text-red-600">Kunde inte läsa manifest.json</div>`;
+      }
+    }
+
     // Init
     setDistanceKm(0);
-    // setBase('osm'); // (standard), byt till 'esri' om du vill
   })();
   </script>
 </body>
