@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>kart</title>
+  <title>Kartläggare – GPX + GPS + Rotator (stabil pane-rotation)</title>
 
   <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
 
   <!-- Leaflet + Draw CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
 
   <style>
@@ -17,18 +17,12 @@
     #map { height: 100vh; width: 100vw; background: #fff; }
 
     /* Distans + export “pill” uppe till vänster, strax höger om + */
-    #info-panel { position: absolute; top: 10px; left: 56px; }
-    .leaflet-control-container .leaflet-draw {
-      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    }
+    #info-panel { position: absolute; top: 10px; left: 56px; z-index: 1000; }
     .gpx-toolbar.leaflet-draw-toolbar.leaflet-bar { margin-top: 4px; }
 
     /* Dropdown för fördefinierade spår */
     .gpx-list-panel {
-      position: absolute;
-      z-index: 1000;
-      background: #fff;
-      border-radius: 0.25rem;
+      position: absolute; z-index: 1000; background: #fff; border-radius: .25rem;
       box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -2px rgb(0 0 0 / 0.1);
       width: 240px; overflow: hidden; display: none;
     }
@@ -40,52 +34,34 @@
     .leaflet-draw-toolbar .gpx-btn,
     .leaflet-draw-toolbar .gps-btn,
     .leaflet-draw-toolbar .rot-btn {
-      width: 30px; height: 30px;
-      display: flex; align-items: center; justify-content: center;
-      background-color: #fff;
-      border: 1px solid #ccc; border-bottom: none;
-      color: #464646; font-size: 10px; font-weight: 400;
-      line-height: 30px; text-decoration: none; cursor: pointer; box-sizing: border-box;
-      background-image: none !important;
+      width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
+      background:#fff; border:1px solid #ccc; border-bottom:none; color:#464646; font-size:10px; font-weight:400;
+      line-height:30px; text-decoration:none; cursor:pointer; box-sizing:border-box; background-image:none!important;
     }
     .leaflet-draw-toolbar .gpx-btn:last-of-type,
     .leaflet-draw-toolbar .gps-btn:last-of-type,
     .leaflet-draw-toolbar .rot-btn:last-of-type { border-bottom: 1px solid #ccc; }
     .leaflet-draw-toolbar .gpx-btn:hover,
     .leaflet-draw-toolbar .gps-btn:hover,
-    .leaflet-draw-toolbar .rot-btn:hover { background-color: #f4f4f4; }
+    .leaflet-draw-toolbar .rot-btn:hover { background:#f4f4f4; }
     .gps-active { outline: 2px solid #60a5fa; outline-offset: -1px; }
     .rot-active { outline: 2px solid #34d399; outline-offset: -1px; }
 
     /* Positionsmarkör: blå punkt + pil + fan (SVG) */
     .heading-marker { position: relative; width: 28px; height: 28px; }
     .heading-marker .dot {
-      width: 12px; height: 12px; background: #3b82f6;
-      border: 2px solid #fff; border-radius: 50%;
+      width: 12px; height: 12px; background: #3b82f6; border: 2px solid #fff; border-radius: 50%;
       position: absolute; top: 8px; left: 8px; box-shadow: 0 0 4px rgba(0,0,0,0.25); z-index: 2;
     }
     .heading-marker .arrow-wrap {
-      position: absolute; top: -2px; left: -2px;
-      width: 32px; height: 32px;
-      transform-origin: 50% 50%;
-      will-change: transform;
-      z-index: 1;
+      position: absolute; top: -2px; left: -2px; width: 32px; height: 32px;
+      transform-origin: 50% 50%; will-change: transform; z-index: 1;
     }
     .heading-marker .arrow-svg { width: 32px; height: 32px; display: block; }
     .heading-unknown .arrow-wrap { opacity: 0.45; }
 
-    /* Egen rotator-wrapper för karta – vi roterar DEN, inte Leaflets egna transforms */
-    .bearing-rotator {
-      transform-origin: 50% 50%;
-      backface-visibility: hidden;
-      will-change: transform;
-      contain: paint;
-      pointer-events: none; /* släpp igenom interaktion */
-    }
-    .bearing-rotator > .leaflet-tile-pane,
-    .bearing-rotator > .leaflet-overlay-pane {
-      pointer-events: auto; /* men låt panes få events */
-    }
+    /* hjälp webkit på prestanda vid rotation */
+    .leaflet-tile-pane, .leaflet-overlay-pane { will-change: transform; backface-visibility: hidden; }
   </style>
 </head>
 <body>
@@ -93,7 +69,7 @@
   <div id="map"></div>
 
   <!-- Distans + Export -->
-  <div id="info-panel" class="z-[1000]">
+  <div id="info-panel">
     <div class="flex items-center gap-3 bg-white/95 backdrop-blur px-4 py-2 rounded-full shadow">
       <span class="text-sm text-red-600 font-bold" id="distance-output">0.00 km</span>
       <button id="export-btn" disabled
@@ -113,38 +89,25 @@
   </div>
 
   <!-- Libs -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-gpx/1.7.0/gpx.min.js"></script>
 
   <script>
   document.addEventListener('DOMContentLoaded', function () {
-    const MAX_ZOOM = 17;                   // justerbar maxzoon
+    const MAX_ZOOM = 17;
     const START = { lat: 56.15666, lng: 15.84580, zoom: 15 };
 
-    // === Heading/rotator config ===
+    // === Fan/heading config ===
     const DEFAULT_FAN_DEG = 60, MIN_FAN_DEG = 20, MAX_FAN_DEG = 120;
     const FAN_FILL = '#3b82f6', FAN_OPACITY = 0.18;
-    const HEADING_SMOOTH = 0.15;   // 0..1 (högre = snabbare)
+    const HEADING_SMOOTH = 0.15;
 
-    // === Skapa karta ===
+    // === Karta ===
     const map = L.map('map', { center: [START.lat, START.lng], zoom: START.zoom });
 
-    // === Skapa rotator-wrapper innan vi lägger lager ===
-    const mapPane = map.getPane('mapPane');
-    const tilePane = map.getPane('tilePane');
-    const overlayPane = map.getPane('overlayPane');
-    const rotator = document.createElement('div');
-    rotator.className = 'bearing-rotator';
-    rotator.style.transform = 'translateZ(0) rotate(0deg)'; // OBS: ingen scale()
-    mapPane.appendChild(rotator);
-    rotator.appendChild(tilePane);
-    rotator.appendChild(overlayPane);
-    function getCurrentRotDeg(){ const v = rotator.getAttribute('data-rot'); return v ? parseFloat(v) : 0; }
-    function setRotDeg(deg){ rotator.style.transform = `translateZ(0) rotate(${deg}deg)`; rotator.setAttribute('data-rot', String(deg)); }
-
-    // === Baslager (läggs på efter rotatorn) ===
+    // Bas + overlay (lägg lager EFTER map skapats)
     const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       noWrap: true, maxZoom: MAX_ZOOM, attribution: '© OpenStreetMap-bidragsgivare'
     }).addTo(map);
@@ -156,17 +119,9 @@
 
     const orionOverlay = L.tileLayer(
       'https://okorion.com/maptiles/orienteering/wgs84/{z}/{x}/{y}.png',
-      {
-        noWrap: true,
-        maxZoom: MAX_ZOOM,
-        attribution: '© OK Orion',
-        pane: 'overlayPane',
-        zIndex: 400,
-        detectRetina: false   // undvik @2x-förfrågningar
-      }
+      { noWrap: true, maxZoom: MAX_ZOOM, attribution: '© OK Orion', pane: 'overlayPane', zIndex: 400, detectRetina: false }
     ).addTo(map);
 
-    // Lagerkontroll
     L.control.layers(
       { 'OpenStreetMap (bas)': osm, 'Satellit (Esri World Imagery)': esriSat },
       { 'OK Orion (överlagrat)': orionOverlay },
@@ -174,50 +129,37 @@
     ).addTo(map);
 
     // === Ritverktyg ===
-    const drawnItems = new L.FeatureGroup();
-    map.addLayer(drawnItems);
+    const drawnItems = new L.FeatureGroup(); map.addLayer(drawnItems);
     const drawControl = new L.Control.Draw({
-      position: 'topleft',
-      edit: { featureGroup: drawnItems, remove: true, poly: { allowIntersection: false } },
-      draw: { polyline: { shapeOptions: { color: '#dc2626', weight: 6, opacity: 0.9 } },
-              polygon: false, rectangle: false, circle: false, marker: false, circlemarker: false }
+      position:'topleft',
+      edit:{ featureGroup: drawnItems, remove:true, poly:{ allowIntersection:false }},
+      draw:{ polyline:{ shapeOptions:{ color:'#dc2626', weight:6, opacity:0.9 }},
+             polygon:false, rectangle:false, circle:false, marker:false, circlemarker:false }
     });
     map.addControl(drawControl);
 
-    // === GPX-verktyg (Open / TRK / Trash) ===
-    let trkButtonRef = null;
+    // === GPX-verktyg ===
+    let trkButtonRef = null, gpxTrackLayer = null, drawnRouteLayer = null;
     const GPXControl = L.Control.extend({
-      options: { position: 'topleft' },
-      onAdd: function () {
-        const toolbar = L.DomUtil.create('div', 'gpx-toolbar leaflet-draw-toolbar leaflet-bar');
+      options:{ position:'topleft' },
+      onAdd:function(){
+        const toolbar = L.DomUtil.create('div','gpx-toolbar leaflet-draw-toolbar leaflet-bar');
         L.DomEvent.disableClickPropagation(toolbar);
 
-        // Open
-        const openA = L.DomUtil.create('a', 'gpx-btn', toolbar);
-        openA.textContent = 'Open';
-        const fileInput = L.DomUtil.create('input', '', toolbar);
-        fileInput.type = 'file';
-        fileInput.accept = '.gpx,application/gpx+xml,application/xml,text/xml';
-        fileInput.style.display = 'none';
-        openA.onclick = (e) => { e.preventDefault(); fileInput.click(); };
-        fileInput.onchange = (e) => {
-          const file = e.target.files[0];
-          if (!file) return;
-          const reader = new FileReader();
-          reader.onload = (evt) => { loadGPXFromText(evt.target.result, file.name); };
-          reader.readAsText(file);
+        const openA = L.DomUtil.create('a','gpx-btn',toolbar); openA.textContent = 'Open';
+        const fileInput = L.DomUtil.create('input','',toolbar);
+        fileInput.type='file'; fileInput.accept='.gpx,application/gpx+xml,application/xml,text/xml'; fileInput.style.display='none';
+        openA.onclick=(e)=>{ e.preventDefault(); fileInput.click(); };
+        fileInput.onchange=(e)=>{ const f=e.target.files[0]; if(!f) return;
+          const r=new FileReader(); r.onload=(evt)=>loadGPXFromText(evt.target.result,f.name); r.readAsText(f);
         };
 
-        // TRK
-        const listA = L.DomUtil.create('a', 'gpx-btn', toolbar);
-        listA.textContent = 'TRK';
-        listA.onclick = (e) => { e.preventDefault(); toggleListPanel(listA); };
+        const listA = L.DomUtil.create('a','gpx-btn',toolbar); listA.textContent='TRK';
+        listA.onclick=(e)=>{ e.preventDefault(); toggleListPanel(listA); };
         trkButtonRef = listA;
 
-        // Trash
-        const clearA = L.DomUtil.create('a', 'leaflet-draw-edit-remove', toolbar);
-        clearA.title = 'Rensa GPX';
-        clearA.onclick = (e) => { e.preventDefault(); clearGpxTrack(); };
+        const clearA = L.DomUtil.create('a','leaflet-draw-edit-remove',toolbar);
+        clearA.title='Rensa GPX'; clearA.onclick=(e)=>{ e.preventDefault(); clearGpxTrack(); };
 
         return toolbar;
       }
@@ -226,29 +168,25 @@
 
     // === GPS-knapp ===
     const LocateControl = L.Control.extend({
-      options: { position: 'topleft' },
-      onAdd: function () {
-        const div = L.DomUtil.create('div', 'leaflet-draw-toolbar leaflet-bar');
-        const btn = L.DomUtil.create('a', 'gps-btn', div);
-        btn.textContent = 'GPS';
-        btn.href = '#';
-        btn.title = 'Följ min position';
-        btn.onclick = (e) => { e.preventDefault(); toggleGPS(btn); };
+      options:{ position:'topleft' },
+      onAdd:function(){
+        const div=L.DomUtil.create('div','leaflet-draw-toolbar leaflet-bar');
+        const btn=L.DomUtil.create('a','gps-btn',div);
+        btn.textContent='GPS'; btn.href='#'; btn.title='Följ min position';
+        btn.onclick=(e)=>{ e.preventDefault(); toggleGPS(btn); };
         return div;
       }
     });
     map.addControl(new LocateControl());
 
-    // === Rotator-knapp ===
+    // === ROT-knapp ===
     const RotatorControl = L.Control.extend({
-      options: { position: 'topleft' },
-      onAdd: function () {
-        const div = L.DomUtil.create('div', 'leaflet-draw-toolbar leaflet-bar');
-        const btn = L.DomUtil.create('a', 'rot-btn', div);
-        btn.textContent = 'ROT';
-        btn.href = '#';
-        btn.title = 'Rotatorläge (karta roterar, pil uppåt, position i mitten)';
-        btn.onclick = (e) => { e.preventDefault(); toggleRotator(btn); };
+      options:{ position:'topleft' },
+      onAdd:function(){
+        const div=L.DomUtil.create('div','leaflet-draw-toolbar leaflet-bar');
+        const btn=L.DomUtil.create('a','rot-btn',div);
+        btn.textContent='ROT'; btn.href='#'; btn.title='Rotatorläge (karta roterar, pil uppåt, position i mitten)';
+        btn.onclick=(e)=>{ e.preventDefault(); toggleRotator(btn); };
         return div;
       }
     });
@@ -257,276 +195,144 @@
     // === Distans + export ===
     const distanceOutput = document.getElementById('distance-output');
     const exportBtn = document.getElementById('export-btn');
-    let drawnRouteLayer = null, gpxTrackLayer = null;
-
-    function setDistanceKm(km) { distanceOutput.textContent = `${km.toFixed(2)} km`; }
-    function computeLengthKmFromLatLngs(latlngs) {
-      if (!latlngs || latlngs.length < 2) return 0;
-      const line = L.polyline(latlngs).toGeoJSON();
-      return turf.length(line, { units: 'kilometers' });
+    function setDistanceKm(km){ distanceOutput.textContent = `${km.toFixed(2)} km`; }
+    function computeLengthKmFromLatLngs(latlngs){
+      if(!latlngs || latlngs.length<2) return 0;
+      const line=L.polyline(latlngs).toGeoJSON(); return turf.length(line,{units:'kilometers'});
     }
-    function updateExportState() {
-      const ok = !!(drawnRouteLayer && drawnRouteLayer.getLatLngs().length >= 2);
-      exportBtn.disabled = !ok;
-      exportBtn.onclick = ok ? () => exportToGPX(drawnRouteLayer.getLatLngs()) : null;
+    function updateExportState(){
+      const ok=!!(drawnRouteLayer && drawnRouteLayer.getLatLngs().length>=2);
+      exportBtn.disabled=!ok; exportBtn.onclick = ok ? ()=>exportToGPX(drawnRouteLayer.getLatLngs()) : null;
     }
+    map.on(L.Draw.Event.DRAWSTART, (e)=>{ if(e.layerType==='polyline'){ setDistanceKm(0); exportBtn.disabled=true; exportBtn.onclick=null; }});
+    map.on(L.Draw.Event.DRAWVERTEX, (e)=>{ const latlngs=[]; e.layers.eachLayer(m=>latlngs.push(m.getLatLng())); setDistanceKm(computeLengthKmFromLatLngs(latlngs)); });
+    map.on(L.Draw.Event.CREATED, (e)=>{ if(e.layerType==='polyline'){ if(drawnRouteLayer) drawnItems.removeLayer(drawnRouteLayer); drawnRouteLayer=e.layer; drawnItems.addLayer(drawnRouteLayer); setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs())); updateExportState(); }});
+    map.on(L.Draw.Event.EDITVERTEX, ()=>{ if(drawnRouteLayer){ setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs())); updateExportState(); }});
+    map.on(L.Draw.Event.EDITED, ()=>{ if(drawnRouteLayer){ setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs())); updateExportState(); }});
+    updateExportState();
 
-    map.on(L.Draw.Event.DRAWSTART, (e) => {
-      if (e.layerType === 'polyline') { setDistanceKm(0); exportBtn.disabled = true; exportBtn.onclick = null; }
-    });
-    map.on(L.Draw.Event.DRAWVERTEX, (e) => {
-      const latlngs = []; e.layers.eachLayer((m) => latlngs.push(m.getLatLng()));
-      setDistanceKm(computeLengthKmFromLatLngs(latlngs));
-    });
-    map.on(L.Draw.Event.CREATED, (e) => {
-      if (e.layerType === 'polyline') {
-        if (drawnRouteLayer) drawnItems.removeLayer(drawnRouteLayer);
-        drawnRouteLayer = e.layer; drawnItems.addLayer(drawnRouteLayer);
-        setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs()));
-        updateExportState();
-      }
-    });
-    map.on(L.Draw.Event.EDITVERTEX, () => {
-      if (drawnRouteLayer) { setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs())); updateExportState(); }
-    });
-    map.on(L.Draw.Event.EDITED, () => {
-      if (drawnRouteLayer) { setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs())); updateExportState(); }
-    });
-
-    // === Export: GPX 1.1 (RTE + TRK) ===
-    function exportToGPX(latlngs) {
-      if (!latlngs || latlngs.length < 2) return;
-
-      const now = new Date();
-      const isoNow = now.toISOString().split('.')[0] + 'Z';
-      const routeName = `Rutt_${new Date().toLocaleDateString('sv-SE')}_`
-        + new Date().toLocaleTimeString('sv-SE', { hour12: false }).replace(/:/g, '-');
-
-      let gpx = `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1"
-     creator="Ruttplan"
-     xmlns="http://www.topografix.com/GPX/1/1"
-     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-     xsi:schemaLocation="http://www.topografix.com/GPX/1/1
-                         http://www.topografix.com/GPX/1/1/gpx.xsd">
-  <metadata><name>${routeName}</name><time>${isoNow}</time></metadata>
-  <rte><name>${routeName}</name><time>${isoNow}</time>`;
-      latlngs.forEach((p,i)=>{ gpx += `\n    <rtept lat="${p.lat.toFixed(6)}" lon="${p.lng.toFixed(6)}"><name>P${i+1}</name></rtept>`; });
-      gpx += `
-  </rte>
-  <trk><name>${routeName}</name><trkseg>`;
-      latlngs.forEach((p,i)=> {
-        const t = new Date(now.getTime() + i*1000).toISOString().split('.')[0] + 'Z';
-        gpx += `\n    <trkpt lat="${p.lat.toFixed(6)}" lon="${p.lng.toFixed(6)}"><time>${t}</time></trkpt>`;
-      });
-      gpx += `
-    </trkseg></trk>
-</gpx>`;
-      const blob = new Blob([gpx], { type: 'application/gpx+xml' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a'); a.href = url; a.download = routeName.replace(/ /g,'_')+'.gpx';
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+    function exportToGPX(latlngs){
+      if(!latlngs || latlngs.length<2) return;
+      const now=new Date(); const isoNow=now.toISOString().split('.')[0]+'Z';
+      const routeName=`Rutt_${new Date().toLocaleDateString('sv-SE')}_`+new Date().toLocaleTimeString('sv-SE',{hour12:false}).replace(/:/g,'-');
+      let gpx=`<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Ruttplan" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">\n  <metadata><name>${routeName}</name><time>${isoNow}</time></metadata>\n  <rte><name>${routeName}</name><time>${isoNow}</time>`;
+      latlngs.forEach((p,i)=>{ gpx+=`\n    <rtept lat="${p.lat.toFixed(6)}" lon="${p.lng.toFixed(6)}"><name>P${i+1}</name></rtept>`; });
+      gpx+=`\n  </rte>\n  <trk><name>${routeName}</name><trkseg>`; 
+      latlngs.forEach((p,i)=>{ const t=new Date(now.getTime()+i*1000).toISOString().split('.')[0]+'Z'; gpx+=`\n    <trkpt lat="${p.lat.toFixed(6)}" lon="${p.lng.toFixed(6)}"><time>${t}</time></trkpt>`; });
+      gpx+=`\n    </trkseg></trk>\n</gpx>`;
+      const blob=new Blob([gpx],{type:'application/gpx+xml'}); const url=URL.createObjectURL(blob);
+      const a=document.createElement('a'); a.href=url; a.download=routeName.replace(/ /g,'_')+'.gpx'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
     }
+    function attachGPXLayer(layer){ if(gpxTrackLayer) map.removeLayer(gpxTrackLayer); gpxTrackLayer=layer.addTo(map); layer.on('loaded',e=>{ map.fitBounds(e.target.getBounds()); const len=turf.length(e.target.toGeoJSON(),{units:'kilometers'}); setDistanceKm(len); }); }
+    function loadGPXFromText(text){ attachGPXLayer(new L.GPX(text,{async:true})); }
+    function loadGPXFromURL(url){ attachGPXLayer(new L.GPX(url,{async:true})); }
+    function clearGpxTrack(){ if(gpxTrackLayer) map.removeLayer(gpxTrackLayer); gpxTrackLayer=null; if(!drawnRouteLayer) setDistanceKm(0); updateExportState(); }
 
-    // === GPX-in/ut ===
-    function attachGPXLayer(layer) {
-      if (gpxTrackLayer) map.removeLayer(gpxTrackLayer);
-      gpxTrackLayer = layer.addTo(map);
-      layer.on('loaded', e => {
-        map.fitBounds(e.target.getBounds());
-        const len = turf.length(e.target.toGeoJSON(), { units: 'kilometers' });
-        setDistanceKm(len);
-      });
-    }
-    function loadGPXFromText(text) { attachGPXLayer(new L.GPX(text, { async: true })); }
-    function loadGPXFromURL(url) { attachGPXLayer(new L.GPX(url, { async: true })); }
-    function clearGpxTrack() {
-      if (gpxTrackLayer) map.removeLayer(gpxTrackLayer);
-      gpxTrackLayer = null;
-      if (!drawnRouteLayer) setDistanceKm(0);
-      updateExportState();
-    }
-
-    // === Fördefinierade GPX-listan ===
-    const panel = document.getElementById('gpxListPanel');
-    const listEl = document.getElementById('gpxList');
-    const emptyEl = document.getElementById('gpxListEmpty');
-    let loaded = false;
-    let outsideClickHandler = null;
-
-    function toggleListPanel(anchorEl) {
-      if (panel.classList.contains('open')) { closeListPanel(); return; }
-      positionPanelNextTo(anchorEl);
-      if (!loaded) loadTracksList();
-      panel.classList.add('open');
-      outsideClickHandler = (ev) => {
-        if (panel.contains(ev.target) || (anchorEl && anchorEl.contains(ev.target))) return;
-        closeListPanel();
-      };
+    // === Fördefinierade GPX ===
+    const panel=document.getElementById('gpxListPanel'), listEl=document.getElementById('gpxList'), emptyEl=document.getElementById('gpxListEmpty');
+    let loaded=false, outsideClickHandler=null;
+    function toggleListPanel(anchorEl){
+      if(panel.classList.contains('open')){ closeListPanel(); return; }
+      const mapRect=map.getContainer().getBoundingClientRect(); const r=anchorEl.getBoundingClientRect();
+      panel.style.top=`${r.top-mapRect.top}px`; panel.style.left=`${r.right-mapRect.left+8}px`;
+      if(!loaded) loadTracksList(); panel.classList.add('open');
+      outsideClickHandler=(ev)=>{ if(panel.contains(ev.target) || (anchorEl && anchorEl.contains(ev.target))) return; closeListPanel(); };
       document.addEventListener('click', outsideClickHandler);
     }
-    function closeListPanel() {
-      panel.classList.remove('open');
-      if (outsideClickHandler) { document.removeEventListener('click', outsideClickHandler); outsideClickHandler = null; }
+    function closeListPanel(){ panel.classList.remove('open'); if(outsideClickHandler){ document.removeEventListener('click', outsideClickHandler); outsideClickHandler=null; } }
+    async function loadTracksList(){
+      loaded=true; listEl.innerHTML=''; emptyEl.classList.add('hidden');
+      try{
+        const res=await fetch('gpx-tracks/manifest.json'); const files=await res.json();
+        if(!Array.isArray(files)||files.length===0){ emptyEl.classList.remove('hidden'); return; }
+        for(const file of files){ const url=`gpx-tracks/${file}`; const item=document.createElement('div'); item.className='gpx-list-item'; item.textContent=file; item.onclick=()=>{ loadGPXFromURL(url); closeListPanel(); }; listEl.appendChild(item); }
+      }catch{ emptyEl.classList.remove('hidden'); }
     }
-    function positionPanelNextTo(anchorEl) {
-      if (!anchorEl) return;
-      const mapRect = map.getContainer().getBoundingClientRect();
-      const r = anchorEl.getBoundingClientRect();
-      const top = r.top - mapRect.top;
-      const left = r.right - mapRect.left + 8;
-      panel.style.top = `${top}px`; panel.style.left = `${left}px`;
-    }
-    async function loadTracksList() {
-      loaded = true; listEl.innerHTML = ''; emptyEl.classList.add('hidden');
-      try {
-        const res = await fetch('gpx-tracks/manifest.json');
-        const files = await res.json();
-        if (!Array.isArray(files) || files.length === 0) { emptyEl.classList.remove('hidden'); return; }
-        for (const file of files) {
-          const url = `gpx-tracks/${file}`;
-          const item = document.createElement('div');
-          item.className = 'gpx-list-item'; item.textContent = file;
-          item.onclick = () => { loadGPXFromURL(url); closeListPanel(); };
-          listEl.appendChild(item);
-        }
-      } catch { emptyEl.classList.remove('hidden'); }
-    }
-    window.addEventListener('resize', () => {
-      if (panel.classList.contains('open') && trkButtonRef) positionPanelNextTo(trkButtonRef);
-    });
+    window.addEventListener('resize',()=>{ if(panel.classList.contains('open') && trkButtonRef){ const mapRect=map.getContainer().getBoundingClientRect(); const r=trkButtonRef.getBoundingClientRect(); panel.style.top=`${r.top-mapRect.top}px`; panel.style.left=`${r.right-mapRect.left+8}px`; }});
 
     // =======================
-    // ===== GPS & Heading ===
+    // ===== GPS & Rotator ===
     // =======================
-    let watchId = null;
-    let following = false;
-    let rotatorOn = false;
+    let watchId=null, following=false, rotatorOn=false;
+    let headingDeg=null, headingAccuracyDeg=null, orientationActive=false;
+    let smoothHeading=0, needFrame=false;
 
-    let headingDeg = null;
-    let headingAccuracyDeg = null; // iOS: webkitCompassAccuracy
-    let orientationActive = false;
+    // referenser till pane:er att rotera
+    const tilePane = map.getPane('tilePane');
+    const overlayPane = map.getPane('overlayPane');
 
-    // Smoothing för heading (för pil=av/rotator=på)
-    let smoothHeading = 0;
-    let needFrame = false;
-
-    function makeHeadingIcon() {
+    function makeHeadingIcon(){
       return L.divIcon({
-        className: 'heading-marker heading-unknown',
-        html: `
-          <div class="arrow-wrap">
-            <svg class="arrow-svg" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-              <path class="fan" fill="${FAN_FILL}" fill-opacity="${FAN_OPACITY}" d="" />
-              <path d="M32 6 L42 28 L34 24 L34 56 L30 56 L30 24 L22 28 Z" fill="rgba(0,0,0,0.25)"/>
-              <path d="M32 6 L42 28 L34 24 L34 56 L30 56 L30 24 L22 28 Z" fill="#111827"/>
-            </svg>
-          </div>
-          <div class="dot"></div>
-        `,
-        iconSize: [28,28],
-        iconAnchor: [14,14]
+        className:'heading-marker heading-unknown',
+        html:`<div class="arrow-wrap">
+                 <svg class="arrow-svg" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+                   <path class="fan" fill="${FAN_FILL}" fill-opacity="${FAN_OPACITY}" d=""/>
+                   <path d="M32 6 L42 28 L34 24 L34 56 L30 56 L30 24 L22 28 Z" fill="rgba(0,0,0,0.25)"/>
+                   <path d="M32 6 L42 28 L34 24 L34 56 L30 56 L30 24 L22 28 Z" fill="#111827"/>
+                 </svg>
+               </div>
+               <div class="dot"></div>`,
+        iconSize:[28,28], iconAnchor:[14,14]
       });
     }
-    let posMarker = null;
-    let accCircle = null;
+    let posMarker=null, accCircle=null;
 
-    function toggleGPS(btn) {
-      following = !following;
-      btn.classList.toggle('gps-active', following);
-      if (following) {
-        startGeolocation();
-        ensureOrientation();
-      } else {
-        stopGeolocation();
-        if (!rotatorOn) disableOrientation();
-      }
+    function toggleGPS(btn){
+      following=!following; btn.classList.toggle('gps-active', following);
+      if(following){ startGeolocation(); ensureOrientation(); } else { stopGeolocation(); if(!rotatorOn) disableOrientation(); }
     }
-    function startGeolocation() {
-      if (!navigator.geolocation) return alert('Geolocation stöds inte i denna webbläsare.');
-      watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, {
-        enableHighAccuracy: true, timeout: 15000, maximumAge: 0
-      });
+    function startGeolocation(){
+      if(!navigator.geolocation) return alert('Geolocation stöds inte i denna webbläsare.');
+      watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, { enableHighAccuracy:true, timeout:15000, maximumAge:0 });
     }
-    function stopGeolocation() {
-      if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
-    }
-    function onPosition(pos) {
-      const { latitude, longitude, accuracy } = pos.coords;
-      const ll = [latitude, longitude];
-
-      if (!posMarker) { posMarker = L.marker(ll, { icon: makeHeadingIcon(), interactive: false }).addTo(map); }
-      else { posMarker.setLatLng(ll); }
-
-      if (!accCircle) {
-        accCircle = L.circle(ll, { radius: accuracy, color:'#3b82f6', weight:1, fillColor:'#60a5fa', fillOpacity:0.15, interactive:false }).addTo(map);
-      } else { accCircle.setLatLng(ll).setRadius(accuracy); }
-
-      if (rotatorOn) map.setView(ll, map.getZoom(), { animate: false });
-      else if (following) map.setView(ll, Math.max(map.getZoom(), 15), { animate: true });
-
+    function stopGeolocation(){ if(watchId!==null){ navigator.geolocation.clearWatch(watchId); watchId=null; } }
+    function onPosition(pos){
+      const { latitude, longitude, accuracy } = pos.coords; const ll=[latitude, longitude];
+      if(!posMarker){ posMarker=L.marker(ll,{icon:makeHeadingIcon(), interactive:false}).addTo(map); } else { posMarker.setLatLng(ll); }
+      if(!accCircle){ accCircle=L.circle(ll,{radius:accuracy,color:'#3b82f6',weight:1,fillColor:'#60a5fa',fillOpacity:0.15,interactive:false}).addTo(map); } else { accCircle.setLatLng(ll).setRadius(accuracy); }
+      if(rotatorOn){ map.setView(ll, map.getZoom(), {animate:false}); } else if(following){ map.setView(ll, Math.max(map.getZoom(), 15), {animate:true}); }
       queueFrame();
     }
-    function onPositionError(err) { console.warn('Geolocation error:', err); }
+    function onPositionError(err){ console.warn('Geolocation error:', err); }
 
-    // ====== DeviceOrientation (kompass) ======
-    function ensureOrientation() {
-      const needIOSPermission = typeof DeviceOrientationEvent !== 'undefined' &&
-                                typeof DeviceOrientationEvent.requestPermission === 'function';
-      if (needIOSPermission) {
-        DeviceOrientationEvent.requestPermission().then(state => { if (state === 'granted') startOrientation(); })
-          .catch(()=>{});
-      } else { startOrientation(); }
+    function ensureOrientation(){
+      const needIOSPermission = typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function';
+      if(needIOSPermission){ DeviceOrientationEvent.requestPermission().then(s=>{ if(s==='granted') startOrientation(); }).catch(()=>{}); } else { startOrientation(); }
     }
-    function startOrientation() {
-      if (orientationActive) return;
-      orientationActive = true;
-      window.addEventListener('deviceorientation', onOrientation, true);
-      window.addEventListener('deviceorientationabsolute', onOrientation, true);
-    }
-    function disableOrientation() { orientationActive = false; }
-
-    function onOrientation(e) {
-      const screenAngle = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : 0;
-
-      if (typeof e.webkitCompassHeading === 'number') {
-        headingDeg = normalizeDeg(e.webkitCompassHeading);
-        headingAccuracyDeg = (typeof e.webkitCompassAccuracy === 'number' && isFinite(e.webkitCompassAccuracy))
-          ? Math.max(0, Math.min(180, e.webkitCompassAccuracy)) : null;
-      } else if (typeof e.alpha === 'number') {
-        let h = 360 - e.alpha; h = h - screenAngle; headingDeg = normalizeDeg(h);
-        headingAccuracyDeg = null;
-      } else { headingDeg = null; }
-
+    function startOrientation(){ if(orientationActive) return; orientationActive=true; window.addEventListener('deviceorientation', onOrientation, true); window.addEventListener('deviceorientationabsolute', onOrientation, true); }
+    function disableOrientation(){ orientationActive=false; }
+    function onOrientation(e){
+      const screenAngle=(screen.orientation && typeof screen.orientation.angle==='number')?screen.orientation.angle:0;
+      if(typeof e.webkitCompassHeading==='number'){ headingDeg = normalizeDeg(e.webkitCompassHeading); headingAccuracyDeg = (typeof e.webkitCompassAccuracy==='number' && isFinite(e.webkitCompassAccuracy)) ? Math.max(0, Math.min(180, e.webkitCompassAccuracy)) : null; }
+      else if(typeof e.alpha==='number'){ let h=360 - e.alpha; h -= screenAngle; headingDeg = normalizeDeg(h); headingAccuracyDeg=null; }
+      else { headingDeg=null; }
       queueFrame();
     }
 
-    function normalizeDeg(a){ a = a % 360; if (a<0) a+=360; return a; }
-    function shortestDelta(a,b){ let d = (b - a + 540) % 360 - 180; return d; }
-    function smoothTowards(current, target, k){ const d = shortestDelta(current, target); return normalizeDeg(current + d * k); }
+    function normalizeDeg(a){ a=a%360; if(a<0) a+=360; return a; }
+    function shortestDelta(a,b){ let d=(b-a+540)%360-180; return d; }
+    function smoothTowards(current,target,k){ const d=shortestDelta(current,target); return normalizeDeg(current + d*k); }
 
-    function fanPathD(fanDeg) {
+    function fanPathD(fanDeg){
       const cx=32, cy=32, r=28, half=fanDeg/2;
-      const start=(-90 - half)*Math.PI/180, end=(-90 + half)*Math.PI/180;
-      const x1=cx + r*Math.cos(start), y1=cy + r*Math.sin(start);
-      const x2=cx + r*Math.cos(end),   y2=cy + r*Math.sin(end);
+      const start=(-90-half)*Math.PI/180, end=(-90+half)*Math.PI/180;
+      const x1=cx+r*Math.cos(start), y1=cy+r*Math.sin(start);
+      const x2=cx+r*Math.cos(end),   y2=cy+r*Math.sin(end);
       const largeArc=(fanDeg>180)?1:0;
       return `M ${cx} ${cy} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${r} ${r} 0 ${largeArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`;
     }
     function currentFanDeg(){ return (headingAccuracyDeg!=null) ? Math.max(MIN_FAN_DEG, Math.min(MAX_FAN_DEG, headingAccuracyDeg*2)) : DEFAULT_FAN_DEG; }
 
-    function queueFrame(){ if (needFrame) return; needFrame = true; requestAnimationFrame(tick); }
-    function tick(){ needFrame = false; updateMarkerAndRotation(); }
+    function queueFrame(){ if(needFrame) return; needFrame=true; requestAnimationFrame(tick); }
+    function tick(){ needFrame=false; updateMarkerAndRotation(); }
 
-    function updateMarkerAndRotation() {
-      // Pil + fan
-      if (posMarker) {
-        const el = posMarker.getElement(); if (el) {
-          const wrap = el.querySelector('.arrow-wrap'); const fanPath = el.querySelector('.fan');
-          if (wrap && fanPath) {
-            if (headingDeg==null) { el.classList.add('heading-unknown'); }
-            else { el.classList.remove('heading-unknown'); }
+    function updateMarkerAndRotation(){
+      // pil + fan
+      if(posMarker){
+        const el=posMarker.getElement();
+        if(el){
+          const wrap=el.querySelector('.arrow-wrap'); const fanPath=el.querySelector('.fan');
+          if(wrap && fanPath){
             const target = rotatorOn ? 0 : (headingDeg ?? 0); // ROT: pil uppåt
             smoothHeading = smoothTowards(smoothHeading, target, HEADING_SMOOTH);
             wrap.style.transform = `rotate(${smoothHeading}deg)`;
@@ -534,81 +340,45 @@
           }
         }
       }
-      // Karta roteras endast i ROT-läge
-      if (rotatorOn) {
+      // karta
+      if(rotatorOn){
         const targetBearing = (headingDeg==null) ? 0 : -headingDeg; // karta motsols
-        const newBearing = smoothTowards(getCurrentRotDeg(), targetBearing, HEADING_SMOOTH);
-        setRotDeg(newBearing);
+        const current = readPaneRot(); const next = smoothTowards(current, targetBearing, HEADING_SMOOTH);
+        applyPaneRot(next);
       }
     }
 
-    // === Rotatorläge on/off ===
+    // === Pane-rotation utan scale() (stabilt) ===
+    function readPaneRot(){
+      const a = tilePane.getAttribute('data-rot');
+      return a ? parseFloat(a) : 0;
+    }
+    function applyPaneRot(deg){
+      const t = `translateZ(0) rotate(${deg}deg)`;
+      tilePane.style.transform = t;
+      overlayPane.style.transform = t;
+      tilePane.setAttribute('data-rot', String(deg));
+      overlayPane.setAttribute('data-rot', String(deg));
+    }
+    function clearPaneRot(){
+      tilePane.style.transform = ''; overlayPane.style.transform = '';
+      tilePane.removeAttribute('data-rot'); overlayPane.removeAttribute('data-rot');
+    }
+
     function toggleRotator(btn){
       rotatorOn = !rotatorOn;
       btn.classList.toggle('rot-active', rotatorOn);
-      if (rotatorOn) {
+      if(rotatorOn){
         ensureOrientation();
-        if (!following) { startGeolocation(); following = true; }
-        if (posMarker) map.setView(posMarker.getLatLng(), map.getZoom(), { animate:false });
-        setRotDeg(0);
-        queueFrame();
+        if(!following){ startGeolocation(); following=true; }
+        if(posMarker) map.setView(posMarker.getLatLng(), map.getZoom(), {animate:false});
+        applyPaneRot(0); queueFrame();
       } else {
-        setRotDeg(0);
-        if (!following) disableOrientation();
+        clearPaneRot();
+        if(!following) disableOrientation();
       }
     }
 
-    // === Fördefinierade GPX ===
-    let trkButtonRef = null; // redan satt i GPXControl.onAdd
-    const panel = document.getElementById('gpxListPanel');
-    const listEl = document.getElementById('gpxList');
-    const emptyEl = document.getElementById('gpxListEmpty');
-    let loaded = false, outsideClickHandler = null;
-
-    function toggleListPanel(anchorEl) {
-      if (panel.classList.contains('open')) { closeListPanel(); return; }
-      positionPanelNextTo(anchorEl);
-      if (!loaded) loadTracksList();
-      panel.classList.add('open');
-      outsideClickHandler = (ev) => {
-        if (panel.contains(ev.target) || (anchorEl && anchorEl.contains(ev.target))) return;
-        closeListPanel();
-      };
-      document.addEventListener('click', outsideClickHandler);
-    }
-    function closeListPanel() {
-      panel.classList.remove('open');
-      if (outsideClickHandler) { document.removeEventListener('click', outsideClickHandler); outsideClickHandler = null; }
-    }
-    function positionPanelNextTo(anchorEl) {
-      if (!anchorEl) return;
-      const mapRect = map.getContainer().getBoundingClientRect();
-      const r = anchorEl.getBoundingClientRect();
-      const top = r.top - mapRect.top;
-      const left = r.right - mapRect.left + 8;
-      panel.style.top = `${top}px`; panel.style.left = `${left}px`;
-    }
-    async function loadTracksList() {
-      loaded = true; listEl.innerHTML = ''; emptyEl.classList.add('hidden');
-      try {
-        const res = await fetch('gpx-tracks/manifest.json');
-        const files = await res.json();
-        if (!Array.isArray(files) || files.length === 0) { emptyEl.classList.remove('hidden'); return; }
-        for (const file of files) {
-          const url = `gpx-tracks/${file}`;
-          const item = document.createElement('div');
-          item.className = 'gpx-list-item'; item.textContent = file;
-          item.onclick = () => { loadGPXFromURL(url); closeListPanel(); };
-          listEl.appendChild(item);
-        }
-      } catch { emptyEl.classList.remove('hidden'); }
-    }
-    window.addEventListener('resize', () => {
-      if (panel.classList.contains('open') && trkButtonRef) positionPanelNextTo(trkButtonRef);
-    });
-
-    // Init export-knapp
-    updateExportState();
   });
   </script>
 </body>
