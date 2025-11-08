@@ -64,24 +64,27 @@
     .gps-active { outline: 2px solid #60a5fa; outline-offset: -1px; }
     .cmp-active { outline: 2px solid #34d399; outline-offset: -1px; }
 
-    /* Positionsmarkör (blå punkt + pil) */
-    .heading-marker { position: relative; width: 24px; height: 24px; }
+    /* Positionsmarkör: blå punkt + tydlig pil (SVG) */
+    .heading-marker { position: relative; width: 28px; height: 28px; }
     .heading-marker .dot {
       width: 12px; height: 12px;
       background: #3b82f6; /* blå */
       border: 2px solid #fff;
       border-radius: 50%;
-      position: absolute; top: 6px; left: 6px;
+      position: absolute; top: 8px; left: 8px;
       box-shadow: 0 0 4px rgba(0,0,0,0.25);
     }
-    .heading-marker .arrow {
-      position: absolute; top: -3px; left: 10px;
-      width: 0; height: 0;
-      border-left: 2px solid transparent;
-      border-right: 2px solid transparent;
-      border-bottom: 6px solid #1f2937; /* mörk pilspets */
-      transform-origin: 50% 15px; /* runt punkten */
+    .heading-marker .arrow-wrap {
+      position: absolute; top: -2px; left: -2px; /* centrera SVG relativt punkten */
+      width: 32px; height: 32px;
+      transform-origin: 50% 50%;
+      transition: transform 40ms linear;
     }
+    .heading-marker .arrow-svg {
+      width: 32px; height: 32px;
+      display: block;
+    }
+    .heading-unknown .arrow-wrap { opacity: 0.45; } /* svagare när vi inte har heading */
 
     /* Rotationsstöd: rotera bara tiles och overlay (linjer, polygoner). */
     .leaflet-tile-pane,
@@ -428,10 +431,21 @@
 
       // Position marker & accuracy
       const headingIcon = L.divIcon({
-        className: 'heading-marker',
-        html: '<div class="arrow"></div><div class="dot"></div>',
-        iconSize: [24,24],
-        iconAnchor: [12,12]
+        className: 'heading-marker heading-unknown', // unknown tills vi har heading
+        html: `
+          <div class="arrow-wrap">
+            <!-- Tydlig pil (SVG) pekar uppåt i utgångsläget -->
+            <svg class="arrow-svg" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+              <!-- skugga -->
+              <path d="M32 6 L42 28 L34 24 L34 56 L30 56 L30 24 L22 28 Z" fill="rgba(0,0,0,0.25)"/>
+              <!-- pil -->
+              <path d="M32 6 L42 28 L34 24 L34 56 L30 56 L30 24 L22 28 Z" fill="#111827"/>
+            </svg>
+          </div>
+          <div class="dot"></div>
+        `,
+        iconSize: [28,28],
+        iconAnchor: [14,14]
       });
       let posMarker = null;
       let accCircle = null;
@@ -441,7 +455,7 @@
         btn.classList.toggle('gps-active', following);
         if (following) {
           startGeolocation();
-          enableOrientation(); // be om kompass om möjligt
+          ensureOrientation(); // be om kompass om möjligt
         } else {
           stopGeolocation();
           // behåll orientering om kompassläget är aktivt; annars stäng ned
@@ -478,7 +492,7 @@
           accCircle.setLatLng(ll).setRadius(accuracy);
         }
 
-        // rotera pilen om heading finns
+        // rotera pilen
         updateMarkerHeading();
 
         // följ position
@@ -486,51 +500,73 @@
       }
       function onPositionError(err) { console.warn('Geolocation error:', err); }
 
-      function enableOrientation() {
+      // ====== DeviceOrientation (kompass) ======
+      function ensureOrientation() {
         const needIOSPermission = typeof DeviceOrientationEvent !== 'undefined' &&
                                   typeof DeviceOrientationEvent.requestPermission === 'function';
         if (needIOSPermission) {
           DeviceOrientationEvent.requestPermission().then(state => {
-            if (state === 'granted') hookOrientation();
+            if (state === 'granted') startOrientation();
           }).catch(() => {/* ignorerad */});
         } else {
-          hookOrientation();
+          startOrientation();
         }
       }
-      function hookOrientation() {
+      function startOrientation() {
         if (orientationActive) return;
         orientationActive = true;
 
-        window.addEventListener('deviceorientation', (e) => {
-          if (typeof e.webkitCompassHeading === 'number') {
-            headingDeg = e.webkitCompassHeading; // iOS
-          } else if (e.absolute && typeof e.alpha === 'number') {
-            const screenAngle = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : 0;
-            headingDeg = (360 - (e.alpha + screenAngle)) % 360; // Android
-          } else {
-            headingDeg = null;
-          }
-
-          updateMarkerHeading();
-          if (compassMode) applyMapBearing();
-        });
+        // iOS/Safari: webkitCompassHeading (0..360, medurs från norr)
+        window.addEventListener('deviceorientation', onOrientation, true);
+        // vissa Android/Chrome-versioner skickar separat “absolute”
+        window.addEventListener('deviceorientationabsolute', onOrientation, true);
       }
       function disableOrientation() {
         orientationActive = false;
-        // (vi låter lyssnaren vara kvar; kostnaden är minimal)
+        // (låter lyssnarna vara kvar; kostnaden är låg och vissa browsers slutar ändå sända)
       }
+
+      function onOrientation(e) {
+        const screenAngle = (screen.orientation && typeof screen.orientation.angle === 'number')
+          ? screen.orientation.angle : 0;
+
+        if (typeof e.webkitCompassHeading === 'number') {
+          // iOS: redan i grader (0=norr, medurs)
+          headingDeg = normalizeDeg(e.webkitCompassHeading);
+        } else if (typeof e.alpha === 'number') {
+          // Android/Chrome m.fl.: alpha 0..360 (0=norr). Vi inverterar för att matcha “kompass-bäring”
+          // och kompenserar skärmvinkel.
+          const alpha = e.alpha; // [0..360)
+          let h = 360 - alpha;               // gör 0=norr, medurs
+          h = h - screenAngle;               // kompensera för device-rotation (portrait/landscape)
+          headingDeg = normalizeDeg(h);
+        } else {
+          headingDeg = null;
+        }
+
+        updateMarkerHeading();
+        if (compassMode) applyMapBearing();
+      }
+
+      function normalizeDeg(a) {
+        a = a % 360;
+        if (a < 0) a += 360;
+        return a;
+        }
+
       function updateMarkerHeading() {
         if (!posMarker) return;
         const el = posMarker.getElement();
         if (!el) return;
-        const arrow = el.querySelector('.arrow');
-        if (!arrow) return;
+        const wrap = el.querySelector('.arrow-wrap');
+        if (!wrap) return;
+
         if (headingDeg == null) {
-          arrow.style.transform = 'rotate(0deg)'; // neutralt
-          arrow.style.opacity = '0.6';
+          el.classList.add('heading-unknown');
+          wrap.style.transform = 'rotate(0deg)';
         } else {
-          arrow.style.transform = `rotate(${headingDeg}deg)`;
-          arrow.style.opacity = '1';
+          el.classList.remove('heading-unknown');
+          wrap.style.transform = `rotate(${headingDeg}deg)`;
         }
       }
 
@@ -543,7 +579,8 @@
         overlayPane.style.transform = rot;
       }
       function applyMapBearing() {
-        const bearing = (headingDeg == null) ? 0 : -headingDeg; // rotera kartan motsols så att “upp” = kurs
+        // rotera kartan motsols så att “upp” = kurs
+        const bearing = (headingDeg == null) ? 0 : -headingDeg;
         setPaneRotation(bearing);
       }
       function resetMapBearing() { setPaneRotation(0); }
@@ -552,8 +589,8 @@
         compassMode = !compassMode;
         btn.classList.toggle('cmp-active', compassMode);
 
-        // säkerställ att orientation är aktiv
-        if (compassMode && !orientationActive) enableOrientation();
+        // säkerställ att orientation är aktiv (be om tillstånd vid behov)
+        if (compassMode && !orientationActive) ensureOrientation();
 
         if (compassMode) {
           applyMapBearing();
@@ -562,6 +599,8 @@
         }
       }
 
+      // ===== Init =====
+      updateExportState();
     });
   </script>
 </body>
