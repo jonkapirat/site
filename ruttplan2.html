@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Kartläggare med GPX + GPS (utan kompass-rotation)</title>
+  <title>Rotator</title>
 
   <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -38,7 +38,8 @@
 
     /* Vänster verktygsrad – textknappar som matchar Leaflet */
     .leaflet-draw-toolbar .gpx-btn,
-    .leaflet-draw-toolbar .gps-btn {
+    .leaflet-draw-toolbar .gps-btn,
+    .leaflet-draw-toolbar .rot-btn {
       width: 30px; height: 30px;
       display: flex; align-items: center; justify-content: center;
       background-color: #fff;
@@ -48,10 +49,13 @@
       background-image: none !important;
     }
     .leaflet-draw-toolbar .gpx-btn:last-of-type,
-    .leaflet-draw-toolbar .gps-btn:last-of-type { border-bottom: 1px solid #ccc; }
+    .leaflet-draw-toolbar .gps-btn:last-of-type,
+    .leaflet-draw-toolbar .rot-btn:last-of-type { border-bottom: 1px solid #ccc; }
     .leaflet-draw-toolbar .gpx-btn:hover,
-    .leaflet-draw-toolbar .gps-btn:hover { background-color: #f4f4f4; }
+    .leaflet-draw-toolbar .gps-btn:hover,
+    .leaflet-draw-toolbar .rot-btn:hover { background-color: #f4f4f4; }
     .gps-active { outline: 2px solid #60a5fa; outline-offset: -1px; }
+    .rot-active { outline: 2px solid #34d399; outline-offset: -1px; }
 
     /* Positionsmarkör: blå punkt + pil + fan (SVG) */
     .heading-marker { position: relative; width: 28px; height: 28px; }
@@ -69,6 +73,19 @@
     }
     .heading-marker .arrow-svg { width: 32px; height: 32px; display: block; }
     .heading-unknown .arrow-wrap { opacity: 0.45; }
+
+    /* Egen rotator-wrapper för karta – vi roterar DEN, inte Leaflets egna transforms */
+    .bearing-rotator {
+      transform-origin: 50% 50%;
+      backface-visibility: hidden;
+      will-change: transform;
+      contain: paint;
+      pointer-events: none; /* släpp igenom interaktion */
+    }
+    .bearing-rotator > .leaflet-tile-pane,
+    .bearing-rotator > .leaflet-overlay-pane {
+      pointer-events: auto; /* men låt panes få events */
+    }
   </style>
 </head>
 <body>
@@ -106,12 +123,11 @@
     const MAX_ZOOM = 17; // ändra här om du vill testa annat maxzoom
     const START = { lat: 56.15666, lng: 15.84580, zoom: 15 };
 
-    // === Heading fan config (för markörens sektor) ===
-    const DEFAULT_FAN_DEG = 60;   // standardbredd (Android/desktop)
-    const MIN_FAN_DEG = 20;
-    const MAX_FAN_DEG = 120;
-    const FAN_FILL = '#3b82f6';
-    const FAN_OPACITY = 0.18;
+    // === Heading/rotator config ===
+    const DEFAULT_FAN_DEG = 60, MIN_FAN_DEG = 20, MAX_FAN_DEG = 120;
+    const FAN_FILL = '#3b82f6', FAN_OPACITY = 0.18;
+    const HEADING_SMOOTH = 0.15;   // 0..1 (högre = snabbare)
+    const ROT_SCALE = 1.03;        // dölja tile-kanter vid rotation
 
     // === Baslager ===
     const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -126,7 +142,6 @@
       { noWrap: true, maxZoom: MAX_ZOOM, attribution: '© OK Orion', opacity: 1.0 }
     );
 
-    // Starta med OSM som bas + Orion som overlay (så OSM syns bakom)
     const map = L.map('map', { center: [START.lat, START.lng], zoom: START.zoom, layers: [osm, orionOverlay] });
 
     L.control.layers(
@@ -186,7 +201,7 @@
     });
     map.addControl(new GPXControl());
 
-    // === GPS-knapp (utan kartrotation) ===
+    // === GPS-knapp ===
     const LocateControl = L.Control.extend({
       options: { position: 'topleft' },
       onAdd: function () {
@@ -200,6 +215,21 @@
       }
     });
     map.addControl(new LocateControl());
+
+    // === Rotator-knapp ===
+    const RotatorControl = L.Control.extend({
+      options: { position: 'topleft' },
+      onAdd: function () {
+        const div = L.DomUtil.create('div', 'leaflet-draw-toolbar leaflet-bar');
+        const btn = L.DomUtil.create('a', 'rot-btn', div);
+        btn.textContent = 'ROT';
+        btn.href = '#';
+        btn.title = 'Rotatorläge (karta roterar, pil pekar upp, position i mitten)';
+        btn.onclick = (e) => { e.preventDefault(); toggleRotator(btn); };
+        return div;
+      }
+    });
+    map.addControl(new RotatorControl());
 
     // === Distans + export ===
     const distanceOutput = document.getElementById('distance-output');
@@ -222,8 +252,7 @@
       if (e.layerType === 'polyline') { setDistanceKm(0); exportBtn.disabled = true; exportBtn.onclick = null; }
     });
     map.on(L.Draw.Event.DRAWVERTEX, (e) => {
-      const latlngs = [];
-      e.layers.eachLayer((m) => latlngs.push(m.getLatLng()));
+      const latlngs = []; e.layers.eachLayer((m) => latlngs.push(m.getLatLng()));
       setDistanceKm(computeLengthKmFromLatLngs(latlngs));
     });
     map.on(L.Draw.Event.CREATED, (e) => {
@@ -325,7 +354,7 @@
       const mapRect = map.getContainer().getBoundingClientRect();
       const r = anchorEl.getBoundingClientRect();
       const top = r.top - mapRect.top;
-      const left = r.right - mapRect.left + 8; // 8px luft
+      const left = r.right - mapRect.left + 8;
       panel.style.top = `${top}px`;
       panel.style.left = `${left}px`;
     }
@@ -361,14 +390,26 @@
     // =======================
     let watchId = null;
     let following = false;
+    let rotatorOn = false;
+
     let headingDeg = null;
     let headingAccuracyDeg = null; // iOS: webkitCompassAccuracy
     let orientationActive = false;
 
-    // Smoothing för pil (mjuk rotation)
-    const HEADING_SMOOTH = 0.15; // 0..1 (högre = snabbare)
+    // Smoothing för heading (används för kartrotation; pilen kan vara fast)
     let smoothHeading = 0;
+    const HEADING_ALPHA = HEADING_SMOOTH;
     let needFrame = false;
+
+    // Skapa egen rotator-wrapper och flytta in tile+overlay dit
+    const mapPane = map.getPane('mapPane');
+    const tilePane = map.getPane('tilePane');
+    const overlayPane = map.getPane('overlayPane');
+    const rotator = document.createElement('div');
+    rotator.className = 'bearing-rotator';
+    mapPane.appendChild(rotator);
+    rotator.appendChild(tilePane);
+    rotator.appendChild(overlayPane);
 
     // Position marker & accuracy
     function makeHeadingIcon() {
@@ -396,10 +437,10 @@
       btn.classList.toggle('gps-active', following);
       if (following) {
         startGeolocation();
-        ensureOrientation(); // be om kompass om möjligt (för pilen)
+        ensureOrientation(); // behövs både för pil och rotator
       } else {
         stopGeolocation();
-        disableOrientation();
+        if (!rotatorOn) disableOrientation();
       }
     }
 
@@ -432,12 +473,18 @@
         accCircle.setLatLng(ll).setRadius(accuracy);
       }
 
+      if (rotatorOn) {
+        // håll position i mitten – ingen animation för att undvika driv/lagg
+        map.setView(ll, map.getZoom(), { animate: false });
+      } else if (following) {
+        map.setView(ll, Math.max(map.getZoom(), 15), { animate: true });
+      }
+
       queueFrame();
-      if (following) map.setView(ll, Math.max(map.getZoom(), 15), { animate: true });
     }
     function onPositionError(err) { console.warn('Geolocation error:', err); }
 
-    // ====== DeviceOrientation (kompass) – enbart för pilen ======
+    // ====== DeviceOrientation (kompass) ======
     function ensureOrientation() {
       const needIOSPermission = typeof DeviceOrientationEvent !== 'undefined' &&
                                 typeof DeviceOrientationEvent.requestPermission === 'function';
@@ -457,23 +504,23 @@
     }
     function disableOrientation() {
       orientationActive = false;
+      // (lämna listeners – låg kostnad, men kan tas bort om du vill)
     }
 
     function onOrientation(e) {
-      const screenAngle = (screen.orientation && typeof screen.orientation.angle === 'number')
-        ? screen.orientation.angle : 0;
+      const screenAngle = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : 0;
 
       if (typeof e.webkitCompassHeading === 'number') {
-        // iOS: heading + accuracy
+        // iOS
         headingDeg = normalizeDeg(e.webkitCompassHeading);
         headingAccuracyDeg = (typeof e.webkitCompassAccuracy === 'number' && isFinite(e.webkitCompassAccuracy))
             ? Math.max(0, Math.min(180, e.webkitCompassAccuracy))
             : null;
       } else if (typeof e.alpha === 'number') {
-        // Android/Chrome m.fl.
-        const alpha = e.alpha; // [0..360)
-        let h = 360 - alpha;   // 0=norr, medurs
-        h = h - screenAngle;   // kompensera skärmvinkel
+        // Android/Chrome
+        const alpha = e.alpha;
+        let h = 360 - alpha;       // 0=norr, medurs
+        h = h - screenAngle;       // kompensera skärmvinkel
         headingDeg = normalizeDeg(h);
         headingAccuracyDeg = null;
       } else {
@@ -509,7 +556,7 @@
       return DEFAULT_FAN_DEG;
     }
 
-    // === rAF-uppdatering (bara markör, ingen kartrotation) ===
+    // === rAF-uppdatering (pilen + rotator) ===
     function queueFrame(){
       if (needFrame) return;
       needFrame = true;
@@ -517,25 +564,73 @@
     }
     function tick(){
       needFrame = false;
-      updateMarkerHeadingSmooth();
+      updateMarkerAndRotation();
     }
 
-    function updateMarkerHeadingSmooth() {
-      if (!posMarker) return;
-      const el = posMarker.getElement(); if (!el) return;
-      const wrap = el.querySelector('.arrow-wrap'); const fanPath = el.querySelector('.fan'); if (!wrap || !fanPath) return;
+    function updateMarkerAndRotation() {
+      // Uppdatera pil + fan
+      if (posMarker) {
+        const el = posMarker.getElement();
+        if (el) {
+          const wrap = el.querySelector('.arrow-wrap');
+          const fanPath = el.querySelector('.fan');
+          if (wrap && fanPath) {
+            // Sätt pilens rotation:
+            // - Rotator PÅ: pilen SKA peka uppåt => 0°
+            // - Rotator AV: pilen följer heading mjukt
+            if (headingDeg == null) {
+              el.classList.add('heading-unknown');
+              smoothHeading = smoothTowards(smoothHeading, 0, HEADING_ALPHA);
+            } else {
+              el.classList.remove('heading-unknown');
+              const target = rotatorOn ? 0 : headingDeg;
+              smoothHeading = smoothTowards(smoothHeading, target, HEADING_ALPHA);
+            }
+            wrap.style.transform = `rotate(${smoothHeading}deg)`;
 
-      if (headingDeg==null) {
-        el.classList.add('heading-unknown');
-        smoothHeading = smoothTowards(smoothHeading, 0, HEADING_SMOOTH);
-      } else {
-        el.classList.remove('heading-unknown');
-        smoothHeading = smoothTowards(smoothHeading, headingDeg, HEADING_SMOOTH);
+            // Fan-bredd utifrån accuracy
+            const fanDeg = currentFanDeg();
+            fanPath.setAttribute('d', fanPathD(fanDeg));
+          }
+        }
       }
-      wrap.style.transform = `rotate(${smoothHeading}deg)`;
 
-      const fanDeg = currentFanDeg();
-      fanPath.setAttribute('d', fanPathD(fanDeg));
+      // Rotera karta om rotator är på
+      if (rotatorOn) {
+        const targetBearing = (headingDeg == null) ? 0 : -headingDeg; // karta motsols
+        const newBearing = smoothTowards(getCurrentRotDeg(), targetBearing, HEADING_ALPHA);
+        rotator.style.transform = `translateZ(0) rotate(${newBearing}deg) scale(${ROT_SCALE})`;
+        rotator.setAttribute('data-rot', newBearing.toFixed(3));
+      }
+    }
+    function getCurrentRotDeg(){
+      const v = rotator.getAttribute('data-rot');
+      return v ? parseFloat(v) : 0;
+    }
+
+    // === Rotatorläge on/off ===
+    function toggleRotator(btn){
+      rotatorOn = !rotatorOn;
+      btn.classList.toggle('rot-active', rotatorOn);
+      if (rotatorOn) {
+        // se till att vi har sensorer och följer användaren
+        if (!following) {
+          following = true;
+          // markera GPS-knappen om du vill – hoppa det visuella om du inte har dess ref
+          startGeolocation();
+        }
+        ensureOrientation();
+        // nollställ rotation
+        rotator.style.transform = `translateZ(0) rotate(0deg) scale(${ROT_SCALE})`;
+        rotator.setAttribute('data-rot', '0');
+        queueFrame();
+      } else {
+        // återställ
+        rotator.style.transform = 'translateZ(0) rotate(0deg) scale(1)';
+        rotator.removeAttribute('data-rot');
+        // pilen återgår till att visa heading i tick()
+        if (!following) disableOrientation();
+      }
     }
 
     // === Init ===
