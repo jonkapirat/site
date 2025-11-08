@@ -1,57 +1,66 @@
 <!DOCTYPE html>
 <html lang="sv">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>tile</title>
+  <meta charset="utf-8" />
+  <title>Kartläggare – MapLibre GL (OSM + Orion + Sat, GPX + Track-up)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
 
+  <!-- Tailwind för UI -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
+
+  <!-- MapLibre GL -->
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+
+  <!-- Turf (distans m.m.) -->
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+
+  <!-- togeojson (GPX -> GeoJSON) -->
+  <script src="https://unpkg.com/@tmcw/togeojson/dist/togeojson.umd.js"></script>
 
   <style>
-    body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; background:#fff; }
-    #map { height: 100vh; width: 100vw; }
+    html, body { height: 100%; margin: 0; font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+    #map { position: absolute; inset: 0; }
 
-    /* Distans + export “pill” uppe till vänster, strax höger om + */
-    #info-panel { position: absolute; top: 10px; left: 56px; z-index: 1000; }
-    .gpx-toolbar.leaflet-draw-toolbar.leaflet-bar { margin-top: 4px; }
+    /* Distans + Export “pill” uppe till vänster, strax höger om +/kontroller */
+    #info-panel { position: absolute; top: 10px; left: 56px; z-index: 10; }
 
-    /* TRK-lista */
-    .gpx-list-panel {
-      position: absolute; z-index: 1000; background: #fff; border-radius: .25rem;
+    /* Vänster custom-verktygsrad (under MapLibre-zoom) */
+    .left-toolbar {
+      position: absolute;
+      top: 94px;  /* strax under zoom-knapparna */
+      left: 10px;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+    }
+    .tool-btn {
+      width: 30px; height: 30px;
+      display:flex; align-items:center; justify-content:center;
+      background:#fff; border:1px solid #ccc; border-bottom:none;
+      color:#464646; font-size:10px; font-weight:400;
+      cursor:pointer; user-select:none;
+    }
+    .tool-btn:last-child { border-bottom: 1px solid #ccc; }
+    .tool-btn:hover { background:#f4f4f4; }
+    .tool-active { outline:2px solid #60a5fa; outline-offset:-1px; }
+    .rot-active { outline:2px solid #34d399; outline-offset:-1px; }
+
+    /* TRK-lista som öppnas till höger om TRK-knappen */
+    .tracks-panel {
+      position: absolute;
+      z-index: 12;
+      background: #fff;
+      width: 260px;
+      border-radius: .25rem;
       box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -2px rgb(0 0 0 / 0.1);
-      width: 240px; overflow: hidden; display: none;
+      display: none;
+      max-height: 75vh;
+      overflow: auto;
     }
-    .gpx-list-panel.open { display: block; }
-    .gpx-list-item { padding: 8px 10px; cursor: pointer; }
-    .gpx-list-item:hover { background: #f3f4f6; }
-
-    /* Vänster verktygsrad – textknappar som matchar Leaflet */
-    .leaflet-draw-toolbar .gpx-btn,
-    .leaflet-draw-toolbar .gps-btn {
-      width: 30px; height: 30px; display:flex; align-items:center; justify-content:center;
-      background:#fff; border:1px solid #ccc; border-bottom:none; color:#464646; font-size:10px; font-weight:400;
-      line-height:30px; text-decoration:none; cursor:pointer; box-sizing:border-box; background-image:none!important;
-    }
-    .leaflet-draw-toolbar .gpx-btn:last-of-type,
-    .leaflet-draw-toolbar .gps-btn:last-of-type { border-bottom:1px solid #ccc; }
-    .leaflet-draw-toolbar .gpx-btn:hover,
-    .leaflet-draw-toolbar .gps-btn:hover { background:#f4f4f4; }
-    .gps-active { outline: 2px solid #60a5fa; outline-offset: -1px; }
-
-    /* Positionsmarkör: blå punkt + pil + fan */
-    .heading-marker { position: relative; width: 28px; height: 28px; }
-    .heading-marker .dot {
-      width: 12px; height: 12px; background: #3b82f6; border:2px solid #fff; border-radius:50%;
-      position: absolute; top: 8px; left: 8px; box-shadow:0 0 4px rgba(0,0,0,.25); z-index:2;
-    }
-    .heading-marker .arrow-wrap {
-      position:absolute; top:-2px; left:-2px; width:32px; height:32px;
-      transform-origin:50% 50%; will-change: transform; z-index:1;
-    }
-    .heading-marker .arrow-svg { width:32px; height:32px; display:block; }
-    .heading-unknown .arrow-wrap { opacity:.45; }
+    .tracks-panel.open { display: block; }
+    .trk-item { padding: 8px 10px; cursor: pointer; }
+    .trk-item:hover { background: #f3f4f6; }
   </style>
 </head>
 <body>
@@ -69,236 +78,464 @@
     </div>
   </div>
 
-  <!-- Dropdown för fördefinierade spår -->
-  <div id="gpxListPanel" class="gpx-list-panel">
-    <div class="px-3 py-2 text-sm font-semibold border-b border-gray-200">Fördefinierade spår</div>
-    <div id="gpxList" class="max-h-72 overflow-auto"></div>
-    <div id="gpxListEmpty" class="p-3 text-xs text-gray-500 hidden">
-      Hittade inga spår. Säkerställ att <code>gpx-tracks/manifest.json</code> finns.
-    </div>
+  <!-- Vänster verktygsrad -->
+  <div class="left-toolbar" id="leftToolbar">
+    <div class="tool-btn" id="btnOpen">Open</div>
+    <div class="tool-btn" id="btnTRK">TRK</div>
+    <div class="tool-btn" id="btnTrash" title="Rensa spår">🗑</div>
+    <div class="tool-btn" id="btnGPS">GPS</div>
+    <div class="tool-btn" id="btnROT">ROT</div>
+    <div class="tool-btn" id="btnDraw" title="Rita rutt">Draw</div>
   </div>
 
-  <!-- Libs -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-gpx/1.7.0/gpx.min.js"></script>
+  <!-- TRK-lista -->
+  <div id="tracksPanel" class="tracks-panel">
+    <div class="px-3 py-2 text-sm font-semibold border-b border-gray-200">Fördefinierade spår</div>
+    <div id="trkList"></div>
+  </div>
+
+  <!-- Osynlig filinput för "Open" -->
+  <input type="file" id="fileInput" accept=".gpx,application/gpx+xml,application/xml,text/xml" style="display:none" />
 
   <script>
-  document.addEventListener('DOMContentLoaded', function () {
+  (async function() {
+    // --- KONFIG ---
     const MAX_ZOOM = 17;
     const START = { lat: 56.15666, lng: 15.84580, zoom: 15 };
 
-    // Karta + lager (OSM bas, Orion overlay, Esri satellit valbart)
-    const map = L.map('map', { center: [START.lat, START.lng], zoom: START.zoom });
+    // Kartkällor (raster)
+    const OSM_URL   = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+    const ESRI_URL  = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+    const ORION_URL = 'https://okorion.com/maptiles/orienteering/wgs84/{z}/{x}/{y}.png';
 
-    const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      noWrap: true, maxZoom: MAX_ZOOM, attribution: '© OpenStreetMap-bidragsgivare'
-    }).addTo(map);
+    // --- STYLEOBJEKT för MapLibre (rasterbaserat) ---
+    const style = {
+      "version": 8,
+      "name": "Raster base",
+      "sources": {
+        "osm": {
+          "type": "raster",
+          "tiles": [ OSM_URL ],
+          "tileSize": 256,
+          "attribution": "© OpenStreetMap-bidragsgivare",
+          "maxzoom": MAX_ZOOM
+        },
+        "esri": {
+          "type": "raster",
+          "tiles": [ ESRI_URL ],
+          "tileSize": 256,
+          "attribution": "Imagery © Esri, Maxar, Earthstar Geographics",
+          "maxzoom": MAX_ZOOM
+        },
+        "orion": {
+          "type": "raster",
+          "tiles": [ ORION_URL ],
+          "tileSize": 256,
+          "attribution": "© OK Orion",
+          "maxzoom": MAX_ZOOM
+        }
+      },
+      "layers": [
+        { "id": "osm",   "type": "raster", "source": "osm",   "layout": { "visibility": "visible" } },
+        { "id": "esri",  "type": "raster", "source": "esri",  "layout": { "visibility": "none"    } },
+        { "id": "orion", "type": "raster", "source": "orion", "layout": { "visibility": "visible" } }
+      ]
+    };
 
-    const esriSat = L.tileLayer(
-      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-      { noWrap: true, maxZoom: MAX_ZOOM, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' }
-    );
-
-    const orionOverlay = L.tileLayer(
-      'https://okorion.com/maptiles/orienteering/wgs84/{z}/{x}/{y}.png',
-      { noWrap: true, maxZoom: MAX_ZOOM, attribution: '© OK Orion', pane: 'overlayPane', zIndex: 400, detectRetina: false }
-    ).addTo(map);
-
-    L.control.layers(
-      { 'OpenStreetMap (bas)': osm, 'Satellit (Esri World Imagery)': esriSat },
-      { 'OK Orion (överlagrat)': orionOverlay },
-      { position: 'topright' }
-    ).addTo(map);
-
-    // Ritverktyg
-    const drawnItems = new L.FeatureGroup(); map.addLayer(drawnItems);
-    const drawControl = new L.Control.Draw({
-      position:'topleft',
-      edit:{ featureGroup: drawnItems, remove:true, poly:{ allowIntersection:false }},
-      draw:{ polyline:{ shapeOptions:{ color:'#dc2626', weight:6, opacity:0.9 }},
-             polygon:false, rectangle:false, circle:false, marker:false, circlemarker:false }
+    // --- Skapa karta ---
+    const map = new maplibregl.Map({
+      container: 'map',
+      style,
+      center: [START.lng, START.lat],
+      zoom: START.zoom,
+      pitch: 0,
+      bearing: 0,
+      dragRotate: false,  // vi styr bearing själva i ROT-läget
+      maxZoom: MAX_ZOOM
     });
-    map.addControl(drawControl);
 
-    // GPX Open/TRK/Trash
-    let trkButtonRef = null, gpxTrackLayer = null, drawnRouteLayer = null;
+    // Standard-zoomkontroll (uppe till vänster)
+    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left');
 
-    const GPXControl = L.Control.extend({
-      options:{ position:'topleft' },
-      onAdd:function(){
-        const toolbar = L.DomUtil.create('div','gpx-toolbar leaflet-draw-toolbar leaflet-bar');
-        L.DomEvent.disableClickPropagation(toolbar);
+    // Lagerbytare (enkel) – växlar baslager OSM/Esri, lämnar Orion på
+    function setBase(base) {
+      map.setLayoutProperty('osm',  'visibility', base === 'osm'  ? 'visible' : 'none');
+      map.setLayoutProperty('esri', 'visibility', base === 'esri' ? 'visible' : 'none');
+    }
 
-        // Open
-        const openA = L.DomUtil.create('a','gpx-btn',toolbar); openA.textContent='Open';
-        const fileInput = L.DomUtil.create('input','',toolbar);
-        fileInput.type='file'; fileInput.accept='.gpx,application/gpx+xml,application/xml,text/xml'; fileInput.style.display='none';
-        openA.onclick=(e)=>{ e.preventDefault(); fileInput.click(); };
-        fileInput.onchange=(e)=>{ const f=e.target.files[0]; if(!f) return;
-          const r=new FileReader(); r.onload=(evt)=>loadGPXFromText(evt.target.result,f.name); r.readAsText(f);
-        };
+    // --- Rit- & GPX-källor/lager ---
+    // Källa/lager för ritad rutt
+    const drawSourceId = 'draw-line-src';
+    const drawLayerId  = 'draw-line-lyr';
+    const drawPointsId = 'draw-points-src';
+    const drawPointsLy = 'draw-points-lyr';
 
-        // TRK
-        const listA = L.DomUtil.create('a','gpx-btn',toolbar); listA.textContent='TRK';
-        listA.onclick=(e)=>{ e.preventDefault(); toggleListPanel(listA); };
-        trkButtonRef = listA;
+    // Inläst GPX (fördefinierad eller uppladdad)
+    const gpxSrcId = 'gpx-src';
+    const gpxLyId  = 'gpx-lyr';
 
-        // Trash
-        const clearA = L.DomUtil.create('a','leaflet-draw-edit-remove',toolbar);
-        clearA.title='Rensa GPX'; clearA.onclick=(e)=>{ e.preventDefault(); clearGpxTrack(); };
+    // Platskällor
+    const posSrcId  = 'pos-src';
+    const accSrcId  = 'acc-src';
+    const posLyId   = 'pos-lyr';
+    const accLyId   = 'acc-lyr';
 
-        return toolbar;
-      }
-    });
-    map.addControl(new GPXControl());
+    // Tillstånd
+    let isDrawing = false;
+    let drawCoords = []; // [ [lng,lat], ... ]
+    let gpxShown = false;
+    let followOn = false;
+    let rotOn = false;
+    let watchId = null;
+    let currentHeading = 0;
 
-    // GPS-knapp (följ-läge + heading-pil)
-    const LocateControl = L.Control.extend({
-      options:{ position:'topleft' },
-      onAdd:function(){
-        const div=L.DomUtil.create('div','leaflet-draw-toolbar leaflet-bar');
-        const btn=L.DomUtil.create('a','gps-btn',div);
-        btn.textContent='GPS'; btn.href='#'; btn.title='Följ min position';
-        btn.onclick=(e)=>{ e.preventDefault(); toggleGPS(btn); };
-        return div;
-      }
-    });
-    map.addControl(new LocateControl());
-
-    // Distans + export
-    const distanceOutput = document.getElementById('distance-output');
+    // UI-referenser
+    const btnOpen  = document.getElementById('btnOpen');
+    const btnTRK   = document.getElementById('btnTRK');
+    const btnTrash = document.getElementById('btnTrash');
+    const btnGPS   = document.getElementById('btnGPS');
+    const btnROT   = document.getElementById('btnROT');
+    const btnDraw  = document.getElementById('btnDraw');
     const exportBtn = document.getElementById('export-btn');
+    const distanceOutput = document.getElementById('distance-output');
+    const fileInput = document.getElementById('fileInput');
+    const tracksPanel = document.getElementById('tracksPanel');
+    const trkList = document.getElementById('trkList');
 
-    function setDistanceKm(km){ distanceOutput.textContent = `${km.toFixed(2)} km`; }
-    function computeLengthKmFromLatLngs(latlngs){
-      if(!latlngs || latlngs.length<2) return 0;
-      const line=L.polyline(latlngs).toGeoJSON(); return turf.length(line,{units:'kilometers'});
+    function setDistanceKm(km) { distanceOutput.textContent = `${km.toFixed(2)} km`; }
+    function computeLengthKmFromCoords(coords) {
+      if (!coords || coords.length < 2) return 0;
+      const gj = { type: 'Feature', geometry: { type: 'LineString', coordinates: coords }, properties: {} };
+      return turf.length(gj, { units: 'kilometers' });
     }
-    function updateExportState(){
-      const ok=!!(drawnRouteLayer && drawnRouteLayer.getLatLngs().length>=2);
-      exportBtn.disabled=!ok; exportBtn.onclick = ok ? ()=>exportToGPX(drawnRouteLayer.getLatLngs()) : null;
-    }
-
-    map.on(L.Draw.Event.DRAWSTART, (e)=>{ if(e.layerType==='polyline'){ setDistanceKm(0); exportBtn.disabled=true; exportBtn.onclick=null; }});
-    map.on(L.Draw.Event.DRAWVERTEX, (e)=>{ const latlngs=[]; e.layers.eachLayer(m=>latlngs.push(m.getLatLng())); setDistanceKm(computeLengthKmFromLatLngs(latlngs)); });
-    map.on(L.Draw.Event.CREATED, (e)=>{ if(e.layerType==='polyline'){ if(drawnRouteLayer) drawnItems.removeLayer(drawnRouteLayer); drawnRouteLayer=e.layer; drawnItems.addLayer(drawnRouteLayer); setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs())); updateExportState(); }});
-    map.on(L.Draw.Event.EDITVERTEX, ()=>{ if(drawnRouteLayer){ setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs())); updateExportState(); }});
-    map.on(L.Draw.Event.EDITED, ()=>{ if(drawnRouteLayer){ setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs())); updateExportState(); }});
-    updateExportState();
-
-    function exportToGPX(latlngs){
-      if(!latlngs || latlngs.length<2) return;
-      const now=new Date(); const isoNow=now.toISOString().split('.')[0]+'Z';
-      const routeName=`Rutt_${new Date().toLocaleDateString('sv-SE')}_`+new Date().toLocaleTimeString('sv-SE',{hour12:false}).replace(/:/g,'-');
-      let gpx=`<?xml version="1.0" encoding="UTF-8"?>\n<gpx version="1.1" creator="Ruttplan" xmlns="http://www.topografix.com/GPX/1/1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.topografix.com/GPX/1/1 http://www.topografix.com/GPX/1/1/gpx.xsd">\n  <metadata><name>${routeName}</name><time>${isoNow}</time></metadata>\n  <rte><name>${routeName}</name><time>${isoNow}</time>`;
-      latlngs.forEach((p,i)=>{ gpx+=`\n    <rtept lat="${p.lat.toFixed(6)}" lon="${p.lng.toFixed(6)}"><name>P${i+1}</name></rtept>`; });
-      gpx+=`\n  </rte>\n  <trk><name>${routeName}</name><trkseg>`;
-      latlngs.forEach((p,i)=>{ const t=new Date(now.getTime()+i*1000).toISOString().split('.')[0]+'Z'; gpx+=`\n    <trkpt lat="${p.lat.toFixed(6)}" lon="${p.lng.toFixed(6)}"><time>${t}</time></trkpt>`; });
-      gpx+=`\n    </trkseg></trk>\n</gpx>`;
-      const blob=new Blob([gpx],{type:'application/gpx+xml'}); const url=URL.createObjectURL(blob);
-      const a=document.createElement('a'); a.href=url; a.download=routeName.replace(/ /g,'_')+'.gpx'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    function refreshExportState() {
+      const ok = drawCoords.length >= 2;
+      exportBtn.disabled = !ok;
+      exportBtn.onclick = ok ? () => exportToGPX(drawCoords) : null;
     }
 
-    // GPX in/ut
-    function attachGPXLayer(layer){ if(gpxTrackLayer) map.removeLayer(gpxTrackLayer); gpxTrackLayer=layer.addTo(map); layer.on('loaded',e=>{ map.fitBounds(e.target.getBounds()); const len=turf.length(e.target.toGeoJSON(),{units:'kilometers'}); setDistanceKm(len); }); }
-    function loadGPXFromText(text){ attachGPXLayer(new L.GPX(text,{async:true})); }
-    function loadGPXFromURL(url){ attachGPXLayer(new L.GPX(url,{async:true})); }
-    function clearGpxTrack(){ if(gpxTrackLayer) map.removeLayer(gpxTrackLayer); gpxTrackLayer=null; if(!drawnRouteLayer) setDistanceKm(0); updateExportState(); }
+    map.on('load', () => {
+      // Baslager-knappar – enkelt exempel (byt i koden om du vill ha UI)
+      // setBase('osm'); // default i style
 
-    // TRK-lista
-    const panel=document.getElementById('gpxListPanel'), listEl=document.getElementById('gpxList'), emptyEl=document.getElementById('gpxListEmpty');
-    let loaded=false, outsideClickHandler=null;
-    function toggleListPanel(anchorEl){
-      if(panel.classList.contains('open')){ closeListPanel(); return; }
-      const mapRect=map.getContainer().getBoundingClientRect(); const r=anchorEl.getBoundingClientRect();
-      panel.style.top=`${r.top-mapRect.top}px`; panel.style.left=`${r.right-mapRect.left+8}px`;
-      if(!loaded) loadTracksList(); panel.classList.add('open');
-      outsideClickHandler=(ev)=>{ if(panel.contains(ev.target) || (anchorEl && anchorEl.contains(ev.target))) return; closeListPanel(); };
-      document.addEventListener('click', outsideClickHandler);
-    }
-    function closeListPanel(){ panel.classList.remove('open'); if(outsideClickHandler){ document.removeEventListener('click', outsideClickHandler); outsideClickHandler=null; } }
-    async function loadTracksList(){
-      loaded=true; listEl.innerHTML=''; emptyEl.classList.add('hidden');
-      try{
-        const res=await fetch('gpx-tracks/manifest.json'); const files=await res.json();
-        if(!Array.isArray(files)||files.length===0){ emptyEl.classList.remove('hidden'); return; }
-        for(const file of files){ const url=`gpx-tracks/${file}`; const item=document.createElement('div'); item.className='gpx-list-item'; item.textContent=file; item.onclick=()=>{ loadGPXFromURL(url); closeListPanel(); }; listEl.appendChild(item); }
-      }catch{ emptyEl.classList.remove('hidden'); }
-    }
-    window.addEventListener('resize',()=>{ if(panel.classList.contains('open') && trkButtonRef){ const mapRect=map.getContainer().getBoundingClientRect(); const r=trkButtonRef.getBoundingClientRect(); panel.style.top=`${r.top-mapRect.top}px`; panel.style.left=`${r.right-mapRect.left+8}px`; }});
-
-    // GPS + heading (utan kartrotation)
-    let watchId=null, following=false;
-    let headingDeg=null, orientationActive=false;
-    let smoothHeading=0, needFrame=false;
-
-    function makeHeadingIcon(){
-      return L.divIcon({
-        className:'heading-marker heading-unknown',
-        html:`<div class="arrow-wrap">
-                 <svg class="arrow-svg" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-                   <path class="fan" fill="#3b82f6" fill-opacity="0.18" d=""/>
-                   <path d="M32 6 L42 28 L34 24 L34 56 L30 56 L30 24 L22 28 Z" fill="rgba(0,0,0,0.25)"/>
-                   <path d="M32 6 L42 28 L34 24 L34 56 L30 56 L30 24 L22 28 Z" fill="#111827"/>
-                 </svg>
-               </div>
-               <div class="dot"></div>`,
-        iconSize:[28,28], iconAnchor:[14,14]
+      // Källor/lager för ritad rutt
+      map.addSource(drawSourceId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({
+        id: drawLayerId, type: 'line', source: drawSourceId,
+        paint: { 'line-color': '#dc2626', 'line-width': 4, 'line-opacity': 0.9 }
       });
-    }
-    let posMarker=null, accCircle=null;
 
-    function toggleGPS(btn){
-      following=!following; btn.classList.toggle('gps-active', following);
-      if(following){ startGeolocation(); ensureOrientation(); }
-      else{ stopGeolocation(); disableOrientation(); }
-    }
-    function startGeolocation(){
-      if(!navigator.geolocation) return alert('Geolocation stöds inte i denna webbläsare.');
-      watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, { enableHighAccuracy:true, timeout:15000, maximumAge:0 });
-    }
-    function stopGeolocation(){ if(watchId!==null){ navigator.geolocation.clearWatch(watchId); watchId=null; } }
-    function onPosition(pos){
-      const { latitude, longitude, accuracy } = pos.coords; const ll=[latitude, longitude];
-      if(!posMarker){ posMarker=L.marker(ll,{icon:makeHeadingIcon(), interactive:false}).addTo(map); } else { posMarker.setLatLng(ll); }
-      if(!accCircle){ accCircle=L.circle(ll,{radius:accuracy,color:'#3b82f6',weight:1,fillColor:'#60a5fa',fillOpacity:0.15,interactive:false}).addTo(map); } else { accCircle.setLatLng(ll).setRadius(accuracy); }
-      if(following){ map.setView(ll, Math.max(map.getZoom(), 15), {animate:true}); }
-      queueFrame();
-    }
-    function onPositionError(err){ console.warn('Geolocation error:', err); }
+      map.addSource(drawPointsId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({
+        id: drawPointsLy, type: 'circle', source: drawPointsId,
+        paint: { 'circle-color': '#dc2626', 'circle-radius': 3, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 1 }
+      });
 
-    function ensureOrientation(){
-      const needIOS = typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function';
-      if(needIOS){ DeviceOrientationEvent.requestPermission().then(s=>{ if(s==='granted') startOrientation(); }).catch(()=>{}); } else { startOrientation(); }
-    }
-    function startOrientation(){ if(orientationActive) return; orientationActive=true; window.addEventListener('deviceorientation', onOrientation, true); window.addEventListener('deviceorientationabsolute', onOrientation, true); }
-    function disableOrientation(){ orientationActive=false; }
-    function onOrientation(e){
-      const screenAngle=(screen.orientation && typeof screen.orientation.angle==='number')?screen.orientation.angle:0;
-      if(typeof e.webkitCompassHeading==='number'){ headingDeg = normalize(e.webkitCompassHeading); }
-      else if(typeof e.alpha==='number'){ let h=360 - e.alpha; h -= screenAngle; headingDeg = normalize(h); }
-      else { headingDeg = null; }
-      queueFrame();
+      // GPX-visning
+      map.addSource(gpxSrcId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({
+        id: gpxLyId, type: 'line', source: gpxSrcId,
+        paint: { 'line-color': '#0ea5e9', 'line-width': 3, 'line-opacity': 0.9 }
+      });
+
+      // Position/accuracy
+      map.addSource(posSrcId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({
+        id: posLyId, type: 'circle', source: posSrcId,
+        paint: { 'circle-color': '#3b82f6', 'circle-radius': 6, 'circle-stroke-color': '#ffffff', 'circle-stroke-width': 2 }
+      });
+
+      map.addSource(accSrcId, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({
+        id: accLyId, type: 'fill', source: accSrcId,
+        paint: { 'fill-color': '#60a5fa', 'fill-opacity': 0.15, 'fill-outline-color': '#3b82f6' }
+      });
+
+      // Klick för att rita (endast om draw-läget är aktivt)
+      map.on('click', (e) => {
+        if (!isDrawing) return;
+        const ll = [e.lngLat.lng, e.lngLat.lat];
+        drawCoords.push(ll);
+        updateDrawLayers();
+        setDistanceKm(computeLengthKmFromCoords(drawCoords));
+        refreshExportState();
+      });
+      // Dubbelklick för att avsluta ritning
+      map.on('dblclick', (e) => {
+        if (!isDrawing) return;
+        isDrawing = false;
+        btnDraw.classList.remove('tool-active');
+      });
+
+      refreshExportState();
+    });
+
+    function updateDrawLayers() {
+      // polyline
+      const lineFC = drawCoords.length >= 2
+        ? { type: 'FeatureCollection', features: [{ type:'Feature', properties:{}, geometry:{ type:'LineString', coordinates: drawCoords } }] }
+        : { type: 'FeatureCollection', features: [] };
+      map.getSource(drawSourceId).setData(lineFC);
+
+      // punkter
+      const pts = drawCoords.map(c => ({ type:'Feature', properties:{}, geometry:{ type:'Point', coordinates:c } }));
+      map.getSource(drawPointsId).setData({ type:'FeatureCollection', features: pts });
     }
 
-    function normalize(a){ a=a%360; if(a<0) a+=360; return a; }
-    function shortest(a,b){ let d=(b-a+540)%360-180; return d; }
-    function smoothTo(cur,tgt,k){ const d=shortest(cur,tgt); return normalize(cur + d*k); }
+    // --- Export till GPX (RTE + TRK)
+    function exportToGPX(coords) {
+      if (!coords || coords.length < 2) return;
+      const now = new Date();
+      const isoNow = now.toISOString().split('.')[0] + 'Z';
+      const routeName = `Rutt_${now.toLocaleDateString('sv-SE')}_${now.toLocaleTimeString('sv-SE',{hour12:false}).replace(/:/g,'-')}`;
 
-    function queueFrame(){ if(needFrame) return; needFrame=true; requestAnimationFrame(tick); }
-    function tick(){ needFrame=false; updateHeading(); }
+      let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1"
+     creator="Ruttplan-MapLibre"
+     xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://www.topografix.com/GPX/1/1
+                         http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata><name>${routeName}</name><time>${isoNow}</time></metadata>
+  <rte><name>${routeName}</name><time>${isoNow}</time>`;
+      coords.forEach((c,i) => {
+        gpx += `\n    <rtept lat="${c[1].toFixed(6)}" lon="${c[0].toFixed(6)}"><name>P${i+1}</name></rtept>`;
+      });
+      gpx += `
+  </rte>
+  <trk><name>${routeName}</name><trkseg>`;
+      coords.forEach((c,i) => {
+        const t = new Date(now.getTime()+i*1000).toISOString().split('.')[0]+'Z';
+        gpx += `\n    <trkpt lat="${c[1].toFixed(6)}" lon="${c[0].toFixed(6)}"><time>${t}</time></trkpt>`;
+      });
+      gpx += `
+    </trkseg></trk>
+</gpx>`;
 
-    function updateHeading(){
-      if(!posMarker) return;
-      const el=posMarker.getElement(); if(!el) return;
-      const wrap=el.querySelector('.arrow-wrap'); if(!wrap) return;
-      const target = headingDeg ?? 0;
-      smoothHeading = smoothTo(smoothHeading, target, 0.15);
-      wrap.style.transform = `rotate(${smoothHeading}deg)`;
+      const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = routeName.replace(/ /g,'_') + '.gpx';
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
-  });
+
+    // --- Open (ladda lokal GPX) ---
+    btnOpen.onclick = () => fileInput.click();
+    fileInput.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const text = await file.text();
+      showGpxText(text);
+    };
+
+    // --- TRK (manifest) ---
+    btnTRK.onclick = async (e) => {
+      e.preventDefault();
+      toggleTracksPanel(btnTRK);
+    };
+    function toggleTracksPanel(anchorBtn) {
+      if (tracksPanel.classList.contains('open')) {
+        tracksPanel.classList.remove('open');
+        return;
+      }
+      positionPanelRightOf(anchorBtn);
+      populateTracksList();
+      tracksPanel.classList.add('open');
+      const closeOnOutside = (ev) => {
+        if (!tracksPanel.contains(ev.target) && ev.target !== anchorBtn) {
+          tracksPanel.classList.remove('open');
+          document.removeEventListener('click', closeOnOutside);
+        }
+      };
+      setTimeout(() => document.addEventListener('click', closeOnOutside), 0);
+    }
+    function positionPanelRightOf(anchorBtn) {
+      const mapRect = map.getContainer().getBoundingClientRect();
+      const r = anchorBtn.getBoundingClientRect();
+      tracksPanel.style.top = `${r.top - mapRect.top}px`;
+      tracksPanel.style.left = `${r.right - mapRect.left + 8}px`;
+    }
+    async function populateTracksList() {
+      const list = document.getElementById('trkList');
+      list.innerHTML = '';
+      try {
+        const res = await fetch('gpx-tracks/manifest.json');
+        const files = await res.json();
+        if (!Array.isArray(files) || files.length === 0) {
+          list.innerHTML = `<div class="p-3 text-xs text-gray-500">Inga spår funna.</div>`;
+          return;
+        }
+        files.forEach((f) => {
+          const item = document.createElement('div');
+          item.className = 'trk-item';
+          item.textContent = f;
+          item.onclick = async () => {
+            const url = `gpx-tracks/${f}`;
+            const txt = await (await fetch(url)).text();
+            showGpxText(txt);
+            tracksPanel.classList.remove('open');
+          };
+          list.appendChild(item);
+        });
+      } catch (e) {
+        list.innerHTML = `<div class="p-3 text-xs text-red-600">Kunde inte läsa manifest.json</div>`;
+      }
+    }
+
+    // --- Trash (ta bort visat GPX) ---
+    btnTrash.onclick = () => {
+      map.getSource(gpxSrcId).setData({ type:'FeatureCollection', features:[] });
+      gpxShown = false;
+      if (drawCoords.length === 0) setDistanceKm(0);
+    };
+
+    // --- Draw ---
+    btnDraw.onclick = () => {
+      isDrawing = !isDrawing;
+      btnDraw.classList.toggle('tool-active', isDrawing);
+      if (!isDrawing) return;
+      // start – nollställ nuvarande rutt
+      drawCoords = [];
+      updateDrawLayers();
+      setDistanceKm(0);
+      refreshExportState();
+    };
+
+    // --- GPS ---
+    btnGPS.onclick = () => {
+      followOn = !followOn;
+      btnGPS.classList.toggle('tool-active', followOn);
+      if (followOn) startGeolocation();
+      else stopGeolocation();
+    };
+
+    function startGeolocation() {
+      if (!navigator.geolocation) return alert('Geolocation saknas.');
+      watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, {
+        enableHighAccuracy: true, timeout: 15000, maximumAge: 0
+      });
+      ensureOrientation(); // för ROT
+    }
+    function stopGeolocation() {
+      if (watchId != null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+      if (!rotOn) disableOrientation();
+    }
+    function onPosition(pos) {
+      const { latitude, longitude, accuracy } = pos.coords;
+      const ll = [longitude, latitude];
+      // pos
+      map.getSource(posSrcId).setData({
+        type:'FeatureCollection',
+        features:[{ type:'Feature', geometry:{ type:'Point', coordinates: ll }, properties:{} }]
+      });
+      // accuracy
+      const accPoly = turf.circle(ll, Math.max(accuracy, 5), { steps: 64, units: 'meters' });
+      map.getSource(accSrcId).setData(accPoly);
+
+      if (followOn || rotOn) {
+        map.easeTo({ center: ll, duration: 300, zoom: Math.max(map.getZoom(), 15) });
+      }
+    }
+    function onPositionError(err) { console.warn('Geolocation error', err); }
+
+    // --- ROT (track-up) ---
+    btnROT.onclick = () => {
+      rotOn = !rotOn;
+      btnROT.classList.toggle('rot-active', rotOn);
+      if (rotOn) {
+        ensureOrientation();
+      } else {
+        // återställ bearing
+        map.easeTo({ bearing: 0, duration: 300 });
+        if (!followOn) disableOrientation();
+      }
+    };
+
+    function ensureOrientation() {
+      const needIOS = typeof DeviceOrientationEvent !== 'undefined' &&
+                      typeof DeviceOrientationEvent.requestPermission === 'function';
+      if (needIOS) {
+        DeviceOrientationEvent.requestPermission()
+          .then(state => { if (state === 'granted') startOrientation(); })
+          .catch(() => {});
+      } else startOrientation();
+    }
+    let orientationOn = false;
+    function startOrientation() {
+      if (orientationOn) return;
+      orientationOn = true;
+      window.addEventListener('deviceorientation', onOrientation, true);
+      window.addEventListener('deviceorientationabsolute', onOrientation, true);
+    }
+    function disableOrientation() { orientationOn = false; /* lämnar listeners, låg kostnad */ }
+
+    function onOrientation(e) {
+      // Heading i grader 0..360 (0=norr). iOS: webkitCompassHeading; Android: alpha (0=norr med rotering behövd)
+      let heading = null;
+      const screenAngle = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : 0;
+
+      if (typeof e.webkitCompassHeading === 'number') {
+        heading = e.webkitCompassHeading; // iOS: redan 0=norr, medurs
+      } else if (typeof e.alpha === 'number') {
+        let h = 360 - e.alpha;  // gör 0=norr, medurs
+        h = h - screenAngle;    // kompensera skärmens rotation
+        heading = (h % 360 + 360) % 360;
+      }
+
+      if (heading == null) return;
+      currentHeading = heading;
+
+      if (rotOn) {
+        // “track-up”: kartan roteras motsols så att “upp” = heading
+        map.setBearing(-currentHeading);
+      }
+    }
+
+    // --- Visa GPX ---
+    function showGpxText(gpxText) {
+      try {
+        const parser = new DOMParser();
+        const xml = parser.parseFromString(gpxText, 'application/xml');
+        const gj = toGeoJSON.gpx(xml); // -> GeoJSON
+        // extrahera linjer (LineString/ MultiLineString)
+        const lineFeatures = [];
+        (gj.features || []).forEach(f => {
+          if (!f.geometry) return;
+          const t = f.geometry.type;
+          if (t === 'LineString') lineFeatures.push(f);
+          if (t === 'MultiLineString') {
+            f.geometry.coordinates.forEach(coords => {
+              lineFeatures.push({ type:'Feature', properties:f.properties||{}, geometry:{ type:'LineString', coordinates: coords } });
+            });
+          }
+        });
+        const fc = { type:'FeatureCollection', features: lineFeatures };
+        map.getSource(gpxSrcId).setData(fc);
+        gpxShown = lineFeatures.length > 0;
+
+        if (gpxShown) {
+          // fit bounds
+          const bbox = turf.bbox(fc);
+          map.fitBounds([[bbox[0], bbox[1]], [bbox[2], bbox[3]]], { padding: 40, maxZoom: MAX_ZOOM });
+          // uppdatera distans (summa)
+          let total = 0;
+          lineFeatures.forEach(f => { total += turf.length(f, { units:'kilometers' }); });
+          setDistanceKm(total);
+        } else {
+          if (drawCoords.length === 0) setDistanceKm(0);
+        }
+      } catch (err) {
+        console.error('Kunde inte tolka GPX:', err);
+      }
+    }
+
+    // --- Enkel lagerbytare via konsol (om du vill göra knappar, säg till) ---
+    // Exempel: setBase('esri'); // för att byta till satellit
+
+    // Init
+    setDistanceKm(0);
+  })();
   </script>
 </body>
 </html>
