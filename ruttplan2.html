@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Kartläggare med GPX-export + GPS</title>
+  <title>Kartläggare med GPX-export + GPS + Kompass</title>
 
   <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -42,7 +42,8 @@
 
     /* Våra textknappar exakt som Leaflet-knappar (fyrkantiga) */
     .leaflet-draw-toolbar .gpx-btn,
-    .leaflet-draw-toolbar .gps-btn {
+    .leaflet-draw-toolbar .gps-btn,
+    .leaflet-draw-toolbar .cmp-btn {
       width: 30px; height: 30px;
       display: flex; align-items: center; justify-content: center;
       background-color: #fff;
@@ -54,15 +55,17 @@
       background-image: none !important;
     }
     .leaflet-draw-toolbar .gpx-btn:last-of-type,
-    .leaflet-draw-toolbar .gps-btn:last-of-type { border-bottom: 1px solid #ccc; }
+    .leaflet-draw-toolbar .gps-btn:last-of-type,
+    .leaflet-draw-toolbar .cmp-btn:last-of-type { border-bottom: 1px solid #ccc; }
     .leaflet-draw-toolbar .gpx-btn:hover,
-    .leaflet-draw-toolbar .gps-btn:hover { background-color: #f4f4f4; }
+    .leaflet-draw-toolbar .gps-btn:hover,
+    .leaflet-draw-toolbar .cmp-btn:hover { background-color: #f4f4f4; }
+
+    .gps-active { outline: 2px solid #60a5fa; outline-offset: -1px; }
+    .cmp-active { outline: 2px solid #34d399; outline-offset: -1px; }
 
     /* Positionsmarkör (blå punkt + pil) */
-    .heading-marker {
-      position: relative;
-      width: 24px; height: 24px;
-    }
+    .heading-marker { position: relative; width: 24px; height: 24px; }
     .heading-marker .dot {
       width: 12px; height: 12px;
       background: #3b82f6; /* blå */
@@ -79,9 +82,12 @@
       border-bottom: 6px solid #1f2937; /* mörk pilspets */
       transform-origin: 50% 15px; /* runt punkten */
     }
-    .gps-active {
-      outline: 2px solid #60a5fa;
-      outline-offset: -1px;
+
+    /* Rotationsstöd: rotera bara tiles och overlay (linjer, polygoner). */
+    .leaflet-tile-pane,
+    .leaflet-overlay-pane {
+      transform-origin: 50% 50%;
+      will-change: transform;
     }
   </style>
 </head>
@@ -211,6 +217,21 @@
         }
       });
       map.addControl(new LocateControl());
+
+      // ===== Kompassläge: kontrollknapp =====
+      const CompassControl = L.Control.extend({
+        options: { position: 'topleft' },
+        onAdd: function () {
+          const div = L.DomUtil.create('div', 'leaflet-draw-toolbar leaflet-bar');
+          const btn = L.DomUtil.create('a', 'cmp-btn', div);
+          btn.textContent = 'CMP';
+          btn.href = '#';
+          btn.title = 'Kompassläge (rotera karta)';
+          btn.onclick = (e) => { e.preventDefault(); toggleCompass(btn); };
+          return div;
+        }
+      });
+      map.addControl(new CompassControl());
 
       // ===== Distans + export =====
       const distanceOutput = document.getElementById('distance-output');
@@ -402,6 +423,9 @@
       let headingDeg = null;
       let orientationActive = false;
 
+      // Kompassläge (kartrotation)
+      let compassMode = false;
+
       // Position marker & accuracy
       const headingIcon = L.divIcon({
         className: 'heading-marker',
@@ -420,7 +444,8 @@
           enableOrientation(); // be om kompass om möjligt
         } else {
           stopGeolocation();
-          disableOrientation();
+          // behåll orientering om kompassläget är aktivt; annars stäng ned
+          if (!compassMode) disableOrientation();
         }
       }
 
@@ -456,15 +481,12 @@
         // rotera pilen om heading finns
         updateMarkerHeading();
 
-        // följ
+        // följ position
         if (following) map.setView(ll, Math.max(map.getZoom(), 15), { animate: true });
       }
-      function onPositionError(err) {
-        console.warn('Geolocation error:', err);
-      }
+      function onPositionError(err) { console.warn('Geolocation error:', err); }
 
       function enableOrientation() {
-        // iOS kräver uttrycklig permission via användargest
         const needIOSPermission = typeof DeviceOrientationEvent !== 'undefined' &&
                                   typeof DeviceOrientationEvent.requestPermission === 'function';
         if (needIOSPermission) {
@@ -479,26 +501,23 @@
         if (orientationActive) return;
         orientationActive = true;
 
-        // iOS Safari: webkitCompassHeading (0=norr, medurs)
         window.addEventListener('deviceorientation', (e) => {
           if (typeof e.webkitCompassHeading === 'number') {
             headingDeg = e.webkitCompassHeading; // iOS
           } else if (e.absolute && typeof e.alpha === 'number') {
-            // Android/Chrome: alpha = rotation runt Z-axeln (0=norr)
-            // Justera med skärmens orientering
-            const screenAngle = (screen.orientation && screen.orientation.angle) ? screen.orientation.angle : 0;
-            headingDeg = (360 - (e.alpha + screenAngle)) % 360;
+            const screenAngle = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : 0;
+            headingDeg = (360 - (e.alpha + screenAngle)) % 360; // Android
           } else {
             headingDeg = null;
           }
+
           updateMarkerHeading();
+          if (compassMode) applyMapBearing();
         });
       }
       function disableOrientation() {
         orientationActive = false;
-        headingDeg = null;
-        // (vi låter eventlyssnaren vara kvar – har obetydlig kostnad)
-        updateMarkerHeading();
+        // (vi låter lyssnaren vara kvar; kostnaden är minimal)
       }
       function updateMarkerHeading() {
         if (!posMarker) return;
@@ -514,6 +533,35 @@
           arrow.style.opacity = '1';
         }
       }
+
+      // === Kompassläge (kartarotation) ===
+      const tilePane = map.getPane('tilePane');
+      const overlayPane = map.getPane('overlayPane');
+      function setPaneRotation(deg) {
+        const rot = `rotate(${deg}deg)`;
+        tilePane.style.transform = rot;
+        overlayPane.style.transform = rot;
+      }
+      function applyMapBearing() {
+        const bearing = (headingDeg == null) ? 0 : -headingDeg; // rotera kartan motsols så att “upp” = kurs
+        setPaneRotation(bearing);
+      }
+      function resetMapBearing() { setPaneRotation(0); }
+
+      function toggleCompass(btn) {
+        compassMode = !compassMode;
+        btn.classList.toggle('cmp-active', compassMode);
+
+        // säkerställ att orientation är aktiv
+        if (compassMode && !orientationActive) enableOrientation();
+
+        if (compassMode) {
+          applyMapBearing();
+        } else {
+          resetMapBearing();
+        }
+      }
+
     });
   </script>
 </body>
