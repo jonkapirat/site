@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>GPX Orion</title>
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Leaflet + Draw CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css">
+
+  <style>
+    body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; }
+    #map { height: 100vh; width: 100vw; background: #fff; }
+
+    /* Distans + export “pill” */
+    #info-panel { position: absolute; top: 10px; left: 56px; }
+    .leaflet-control-container .leaflet-draw {
+      box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    }
+
+    /* GPX-verktygsrad */
+    .gpx-toolbar.leaflet-draw-toolbar.leaflet-bar { margin-top: 4px; }
+
+    /* Panel för fördefinierade spår – positioneras bredvid TRK i JS */
+    .gpx-list-panel {
+      position: absolute; /* top/left sätts dynamiskt */
+      z-index: 1000;
+      background: #fff;
+      border-radius: 0.25rem;
+      box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -2px rgb(0 0 0 / 0.1);
+      width: 240px;
+      overflow: hidden;
+      display: none;
+    }
+    .gpx-list-panel.open { display: block; }
+    .gpx-list-item { padding: 8px 10px; cursor: pointer; }
+    .gpx-list-item:hover { background: #f3f4f6; }
+
+    /* Våra textknappar exakt som Leaflet-knappar (fyrkantiga) */
+    .leaflet-draw-toolbar .gpx-btn {
+      width: 30px; height: 30px;
+      display: flex; align-items: center; justify-content: center;
+      background-color: #fff;
+      border: 1px solid #ccc;
+      border-bottom: none;
+      color: #464646;
+      font-size: 10px; font-weight: 400;
+      line-height: 30px; text-decoration: none; cursor: pointer; box-sizing: border-box;
+      background-image: none !important; /* stäng av spriten */
+    }
+    .leaflet-draw-toolbar .gpx-btn:last-of-type { border-bottom: 1px solid #ccc; }
+    .leaflet-draw-toolbar .gpx-btn:hover { background-color: #f4f4f4; }
+  </style>
+</head>
+<body>
+
+  <div id="map"></div>
+
+  <!-- Distans + Export -->
+  <div id="info-panel" class="z-[1000]">
+    <div class="flex items-center gap-3 bg-white/95 backdrop-blur px-4 py-2 rounded-full shadow">
+      <span class="text-sm text-red-600 font-bold" id="distance-output">0.00 km</span>
+      <button id="export-btn" disabled
+        class="px-4 py-1.5 rounded-full text-sm font-semibold text-white bg-black disabled:opacity-50 disabled:cursor-not-allowed">
+        Export
+      </button>
+    </div>
+  </div>
+
+  <!-- Fördefinierade spår (placeras bredvid TRK-knappen i JS) -->
+  <div id="gpxListPanel" class="gpx-list-panel">
+    <div class="px-3 py-2 text-sm font-semibold border-b border-gray-200">Fördefinierade spår</div>
+    <div id="gpxList" class="max-h-72 overflow-auto"></div>
+    <div id="gpxListEmpty" class="p-3 text-xs text-gray-500 hidden">
+      Hittade inga spår. Säkerställ att <code>gpx-tracks/manifest.json</code> finns.
+    </div>
+  </div>
+
+  <!-- Libs -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet-gpx/1.7.0/gpx.min.js"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function () {
+      const MAX_ZOOM = 17;
+      const START = { lat: 56.15666, lng: 15.84580, zoom: 15 };
+
+      // Baslager
+      const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        noWrap: true, maxZoom: MAX_ZOOM, attribution: '© OpenStreetMap-bidragsgivare'
+      });
+      const esriSat = L.tileLayer(
+        'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+        { noWrap: true, maxZoom: MAX_ZOOM, attribution: 'Imagery © Esri, Maxar, Earthstar Geographics' }
+      );
+      const orionOverlay = L.tileLayer(
+        'https://okorion.com/maptiles/orienteering/wgs84/{z}/{x}/{y}.png',
+        { noWrap: true, maxZoom: MAX_ZOOM, attribution: '© OK Orion', opacity: 1.0 }
+      );
+
+      const map = L.map('map', { center: [START.lat, START.lng], zoom: START.zoom, layers: [osm, orionOverlay] });
+
+      L.control.layers(
+        { 'OpenStreetMap (bas)': osm, 'Satellit (Esri World Imagery)': esriSat },
+        { 'OK Orion (överlagrat)': orionOverlay },
+        { position: 'topright' }
+      ).addTo(map);
+
+      // Ritverktyg
+      const drawnItems = new L.FeatureGroup();
+      map.addLayer(drawnItems);
+      const drawControl = new L.Control.Draw({
+        position: 'topleft',
+        edit: { featureGroup: drawnItems, remove: true, poly: { allowIntersection: false } },
+        draw: { polyline: { shapeOptions: { color: '#dc2626', weight: 6, opacity: 0.9 } },
+                polygon: false, rectangle: false, circle: false, marker: false, circlemarker: false }
+      });
+      map.addControl(drawControl);
+
+      // Variabler
+      let drawnRouteLayer = null;
+      let gpxTrackLayer = null;
+
+      // GPX-kontroll (Open / TRK / Trash)
+      let trkButtonRef = null; // referens till TRK-knappen för panelposition
+
+      const GPXControl = L.Control.extend({
+        options: { position: 'topleft' },
+        onAdd: function () {
+          const toolbar = L.DomUtil.create('div', 'gpx-toolbar leaflet-draw-toolbar leaflet-bar');
+          L.DomEvent.disableClickPropagation(toolbar);
+
+          // Open
+          const openA = L.DomUtil.create('a', 'gpx-btn', toolbar);
+          openA.textContent = 'Open';
+          const fileInput = L.DomUtil.create('input', '', toolbar);
+          fileInput.type = 'file';
+          fileInput.accept = '.gpx,application/gpx+xml,application/xml,text/xml';
+          fileInput.style.display = 'none';
+          openA.onclick = (e) => { e.preventDefault(); fileInput.click(); };
+          fileInput.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (evt) => { loadGPXFromText(evt.target.result, file.name); };
+            reader.readAsText(file);
+          };
+
+          // TRK
+          const listA = L.DomUtil.create('a', 'gpx-btn', toolbar);
+          listA.textContent = 'TRKs';
+          listA.onclick = (e) => { e.preventDefault(); toggleListPanel(listA); };
+          trkButtonRef = listA;
+
+          // Trash
+          const clearA = L.DomUtil.create('a', 'leaflet-draw-edit-remove', toolbar);
+          clearA.title = 'Rensa GPX';
+          clearA.onclick = (e) => { e.preventDefault(); clearGpxTrack(); };
+
+          return toolbar;
+        }
+      });
+      map.addControl(new GPXControl());
+
+      // Distans + export
+      const distanceOutput = document.getElementById('distance-output');
+      const exportBtn = document.getElementById('export-btn');
+
+      function setDistanceKm(km) {
+        distanceOutput.textContent = `${km.toFixed(2)} km`;
+      }
+      function computeLengthKmFromLatLngs(latlngs) {
+        if (!latlngs || latlngs.length < 2) return 0;
+        const line = L.polyline(latlngs).toGeoJSON();
+        return turf.length(line, { units: 'kilometers' });
+      }
+      function updateExportState() {
+        const ok = !!(drawnRouteLayer && drawnRouteLayer.getLatLngs().length >= 2);
+        exportBtn.disabled = !ok;
+        exportBtn.onclick = ok ? () => exportToGPX(drawnRouteLayer.getLatLngs()) : null;
+      }
+
+      // LIVE: starta ritning
+      map.on(L.Draw.Event.DRAWSTART, (e) => {
+        if (e.layerType === 'polyline') {
+          setDistanceKm(0);
+          // under ritning ska export vara av tills rutten slutförts
+          exportBtn.disabled = true;
+          exportBtn.onclick = null;
+        }
+      });
+
+      // LIVE: varje ny vertex (Leaflet.Draw 1.0.4)
+      map.on(L.Draw.Event.DRAWVERTEX, (e) => {
+        const latlngs = [];
+        e.layers.eachLayer((marker) => latlngs.push(marker.getLatLng()));
+        setDistanceKm(computeLengthKmFromLatLngs(latlngs));
+      });
+
+      // När en ny rutt färdigställs
+      map.on(L.Draw.Event.CREATED, (e) => {
+        if (e.layerType === 'polyline') {
+          if (drawnRouteLayer) drawnItems.removeLayer(drawnRouteLayer);
+          drawnRouteLayer = e.layer;
+          drawnItems.addLayer(drawnRouteLayer);
+          setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs()));
+          updateExportState();
+        }
+      });
+
+      // Redigerings-live (vertex flytt/tillägg/borttag)
+      map.on(L.Draw.Event.EDITVERTEX, () => {
+        if (drawnRouteLayer) {
+          setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs()));
+          updateExportState();
+        }
+      });
+      map.on(L.Draw.Event.EDITED, () => {
+        if (drawnRouteLayer) {
+          setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs()));
+          updateExportState();
+        }
+      });
+
+      // ===== Export: korrekt GPX 1.1 med RTE + TRK =====
+      function exportToGPX(latlngs) {
+        if (!latlngs || latlngs.length < 2) return;
+
+        const now = new Date();
+        const isoNow = now.toISOString().split('.')[0] + 'Z';
+        const routeName =
+          `Rutt_${new Date().toLocaleDateString('sv-SE')}_` +
+          new Date().toLocaleTimeString('sv-SE', { hour12: false }).replace(/:/g, '-');
+
+        let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1"
+     creator="Ruttplan"
+     xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+     xsi:schemaLocation="http://www.topografix.com/GPX/1/1
+                         http://www.topografix.com/GPX/1/1/gpx.xsd">
+  <metadata>
+    <name>${routeName}</name>
+    <time>${isoNow}</time>
+  </metadata>
+
+  <rte>
+    <name>${routeName}</name>
+    <time>${isoNow}</time>`;
+
+        latlngs.forEach((p, i) => {
+          gpx += `
+    <rtept lat="${p.lat.toFixed(6)}" lon="${p.lng.toFixed(6)}">
+      <name>P${i + 1}</name>
+    </rtept>`;
+        });
+
+        gpx += `
+  </rte>
+
+  <trk>
+    <name>${routeName}</name>
+    <trkseg>`;
+
+        latlngs.forEach((p, i) => {
+          const t = new Date(now.getTime() + i * 1000).toISOString().split('.')[0] + 'Z';
+          gpx += `
+      <trkpt lat="${p.lat.toFixed(6)}" lon="${p.lng.toFixed(6)}">
+        <time>${t}</time>
+      </trkpt>`;
+        });
+
+        gpx += `
+    </trkseg>
+  </trk>
+</gpx>`;
+
+        const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = routeName.replace(/ /g, '_') + '.gpx';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }
+
+      function attachGPXLayer(layer) {
+        if (gpxTrackLayer) map.removeLayer(gpxTrackLayer);
+        gpxTrackLayer = layer.addTo(map);
+        layer.on('loaded', e => {
+          map.fitBounds(e.target.getBounds());
+          const len = turf.length(e.target.toGeoJSON(), { units: 'kilometers' });
+          setDistanceKm(len);
+        });
+      }
+      function loadGPXFromText(text) { attachGPXLayer(new L.GPX(text, { async: true })); }
+      function loadGPXFromURL(url) { attachGPXLayer(new L.GPX(url, { async: true })); }
+      function clearGpxTrack() {
+        if (gpxTrackLayer) map.removeLayer(gpxTrackLayer);
+        gpxTrackLayer = null;
+        // Om ingen ritad rutt finns, nollställ
+        if (!drawnRouteLayer) setDistanceKm(0);
+        updateExportState();
+      }
+
+      // ===== Fördefinierade GPX-listan =====
+      const panel = document.getElementById('gpxListPanel');
+      const listEl = document.getElementById('gpxList');
+      const emptyEl = document.getElementById('gpxListEmpty');
+      let loaded = false;
+      let outsideClickHandler = null;
+
+      function toggleListPanel(anchorEl) {
+        if (panel.classList.contains('open')) { closeListPanel(); return; }
+        positionPanelNextTo(anchorEl);
+        if (!loaded) loadTracksList();
+        panel.classList.add('open');
+        outsideClickHandler = (ev) => {
+          if (panel.contains(ev.target) || (anchorEl && anchorEl.contains(ev.target))) return;
+          closeListPanel();
+        };
+        document.addEventListener('click', outsideClickHandler);
+      }
+      function closeListPanel() {
+        panel.classList.remove('open');
+        if (outsideClickHandler) {
+          document.removeEventListener('click', outsideClickHandler);
+          outsideClickHandler = null;
+        }
+      }
+      function positionPanelNextTo(anchorEl) {
+        if (!anchorEl) return;
+        const mapRect = map.getContainer().getBoundingClientRect();
+        const r = anchorEl.getBoundingClientRect();
+        const top = r.top - mapRect.top;
+        const left = r.right - mapRect.left + 8; // 8px luft
+        panel.style.top = `${top}px`;
+        panel.style.left = `${left}px`;
+      }
+
+      async function loadTracksList() {
+        loaded = true;
+        listEl.innerHTML = '';
+        emptyEl.classList.add('hidden');
+        try {
+          const res = await fetch('gpx-tracks/manifest.json');
+          const files = await res.json();
+          if (!Array.isArray(files) || files.length === 0) {
+            emptyEl.classList.remove('hidden');
+            return;
+          }
+          for (const file of files) {
+            const url = `gpx-tracks/${file}`;
+            const item = document.createElement('div');
+            item.className = 'gpx-list-item';
+            item.textContent = file;
+            item.onclick = () => { loadGPXFromURL(url); closeListPanel(); };
+            listEl.appendChild(item);
+          }
+        } catch {
+          emptyEl.classList.remove('hidden');
+        }
+      }
+      window.addEventListener('resize', () => {
+        if (panel.classList.contains('open') && trkButtonRef) positionPanelNextTo(trkButtonRef);
+      });
+
+      // Init
+      updateExportState();
+    });
+  </script>
+</body>
+</html>
