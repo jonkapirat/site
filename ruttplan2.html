@@ -64,7 +64,7 @@
     .gps-active { outline: 2px solid #60a5fa; outline-offset: -1px; }
     .cmp-active { outline: 2px solid #34d399; outline-offset: -1px; }
 
-    /* Positionsmarkör: blå punkt + tydlig pil (SVG) */
+    /* Positionsmarkör: blå punkt + tydlig pil + fan (SVG) */
     .heading-marker { position: relative; width: 28px; height: 28px; }
     .heading-marker .dot {
       width: 12px; height: 12px;
@@ -73,17 +73,16 @@
       border-radius: 50%;
       position: absolute; top: 8px; left: 8px;
       box-shadow: 0 0 4px rgba(0,0,0,0.25);
+      z-index: 2;
     }
     .heading-marker .arrow-wrap {
       position: absolute; top: -2px; left: -2px; /* centrera SVG relativt punkten */
       width: 32px; height: 32px;
       transform-origin: 50% 50%;
       transition: transform 40ms linear;
+      z-index: 1;
     }
-    .heading-marker .arrow-svg {
-      width: 32px; height: 32px;
-      display: block;
-    }
+    .heading-marker .arrow-svg { width: 32px; height: 32px; display: block; }
     .heading-unknown .arrow-wrap { opacity: 0.45; } /* svagare när vi inte har heading */
 
     /* Rotationsstöd: rotera bara tiles och overlay (linjer, polygoner). */
@@ -128,6 +127,13 @@
     document.addEventListener('DOMContentLoaded', function () {
       const MAX_ZOOM = 17;
       const START = { lat: 56.15666, lng: 15.84580, zoom: 15 };
+
+      // === Konfig för heading-fan ===
+      const DEFAULT_FAN_DEG = 60;   // standardbredd (Android/desktop)
+      const MIN_FAN_DEG = 20;       // lägsta tillåtna bredd
+      const MAX_FAN_DEG = 120;      // högsta tillåtna bredd
+      const FAN_FILL = '#3b82f6';   // blå (samma som dot)
+      const FAN_OPACITY = 0.18;
 
       // Baslager
       const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -424,29 +430,33 @@
       let watchId = null;
       let following = false;
       let headingDeg = null;
+      let headingAccuracyDeg = null; // iOS: webkitCompassAccuracy
       let orientationActive = false;
 
-      // Kompassläge (kartrotation)
+      // Kompassläge (kartarotation)
       let compassMode = false;
 
-      // Position marker & accuracy
-      const headingIcon = L.divIcon({
-        className: 'heading-marker heading-unknown', // unknown tills vi har heading
-        html: `
-          <div class="arrow-wrap">
-            <!-- Tydlig pil (SVG) pekar uppåt i utgångsläget -->
-            <svg class="arrow-svg" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
-              <!-- skugga -->
-              <path d="M32 6 L42 28 L34 24 L34 56 L30 56 L30 24 L22 28 Z" fill="rgba(0,0,0,0.25)"/>
-              <!-- pil -->
-              <path d="M32 6 L42 28 L34 24 L34 56 L30 56 L30 24 L22 28 Z" fill="#111827"/>
-            </svg>
-          </div>
-          <div class="dot"></div>
-        `,
-        iconSize: [28,28],
-        iconAnchor: [14,14]
-      });
+      // ======= Marker + fan =======
+      function makeHeadingIcon() {
+        return L.divIcon({
+          className: 'heading-marker heading-unknown', // unknown tills vi har heading
+          html: `
+            <div class="arrow-wrap">
+              <svg class="arrow-svg" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+                <!-- FAN: path sätts i JS via updateFan() -->
+                <path class="fan" fill="${FAN_FILL}" fill-opacity="${FAN_OPACITY}" d="" />
+                <!-- skugga pil -->
+                <path d="M32 6 L42 28 L34 24 L34 56 L30 56 L30 24 L22 28 Z" fill="rgba(0,0,0,0.25)"/>
+                <!-- pil -->
+                <path d="M32 6 L42 28 L34 24 L34 56 L30 56 L30 24 L22 28 Z" fill="#111827"/>
+              </svg>
+            </div>
+            <div class="dot"></div>
+          `,
+          iconSize: [28,28],
+          iconAnchor: [14,14]
+        });
+      }
       let posMarker = null;
       let accCircle = null;
 
@@ -458,7 +468,6 @@
           ensureOrientation(); // be om kompass om möjligt
         } else {
           stopGeolocation();
-          // behåll orientering om kompassläget är aktivt; annars stäng ned
           if (!compassMode) disableOrientation();
         }
       }
@@ -482,7 +491,7 @@
         const ll = [latitude, longitude];
 
         if (!posMarker) {
-          posMarker = L.marker(ll, { icon: headingIcon, interactive: false }).addTo(map);
+          posMarker = L.marker(ll, { icon: makeHeadingIcon(), interactive: false }).addTo(map);
         } else {
           posMarker.setLatLng(ll);
         }
@@ -492,7 +501,7 @@
           accCircle.setLatLng(ll).setRadius(accuracy);
         }
 
-        // rotera pilen
+        // uppdatera pil + fan
         updateMarkerHeading();
 
         // följ position
@@ -516,14 +525,8 @@
         if (orientationActive) return;
         orientationActive = true;
 
-        // iOS/Safari: webkitCompassHeading (0..360, medurs från norr)
         window.addEventListener('deviceorientation', onOrientation, true);
-        // vissa Android/Chrome-versioner skickar separat “absolute”
         window.addEventListener('deviceorientationabsolute', onOrientation, true);
-      }
-      function disableOrientation() {
-        orientationActive = false;
-        // (låter lyssnarna vara kvar; kostnaden är låg och vissa browsers slutar ändå sända)
       }
 
       function onOrientation(e) {
@@ -531,15 +534,18 @@
           ? screen.orientation.angle : 0;
 
         if (typeof e.webkitCompassHeading === 'number') {
-          // iOS: redan i grader (0=norr, medurs)
+          // iOS: heading + accuracy
           headingDeg = normalizeDeg(e.webkitCompassHeading);
+          headingAccuracyDeg = (typeof e.webkitCompassAccuracy === 'number' && isFinite(e.webkitCompassAccuracy))
+              ? Math.max(0, Math.min(180, e.webkitCompassAccuracy))
+              : null;
         } else if (typeof e.alpha === 'number') {
-          // Android/Chrome m.fl.: alpha 0..360 (0=norr). Vi inverterar för att matcha “kompass-bäring”
-          // och kompenserar skärmvinkel.
+          // Android/Chrome m.fl.
           const alpha = e.alpha; // [0..360)
-          let h = 360 - alpha;               // gör 0=norr, medurs
-          h = h - screenAngle;               // kompensera för device-rotation (portrait/landscape)
+          let h = 360 - alpha;  // gör 0=norr, medurs
+          h = h - screenAngle;  // kompensera för device-rotation (portrait/landscape)
           headingDeg = normalizeDeg(h);
+          headingAccuracyDeg = null; // ingen bra källa här
         } else {
           headingDeg = null;
         }
@@ -548,18 +554,57 @@
         if (compassMode) applyMapBearing();
       }
 
-      function normalizeDeg(a) {
-        a = a % 360;
-        if (a < 0) a += 360;
-        return a;
+      function disableOrientation() {
+        orientationActive = false;
+        // lyssnarna får vara kvar; kostnad låg
+      }
+
+      function normalizeDeg(a) { a = a % 360; if (a < 0) a += 360; return a; }
+
+      // === Fan-path beräkning ===
+      // Ritar en sektor centrerad runt "upp" (–90° i SVG-värld), bredd = fanDeg
+      function fanPathD(fanDeg) {
+        const cx = 32, cy = 32, r = 28; // center + radie i 64x64 viewBox
+        const half = fanDeg / 2;
+        const start = (-90 - half) * Math.PI / 180;
+        const end   = (-90 + half) * Math.PI / 180;
+
+        const x1 = cx + r * Math.cos(start);
+        const y1 = cy + r * Math.sin(start);
+        const x2 = cx + r * Math.cos(end);
+        const y2 = cy + r * Math.sin(end);
+
+        const largeArc = (fanDeg > 180) ? 1 : 0;
+
+        // Rikta från start -> end (medurs i SVG-koordinater)
+        return [
+          `M ${cx} ${cy}`,
+          `L ${x1.toFixed(2)} ${y1.toFixed(2)}`,
+          `A ${r} ${r} 0 ${largeArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`,
+          'Z'
+        ].join(' ');
+      }
+
+      function currentFanDeg() {
+        if (headingAccuracyDeg != null) {
+          // mappa accuracy (±x°) -> visuell sektorsbredd ~ 2*accuracy, clampad
+          const guess = Math.max(MIN_FAN_DEG, Math.min(MAX_FAN_DEG, headingAccuracyDeg * 2));
+          return guess;
         }
+        return DEFAULT_FAN_DEG;
+      }
 
       function updateMarkerHeading() {
         if (!posMarker) return;
         const el = posMarker.getElement();
         if (!el) return;
         const wrap = el.querySelector('.arrow-wrap');
-        if (!wrap) return;
+        const fanPath = el.querySelector('.fan');
+        if (!wrap || !fanPath) return;
+
+        // uppdatera fanets form (bredd)
+        const fanDeg = currentFanDeg();
+        fanPath.setAttribute('d', fanPathD(fanDeg));
 
         if (headingDeg == null) {
           el.classList.add('heading-unknown');
@@ -588,15 +633,8 @@
       function toggleCompass(btn) {
         compassMode = !compassMode;
         btn.classList.toggle('cmp-active', compassMode);
-
-        // säkerställ att orientation är aktiv (be om tillstånd vid behov)
         if (compassMode && !orientationActive) ensureOrientation();
-
-        if (compassMode) {
-          applyMapBearing();
-        } else {
-          resetMapBearing();
-        }
+        if (compassMode) applyMapBearing(); else resetMapBearing();
       }
 
       // ===== Init =====
