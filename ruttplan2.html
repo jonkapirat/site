@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>GPX Orion</title>
+  <title>Kartläggare med GPX-export + GPS</title>
 
   <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -41,7 +41,8 @@
     .gpx-list-item:hover { background: #f3f4f6; }
 
     /* Våra textknappar exakt som Leaflet-knappar (fyrkantiga) */
-    .leaflet-draw-toolbar .gpx-btn {
+    .leaflet-draw-toolbar .gpx-btn,
+    .leaflet-draw-toolbar .gps-btn {
       width: 30px; height: 30px;
       display: flex; align-items: center; justify-content: center;
       background-color: #fff;
@@ -50,10 +51,38 @@
       color: #464646;
       font-size: 10px; font-weight: 400;
       line-height: 30px; text-decoration: none; cursor: pointer; box-sizing: border-box;
-      background-image: none !important; /* stäng av spriten */
+      background-image: none !important;
     }
-    .leaflet-draw-toolbar .gpx-btn:last-of-type { border-bottom: 1px solid #ccc; }
-    .leaflet-draw-toolbar .gpx-btn:hover { background-color: #f4f4f4; }
+    .leaflet-draw-toolbar .gpx-btn:last-of-type,
+    .leaflet-draw-toolbar .gps-btn:last-of-type { border-bottom: 1px solid #ccc; }
+    .leaflet-draw-toolbar .gpx-btn:hover,
+    .leaflet-draw-toolbar .gps-btn:hover { background-color: #f4f4f4; }
+
+    /* Positionsmarkör (blå punkt + pil) */
+    .heading-marker {
+      position: relative;
+      width: 24px; height: 24px;
+    }
+    .heading-marker .dot {
+      width: 12px; height: 12px;
+      background: #3b82f6; /* blå */
+      border: 2px solid #fff;
+      border-radius: 50%;
+      position: absolute; top: 6px; left: 6px;
+      box-shadow: 0 0 4px rgba(0,0,0,0.25);
+    }
+    .heading-marker .arrow {
+      position: absolute; top: -3px; left: 10px;
+      width: 0; height: 0;
+      border-left: 2px solid transparent;
+      border-right: 2px solid transparent;
+      border-bottom: 6px solid #1f2937; /* mörk pilspets */
+      transform-origin: 50% 15px; /* runt punkten */
+    }
+    .gps-active {
+      outline: 2px solid #60a5fa;
+      outline-offset: -1px;
+    }
   </style>
 </head>
 <body>
@@ -154,7 +183,7 @@
 
           // TRK
           const listA = L.DomUtil.create('a', 'gpx-btn', toolbar);
-          listA.textContent = 'TRKs';
+          listA.textContent = 'TRK';
           listA.onclick = (e) => { e.preventDefault(); toggleListPanel(listA); };
           trkButtonRef = listA;
 
@@ -168,13 +197,26 @@
       });
       map.addControl(new GPXControl());
 
-      // Distans + export
+      // ===== GPS/Heading: kontrollknapp =====
+      const LocateControl = L.Control.extend({
+        options: { position: 'topleft' },
+        onAdd: function () {
+          const div = L.DomUtil.create('div', 'leaflet-draw-toolbar leaflet-bar');
+          const btn = L.DomUtil.create('a', 'gps-btn', div);
+          btn.textContent = 'GPS';
+          btn.href = '#';
+          btn.title = 'Följ min position';
+          btn.onclick = (e) => { e.preventDefault(); toggleGPS(btn); };
+          return div;
+        }
+      });
+      map.addControl(new LocateControl());
+
+      // ===== Distans + export =====
       const distanceOutput = document.getElementById('distance-output');
       const exportBtn = document.getElementById('export-btn');
 
-      function setDistanceKm(km) {
-        distanceOutput.textContent = `${km.toFixed(2)} km`;
-      }
+      function setDistanceKm(km) { distanceOutput.textContent = `${km.toFixed(2)} km`; }
       function computeLengthKmFromLatLngs(latlngs) {
         if (!latlngs || latlngs.length < 2) return 0;
         const line = L.polyline(latlngs).toGeoJSON();
@@ -186,49 +228,30 @@
         exportBtn.onclick = ok ? () => exportToGPX(drawnRouteLayer.getLatLngs()) : null;
       }
 
-      // LIVE: starta ritning
       map.on(L.Draw.Event.DRAWSTART, (e) => {
-        if (e.layerType === 'polyline') {
-          setDistanceKm(0);
-          // under ritning ska export vara av tills rutten slutförts
-          exportBtn.disabled = true;
-          exportBtn.onclick = null;
-        }
+        if (e.layerType === 'polyline') { setDistanceKm(0); exportBtn.disabled = true; exportBtn.onclick = null; }
       });
-
-      // LIVE: varje ny vertex (Leaflet.Draw 1.0.4)
       map.on(L.Draw.Event.DRAWVERTEX, (e) => {
         const latlngs = [];
-        e.layers.eachLayer((marker) => latlngs.push(marker.getLatLng()));
+        e.layers.eachLayer((m) => latlngs.push(m.getLatLng()));
         setDistanceKm(computeLengthKmFromLatLngs(latlngs));
       });
-
-      // När en ny rutt färdigställs
       map.on(L.Draw.Event.CREATED, (e) => {
         if (e.layerType === 'polyline') {
           if (drawnRouteLayer) drawnItems.removeLayer(drawnRouteLayer);
-          drawnRouteLayer = e.layer;
-          drawnItems.addLayer(drawnRouteLayer);
+          drawnRouteLayer = e.layer; drawnItems.addLayer(drawnRouteLayer);
           setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs()));
           updateExportState();
         }
       });
-
-      // Redigerings-live (vertex flytt/tillägg/borttag)
       map.on(L.Draw.Event.EDITVERTEX, () => {
-        if (drawnRouteLayer) {
-          setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs()));
-          updateExportState();
-        }
+        if (drawnRouteLayer) { setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs())); updateExportState(); }
       });
       map.on(L.Draw.Event.EDITED, () => {
-        if (drawnRouteLayer) {
-          setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs()));
-          updateExportState();
-        }
+        if (drawnRouteLayer) { setDistanceKm(computeLengthKmFromLatLngs(drawnRouteLayer.getLatLngs())); updateExportState(); }
       });
 
-      // ===== Export: korrekt GPX 1.1 med RTE + TRK =====
+      // ===== Export: korrekt GPX 1.1 (RTE + TRK) =====
       function exportToGPX(latlngs) {
         if (!latlngs || latlngs.length < 2) return;
 
@@ -306,7 +329,6 @@
       function clearGpxTrack() {
         if (gpxTrackLayer) map.removeLayer(gpxTrackLayer);
         gpxTrackLayer = null;
-        // Om ingen ritad rutt finns, nollställ
         if (!drawnRouteLayer) setDistanceKm(0);
         updateExportState();
       }
@@ -345,7 +367,6 @@
         panel.style.top = `${top}px`;
         panel.style.left = `${left}px`;
       }
-
       async function loadTracksList() {
         loaded = true;
         listEl.innerHTML = '';
@@ -373,8 +394,126 @@
         if (panel.classList.contains('open') && trkButtonRef) positionPanelNextTo(trkButtonRef);
       });
 
-      // Init
-      updateExportState();
+      // =======================
+      // ===== GPS & Heading ===
+      // =======================
+      let watchId = null;
+      let following = false;
+      let headingDeg = null;
+      let orientationActive = false;
+
+      // Position marker & accuracy
+      const headingIcon = L.divIcon({
+        className: 'heading-marker',
+        html: '<div class="arrow"></div><div class="dot"></div>',
+        iconSize: [24,24],
+        iconAnchor: [12,12]
+      });
+      let posMarker = null;
+      let accCircle = null;
+
+      function toggleGPS(btn) {
+        following = !following;
+        btn.classList.toggle('gps-active', following);
+        if (following) {
+          startGeolocation();
+          enableOrientation(); // be om kompass om möjligt
+        } else {
+          stopGeolocation();
+          disableOrientation();
+        }
+      }
+
+      function startGeolocation() {
+        if (!navigator.geolocation) return alert('Geolocation stöds inte i denna webbläsare.');
+        watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0
+        });
+      }
+      function stopGeolocation() {
+        if (watchId !== null) {
+          navigator.geolocation.clearWatch(watchId);
+          watchId = null;
+        }
+      }
+      function onPosition(pos) {
+        const { latitude, longitude, accuracy } = pos.coords;
+        const ll = [latitude, longitude];
+
+        if (!posMarker) {
+          posMarker = L.marker(ll, { icon: headingIcon, interactive: false }).addTo(map);
+        } else {
+          posMarker.setLatLng(ll);
+        }
+        if (!accCircle) {
+          accCircle = L.circle(ll, { radius: accuracy, color: '#3b82f6', weight: 1, fillColor: '#60a5fa', fillOpacity: 0.15, interactive: false }).addTo(map);
+        } else {
+          accCircle.setLatLng(ll).setRadius(accuracy);
+        }
+
+        // rotera pilen om heading finns
+        updateMarkerHeading();
+
+        // följ
+        if (following) map.setView(ll, Math.max(map.getZoom(), 15), { animate: true });
+      }
+      function onPositionError(err) {
+        console.warn('Geolocation error:', err);
+      }
+
+      function enableOrientation() {
+        // iOS kräver uttrycklig permission via användargest
+        const needIOSPermission = typeof DeviceOrientationEvent !== 'undefined' &&
+                                  typeof DeviceOrientationEvent.requestPermission === 'function';
+        if (needIOSPermission) {
+          DeviceOrientationEvent.requestPermission().then(state => {
+            if (state === 'granted') hookOrientation();
+          }).catch(() => {/* ignorerad */});
+        } else {
+          hookOrientation();
+        }
+      }
+      function hookOrientation() {
+        if (orientationActive) return;
+        orientationActive = true;
+
+        // iOS Safari: webkitCompassHeading (0=norr, medurs)
+        window.addEventListener('deviceorientation', (e) => {
+          if (typeof e.webkitCompassHeading === 'number') {
+            headingDeg = e.webkitCompassHeading; // iOS
+          } else if (e.absolute && typeof e.alpha === 'number') {
+            // Android/Chrome: alpha = rotation runt Z-axeln (0=norr)
+            // Justera med skärmens orientering
+            const screenAngle = (screen.orientation && screen.orientation.angle) ? screen.orientation.angle : 0;
+            headingDeg = (360 - (e.alpha + screenAngle)) % 360;
+          } else {
+            headingDeg = null;
+          }
+          updateMarkerHeading();
+        });
+      }
+      function disableOrientation() {
+        orientationActive = false;
+        headingDeg = null;
+        // (vi låter eventlyssnaren vara kvar – har obetydlig kostnad)
+        updateMarkerHeading();
+      }
+      function updateMarkerHeading() {
+        if (!posMarker) return;
+        const el = posMarker.getElement();
+        if (!el) return;
+        const arrow = el.querySelector('.arrow');
+        if (!arrow) return;
+        if (headingDeg == null) {
+          arrow.style.transform = 'rotate(0deg)'; // neutralt
+          arrow.style.opacity = '0.6';
+        } else {
+          arrow.style.transform = `rotate(${headingDeg}deg)`;
+          arrow.style.opacity = '1';
+        }
+      }
     });
   </script>
 </body>
