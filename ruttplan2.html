@@ -441,16 +441,22 @@
 
     // --- ROT (track-up) ---
     btnROT.onclick = () => {
-      rotOn = !rotOn;
-      btnROT.classList.toggle('rot-active', rotOn);
-      if (rotOn) {
-        ensureOrientation();
-      } else {
-        // återställ bearing
-        map.easeTo({ bearing: 0, duration: 300 });
-        if (!followOn) disableOrientation();
-      }
-    };
+  rotOn = !rotOn;
+  btnROT.classList.toggle('rot-active', rotOn);
+
+  if (rotOn) {
+    ensureOrientation(); // starta (eller tillåt) heading
+    // centrera omedelbart om du följer position:
+    // if (lastLL) map.jumpTo({ center: lastLL, zoom: Math.max(map.getZoom(), 15) });
+    scheduleBearingUpdate(); // börja loopa mot desiredBearing
+  } else {
+    desiredBearing = 0;
+    scheduleBearingUpdate(); // loopa snabbt tillbaka till norr
+    // stoppa orientation om inte GPS-följ är på
+    if (!followOn) disableOrientation();
+  }
+};
+
 
     function ensureOrientation() {
       const needIOS = typeof DeviceOrientationEvent !== 'undefined' &&
@@ -471,26 +477,64 @@
     function disableOrientation() { orientationOn = false; /* lämnar listeners, låg kostnad */ }
 
     function onOrientation(e) {
-      // Heading i grader 0..360 (0=norr). iOS: webkitCompassHeading; Android: alpha (0=norr med rotering behövd)
-      let heading = null;
-      const screenAngle = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : 0;
+  const screenAngle =
+    (screen.orientation && typeof screen.orientation.angle === 'number')
+      ? screen.orientation.angle
+      : 0;
 
-      if (typeof e.webkitCompassHeading === 'number') {
-        heading = e.webkitCompassHeading; // iOS: redan 0=norr, medurs
-      } else if (typeof e.alpha === 'number') {
-        let h = 360 - e.alpha;  // gör 0=norr, medurs
-        h = h - screenAngle;    // kompensera skärmens rotation
-        heading = (h % 360 + 360) % 360;
-      }
+  let heading = null;
 
-      if (heading == null) return;
-      currentHeading = heading;
+  if (typeof e.webkitCompassHeading === 'number') {
+    // iOS ger redan 0 = norr, medurs. Behöver oftast INTE inverteras.
+    heading = e.webkitCompassHeading;
+  } else if (typeof e.alpha === 'number') {
+    // På många Androids är 0 = norr, ökar medurs.
+    // Tidigare använde vi (360 - e.alpha - screenAngle) vilket vänder hållet.
+    // Testa i stället *med* alpha och *plus* skärmvinkeln:
+    let h = e.alpha + screenAngle;
+    heading = (h % 360 + 360) % 360;
+  }
 
-      if (rotOn) {
-        // “track-up”: kartan roteras motsols så att “upp” = heading
-        map.setBearing(-currentHeading);
-      }
-    }
+  if (heading == null) return;
+
+  // Track-up: vi vill att kartan har bearing = heading (inte -heading).
+  // Om det ändå blir “bakvänt” på just din telefon: byt till desiredBearing = -heading;
+  desiredBearing = heading;
+  scheduleBearingUpdate();
+}
+let desiredBearing = 0;
+let rafId = 0;
+
+// kortaste vinkelväg mellan a och b (grader)
+function shortestDelta(a, b) {
+  let d = (b - a + 540) % 360 - 180;
+  return d;
+}
+
+// rAF-loop som rör bearing mot desired i små steg
+function scheduleBearingUpdate() {
+  if (rafId) return;
+  rafId = requestAnimationFrame(applyBearingStep);
+}
+
+function applyBearingStep() {
+  rafId = 0;
+  const current = map.getBearing();
+  const delta = shortestDelta(current, desiredBearing);
+
+  // Inga uppdateringar om vi redan är nära (minskar “flimmer”)
+  if (Math.abs(delta) < 0.25) return;
+
+  // Max 3° per frame – mjukt men responsivt
+  const step = Math.sign(delta) * Math.min(Math.abs(delta), 3);
+  const next = current + step;
+
+  // jumpTo är “instantan” utan animering → mindre blink än setBearing/easeTo i loop
+  map.jumpTo({ bearing: next });
+
+  // Fortsätt tills vi är nära
+  rafId = requestAnimationFrame(applyBearingStep);
+}
 
     // --- Visa GPX ---
     function showGpxText(gpxText) {
