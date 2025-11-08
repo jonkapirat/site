@@ -62,6 +62,15 @@
 
     /* hjälp webkit på prestanda vid rotation */
     .leaflet-tile-pane, .leaflet-overlay-pane { will-change: transform; backface-visibility: hidden; }
+
+    /* lägg till detta i <style> */
+.leaflet-tile-pane,
+.leaflet-overlay-pane {
+  transform-origin: 50% 50% !important;  /* rotera runt mitten av vyn */
+  backface-visibility: hidden;
+  will-change: transform;
+}
+
   </style>
 </head>
 <body>
@@ -98,6 +107,9 @@
   document.addEventListener('DOMContentLoaded', function () {
     const MAX_ZOOM = 17;
     const START = { lat: 56.15666, lng: 15.84580, zoom: 15 };
+    
+    const ROT_SCALE = 1.05;  // 5% inzoom "visuellt" för att täcka hörn
+
 
     // === Fan/heading config ===
     const DEFAULT_FAN_DEG = 60, MIN_FAN_DEG = 20, MAX_FAN_DEG = 120;
@@ -349,35 +361,50 @@
     }
 
     // === Pane-rotation utan scale() (stabilt) ===
-    function readPaneRot(){
-      const a = tilePane.getAttribute('data-rot');
-      return a ? parseFloat(a) : 0;
-    }
-    function applyPaneRot(deg){
-      const t = `translateZ(0) rotate(${deg}deg)`;
-      tilePane.style.transform = t;
-      overlayPane.style.transform = t;
-      tilePane.setAttribute('data-rot', String(deg));
-      overlayPane.setAttribute('data-rot', String(deg));
-    }
-    function clearPaneRot(){
-      tilePane.style.transform = ''; overlayPane.style.transform = '';
-      tilePane.removeAttribute('data-rot'); overlayPane.removeAttribute('data-rot');
-    }
+    function readPaneRot() {
+  const a = tilePane.getAttribute('data-rot');
+  return a ? parseFloat(a) : 0;
+}
+
+function applyPaneRot(deg) {
+  const t = `translateZ(0) rotate(${deg}deg) scale(${ROT_SCALE})`;
+  tilePane.style.transform   = t;
+  overlayPane.style.transform = t;
+  tilePane.setAttribute('data-rot', String(deg));
+  overlayPane.setAttribute('data-rot', String(deg));
+}
+
+function clearPaneRot() {
+  tilePane.style.transform = '';
+  overlayPane.style.transform = '';
+  tilePane.removeAttribute('data-rot');
+  overlayPane.removeAttribute('data-rot');
+}
+
 
     function toggleRotator(btn){
-      rotatorOn = !rotatorOn;
-      btn.classList.toggle('rot-active', rotatorOn);
-      if(rotatorOn){
-        ensureOrientation();
-        if(!following){ startGeolocation(); following=true; }
-        if(posMarker) map.setView(posMarker.getLatLng(), map.getZoom(), {animate:false});
-        applyPaneRot(0); queueFrame();
-      } else {
-        clearPaneRot();
-        if(!following) disableOrientation();
-      }
-    }
+  rotatorOn = !rotatorOn;
+  btn.classList.toggle('rot-active', rotatorOn);
+
+  if (rotatorOn) {
+    ensureOrientation();
+    if (!following) { startGeolocation(); following = true; }
+
+    // centrera exakt på din position om den finns, annars på kartans mitt
+    const centerLL = posMarker ? posMarker.getLatLng() : map.getCenter();
+    map.setView(centerLL, map.getZoom(), { animate: false });
+
+    // om viewporten ändrats (mobil UI etc.), låt Leaflet räkna om storleken
+    map.invalidateSize();
+
+    applyPaneRot(0);       // börja från 0°
+    queueFrame();          // trigga första uppdateringen
+  } else {
+    clearPaneRot();
+    if (!following) disableOrientation();
+  }
+}
+
 
   });
   </script>
