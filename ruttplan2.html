@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Kartläggare med GPX + GPS + Kompass (stabil)</title>
+  <title>test</title>
 
   <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -75,13 +75,18 @@
     .heading-marker .arrow-svg { width: 32px; height: 32px; display: block; }
     .heading-unknown .arrow-wrap { opacity: 0.45; }
 
-    /* Pane-transform (Leaflet sätter translate3d; vi adderar rotation/scale ovanpå) */
-    .leaflet-tile-pane,
-    .leaflet-overlay-pane {
+    /* Rotator-wrapper: vi roterar DEN istället för Leaflets egna pane-transformer */
+    .bearing-rotator {
       transform-origin: 50% 50%;
       backface-visibility: hidden;
       will-change: transform;
       contain: paint;
+      pointer-events: none; /* låt events bubbla ner till barnen */
+    }
+    /* men inuti måste panes fortfarande få events */
+    .bearing-rotator > .leaflet-tile-pane,
+    .bearing-rotator > .leaflet-overlay-pane {
+      pointer-events: auto;
     }
   </style>
 </head>
@@ -359,7 +364,9 @@
       if (panel.classList.contains('open') && trkButtonRef) positionPanelNextTo(trkButtonRef);
     });
 
-    /* GPS & heading */
+    /* ======================
+       GPS & heading
+       ====================== */
     let watchId = null, following = false;
     let headingDeg = null, headingAccuracyDeg = null;
     let orientationActive = false, compassMode = false;
@@ -369,21 +376,17 @@
     let needFrame = false;
     let lastAppliedBearing = 0;
 
-    // Pane-ref + bastransformer (Leaflets translate3d)
+    // === Rotator-wrapper: flytta in tile + overlay hit ===
+    const mapPane = map.getPane('mapPane');
     const tilePane = map.getPane('tilePane');
     const overlayPane = map.getPane('overlayPane');
-    let baseTileTransform = '';
-    let baseOverlayTransform = '';
 
-    function captureBaseTransforms() {
-      baseTileTransform = tilePane.style.transform || '';
-      baseOverlayTransform = overlayPane.style.transform || '';
-    }
-    map.on('move zoom zoomanim viewreset moveend zoomend', () => {
-      captureBaseTransforms();
-      if (compassMode) queueFrame();
-    });
-    map.whenReady(() => captureBaseTransforms());
+    const rotator = document.createElement('div');
+    rotator.className = 'bearing-rotator';
+    // Lägg rotator i mapPane och flytta in tile+overlay
+    mapPane.appendChild(rotator);
+    rotator.appendChild(tilePane);
+    rotator.appendChild(overlayPane);
 
     // Marker + fan
     function makeHeadingIcon() {
@@ -480,11 +483,10 @@
     }
 
     /* rAF-uppdatering */
-    let rafId = null;
     function queueFrame(){
       if (needFrame) return;
       needFrame = true;
-      rafId = requestAnimationFrame(tick);
+      requestAnimationFrame(tick);
     }
     function tick(){
       needFrame = false;
@@ -510,34 +512,21 @@
       fanPath.setAttribute('d', fanPathD(fanDeg));
     }
 
-    /* *** Stabil kartrotation: bevara Leaflets translate3d *** */
-    function composeTransform(base, extraDeg) {
-      const extra = ` rotate(${extraDeg}deg) scale(${APPLY_SCALE}) translateZ(0)`;
-      const baseSafe = base && base.length ? base : 'translate3d(0px, 0px, 0px)';
-      return baseSafe + extra;
-    }
+    /* *** Stabil kartrotation via rotator-wrapper *** */
     function applyMapBearingSmooth() {
-      const targetBearing = (headingDeg == null) ? 0 : -headingDeg; // motsols
-      const newBearing = smoothTowards(lastAppliedBearing, targetBearing, HEADING_SMOOTH);
-      lastAppliedBearing = newBearing;
-      tilePane.style.transform    = composeTransform(baseTileTransform,    newBearing);
-      overlayPane.style.transform = composeTransform(baseOverlayTransform, newBearing);
+      const targetBearing = (headingDeg == null) ? 0 : -headingDeg; // karta motsols
+      lastAppliedBearing = smoothTowards(lastAppliedBearing, targetBearing, HEADING_SMOOTH);
+      rotator.style.transform = `translateZ(0) rotate(${lastAppliedBearing}deg) scale(${APPLY_SCALE})`;
     }
     function resetMapBearing() {
-      tilePane.style.transform    = baseTileTransform || 'translate3d(0px, 0px, 0px)';
-      overlayPane.style.transform = baseOverlayTransform || 'translate3d(0px, 0px, 0px)';
+      lastAppliedBearing = 0;
+      rotator.style.transform = 'translateZ(0) rotate(0deg) scale(1)';
     }
 
     function toggleCompass(btn){
       compassMode = !compassMode; btn.classList.toggle('cmp-active', compassMode);
       if (compassMode && !orientationActive) ensureOrientation();
-      captureBaseTransforms(); // fånga bas direkt vid påslag
-      if (!compassMode){
-        lastAppliedBearing = 0;
-        resetMapBearing();
-      } else {
-        queueFrame();
-      }
+      if (!compassMode) resetMapBearing(); else queueFrame();
     }
 
     /* Init export-knapp */
