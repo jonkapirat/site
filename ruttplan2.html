@@ -79,6 +79,8 @@
     <div class="tool-btn" id="btnTrash" title="Rensa spår">🗑</div>
     <div class="tool-btn" id="btnGPS">GPS</div>
     <div class="tool-btn" id="btnROT">ROT</div>
+    <div class="tool-btn" id="btnCal" title="Heading offset">0</div>
+    <div class="tool-btn" id="btnRings" title="25/50/100 m">RNG</div>
     <div class="tool-btn" id="btnDraw" title="Rita rutt">Draw</div>
   </div>
 
@@ -105,10 +107,10 @@
     const ORION_URL = 'https://okorion.com/maptiles/orienteering/wgs84/{z}/{x}/{y}.png';
 
     // ROT-parametrar
-    const HEADING_FLIP = -1;      // flip sign (sätt till +1 om du vill “oflippa”)
-    const HEADING_CAL_OFFSET = 0; // grader (t.ex. +10/−10 om det känns snett)
+    const HEADING_FLIP = -1;      // flippa kompassriktning (enligt din observation)
+    let HEADING_CAL_OFFSET = 0;   // justerbar via knapp (0..360 i 45°-steg)
     const MEDIAN_N = 7;           // storlek på medianfönster (udda tal)
-    const HEADING_LPF = 0.15;     // lågpass 0..1 (högre = snabbare, mer jitter)
+    const HEADING_LPF = 0.10;     // lågpass 0..1 (högre = snabbare, mer jitter)
     const BEARING_STEP_DEG = 2;   // max bearingändring per frame
     const BEARING_EPS = 0.15;     // närme-tröskel
 
@@ -145,7 +147,7 @@
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-left');
 
-    // ===== Baslager-växling (om du vill använda i UI senare) =====
+    // ===== Baslager-växling (exponera vid behov) =====
     function setBase(base) {
       map.setLayoutProperty('osm',  'visibility', base === 'osm'  ? 'visible' : 'none');
       map.setLayoutProperty('esri', 'visibility', base === 'esri' ? 'visible' : 'none');
@@ -167,6 +169,9 @@
     const posLyId   = 'pos-lyr';
     const accLyId   = 'acc-lyr';
 
+    const ringsSrcId = 'rings-src';
+    const ringsLyId  = 'rings-lyr';
+
     // Tillstånd/UI-refs
     let isDrawing = false;
     let drawCoords = [];
@@ -175,12 +180,15 @@
     let rotOn = false;
     let watchId = null;
     let lastLL = null;
+    let ringsOn = false;
 
     const btnOpen  = document.getElementById('btnOpen');
     const btnTRK   = document.getElementById('btnTRK');
     const btnTrash = document.getElementById('btnTrash');
     const btnGPS   = document.getElementById('btnGPS');
     const btnROT   = document.getElementById('btnROT');
+    const btnRings = document.getElementById('btnRings');
+    const btnCal   = document.getElementById('btnCal');
     const btnDraw  = document.getElementById('btnDraw');
     const exportBtn = document.getElementById('export-btn');
     const distanceOutput = document.getElementById('distance-output');
@@ -201,6 +209,8 @@
     }
 
     map.on('load', () => {
+      // Init text för offset-knapp
+      if (btnCal) btnCal.textContent = String(HEADING_CAL_OFFSET);
       // Rita – linje + punkter
       map.addSource(drawSourceId, { type:'geojson', data: emptyFC() });
       map.addLayer({ id: drawLayerId, type:'line', source: drawSourceId,
@@ -224,6 +234,12 @@
       map.addLayer({ id: accLyId, type:'fill', source: accSrcId,
         paint:{ 'fill-color':'#60a5fa', 'fill-opacity':0.15, 'fill-outline-color':'#3b82f6' }});
 
+      // Räckviddsringar (25/50/100 m)
+      map.addSource(ringsSrcId, { type:'geojson', data: emptyFC() });
+      map.addLayer({ id: ringsLyId, type:'line', source: ringsSrcId,
+        layout:{ visibility:'none' },
+        paint:{ 'line-color':'#dc2626', 'line-width':2, 'line-dasharray':[2,2] }});
+
       // Rita: klick lägger punkt, dblclick avslutar
       map.on('click', (e) => {
         if (!isDrawing) return;
@@ -243,6 +259,27 @@
       map.on('moveend', () => { if (rotOn) startBearingLoop(); });
 
       refreshExportState();
+
+      // ======================
+      // Små "testfall" för snabb sanity-check (icke-destruktiva)
+      // ======================
+      try {
+        // Test 1: updateRings ska inte kasta fel och sätta GeoJSON korrekt
+        const llTest = [START.lng, START.lat];
+        updateRings(llTest);
+        console.info('[TEST] updateRings OK');
+      } catch (e) {
+        console.error('[TEST] updateRings FAIL', e);
+      }
+      try {
+        // Test 2: 8 steg om 45° ska wrap:a tillbaka till startvärdet (utan att mutera globalen)
+        const start = HEADING_CAL_OFFSET;
+        let v = start;
+        for (let i = 0; i < 8; i++) v = (v + 45) % 360;
+        console[(v === start) ? 'info' : 'error']('[TEST] offset wrap', { start, end: v });
+      } catch (e) {
+        console.error('[TEST] offset wrap FAIL', e);
+      }
     });
 
     function emptyFC(){ return { type:'FeatureCollection', features:[] }; }
@@ -292,10 +329,8 @@
     // ===== Open (lokal GPX) =====
     btnOpen.onclick = () => fileInput.click();
     fileInput.onchange = async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const text = await file.text();
-      showGpxText(text);
+      const file = e.target.files[0]; if (!file) return;
+      const text = await file.text(); showGpxText(text);
     };
 
     // ===== TRK (manifest) =====
@@ -374,8 +409,30 @@
       else stopGeolocation();
     };
 
+    // ===== CAL (heading offset 45°-steg) =====
+    btnCal.onclick = () => {
+      HEADING_CAL_OFFSET = (HEADING_CAL_OFFSET + 45) % 360;
+      btnCal.textContent = String(HEADING_CAL_OFFSET);
+      // om ROT är på, trigga en snabb uppdatering genom att köra bearing-step direkt
+      if (rotOn) scheduleBearingStep();
+    };
+
+    // ===== RINGS (25/50/100 m) =====
+    btnRings.onclick = () => {
+      ringsOn = !ringsOn;
+      btnRings.classList.toggle('tool-active', ringsOn);
+      map.setLayoutProperty(ringsLyId, 'visibility', ringsOn ? 'visible' : 'none');
+      if (ringsOn && lastLL) updateRings(lastLL);
+    };
+
+    function updateRings(ll) {
+      const radii = [25,50,100];
+      const features = radii.map(r => turf.circle(ll, r, { steps: 128, units: 'meters' }));
+      map.getSource(ringsSrcId).setData({ type:'FeatureCollection', features });
+    }
+
     function startGeolocation(){
-      if (!navigator.geolocation) return alert('Geolocation saknas.');
+      if (!navigator.geolocation) { alert('Geolocation saknas.'); return; }
       watchId = navigator.geolocation.watchPosition(onPosition, onPositionError, {
         enableHighAccuracy: true, timeout: 15000, maximumAge: 0
       });
@@ -397,8 +454,11 @@
       });
 
       // Noggrannhet (polygon)
-      const accPoly = turf.circle(ll, Math.max(accuracy, 5), { steps: 64, units: 'meters' });
+      const accPoly = turf.circle(ll, Math.max(accuracy || 10, 5), { steps: 64, units: 'meters' });
       map.getSource(accSrcId).setData(accPoly);
+
+      // Uppdatera ringar om påslaget
+      if (ringsOn) updateRings(ll);
 
       if (followOn || rotOn) {
         map.easeTo({ center: ll, duration: 300, zoom: Math.max(map.getZoom(), 15) });
@@ -459,15 +519,17 @@
       try {
         const sensor = new AbsoluteOrientationSensor({ frequency: 30, referenceFrame: 'device' });
         sensor.addEventListener('reading', () => {
-          // quaternion -> yaw (Z) i grader, 0..360 medurs från norr
+          // quaternion -> yaw (Z) i grader
           const [qx, qy, qz, qw] = sensor.quaternion;
-          // Yaw ur quaternion (Tait-Bryan ZYX):
           const siny_cosp = 2 * (qw*qz + qx*qy);
           const cosy_cosp = 1 - 2 * (qy*qy + qz*qz);
           let yaw = Math.atan2(siny_cosp, cosy_cosp) * 180 / Math.PI; // -180..180
           if (yaw < 0) yaw += 360;
 
-          processHeading(yaw);
+          const screenAngle = (screen.orientation && typeof screen.orientation.angle === 'number') ? screen.orientation.angle : 0;
+          // Kompasskurs ~ 0=norr, medurs: 360 - yaw
+          let heading = (360 - yaw + screenAngle) % 360;
+          processHeading(heading);
         });
         sensor.addEventListener('error', () => { useSensor = false; });
         sensor.start();
@@ -483,11 +545,12 @@
 
       let heading = null;
       if (typeof e.webkitCompassHeading === 'number' && e.webkitCompassHeading >= 0) {
-        // iOS: 0=norr, medurs
+        // iOS: world-referenced (0=norr, medurs)
         heading = e.webkitCompassHeading;
       } else if (typeof e.alpha === 'number') {
-        // Android: alpha 0..360, kompensera skärmvinkel
-        heading = (e.alpha + screenAngle) % 360;
+        // Android: använd -alpha (motsatt) + skärmrotation
+        heading = (-e.alpha + screenAngle) % 360;
+        if (heading < 0) heading += 360;
       }
       if (heading == null) return;
 
@@ -519,8 +582,8 @@
       const d = shortestDelta(filteredHeading, h);
       filteredHeading = normalizeDeg(filteredHeading + d * HEADING_LPF);
 
-      // vi vill att kartan pekar åt samma håll:
-      desiredBearing = filteredHeading;
+      // vi vill att kartan roterar "under" användaren så att pilen pekar uppåt
+      desiredBearing = normalizeDeg(-filteredHeading);
 
       if (rotOn) scheduleBearingStep();
     }
