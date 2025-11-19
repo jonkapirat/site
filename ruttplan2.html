@@ -279,15 +279,15 @@
       // Rita – linje + punkter
       map.addSource(drawSourceId, { type:'geojson', data: emptyFC() });
       map.addLayer({ id: drawLayerId, type:'line', source: drawSourceId,
-        paint:{ 'line-color':'#dc2626', 'line-width':4, 'line-opacity':0.9 }});
+        paint:{ 'line-color':'#dc2626', 'line-width':5, 'line-opacity':0.8 }});
       map.addSource(drawPointsId, { type:'geojson', data: emptyFC() });
       map.addLayer({ id: drawPointsLy, type:'circle', source: drawPointsId,
         paint:{ 'circle-color':'#dc2626', 'circle-radius':3, 'circle-stroke-color':'#ffffff', 'circle-stroke-width':1 }});
 
-      // GPX (visas i blått som referens)
+      // GPX (visas i rött som referens)
       map.addSource(gpxSrcId, { type:'geojson', data: emptyFC() });
       map.addLayer({ id: gpxLyId, type:'line', source: gpxSrcId,
-        paint:{ 'line-color':'#0ea5e9', 'line-width':3, 'line-opacity':0.9 }});
+        paint:{ 'line-color':'#dc2626', 'line-width':4, 'line-opacity':0.9 }});
 
       // Position
       map.addSource(posSrcId, { type:'geojson', data: emptyFC() });
