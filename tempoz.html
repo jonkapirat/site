@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <title>Intervaller medeltempo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Inter font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f5f5f5;
+      --card-bg: #ffffff;
+      --text-main: #111111;
+      --text-muted: #555555;
+      --border-subtle: #e0e0e0;
+      --border-strong: #d0d0d0;
+      --button-bg: #4a4a4a;
+      --button-bg-hover: #333333;
+      --button-text: #ffffff;
+      --input-bg: #ffffff;
+      --input-border: #cccccc;
+      --danger: #b00020;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text-main);
+    }
+
+    .page {
+      min-height: 100vh;
+      padding: 40px 24px;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+    }
+
+    .app {
+      width: 100%;
+      max-width: 1100px;
+    }
+
+    h1 {
+      font-size: 32px;
+      font-weight: 700;
+      text-align: center;
+      margin: 0 0 32px;
+    }
+
+    .layout {
+      display: flex;
+      gap: 32px;
+      align-items: flex-start;
+    }
+
+    .inputs-panel {
+      flex: 1.3;
+      min-width: 0;
+    }
+
+    .summary-panel {
+      flex: 1;
+      min-width: 260px;
+    }
+
+    .table-header {
+      display: grid;
+      grid-template-columns: 32px 1.1fr 1.1fr 1.1fr 40px;
+      gap: 12px;
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .table-body {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 32px 1.1fr 1.1fr 1.1fr 40px;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .row input,
+    .row select {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 4px;
+      border: 1px solid var(--input-border);
+      background: var(--input-bg);
+      font-size: 14px;
+      font-family: inherit;
+    }
+
+    .row input:focus,
+    .row select:focus {
+      outline: none;
+      border-color: #111111;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.04);
+    }
+
+    .delete-btn {
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+      color: var(--danger);
+      padding: 0;
+    }
+
+    .delete-btn[disabled] {
+      opacity: 0.3;
+      cursor: default;
+    }
+
+    .add-row-btn {
+      margin-top: 8px;
+      padding: 8px 16px;
+      border-radius: 4px;
+      border: none;
+      background: var(--button-bg);
+      color: var(--button-text);
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      margin-left: 44px;
+    }
+
+    .add-row-btn:hover {
+      background: var(--button-bg-hover);
+    }
+
+    .summary-card {
+      background: var(--card-bg);
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+      padding: 20px 24px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+
+    .summary-title {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .summary-row {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      column-gap: 12px;
+      row-gap: 8px;
+      font-size: 14px;
+    }
+
+    .summary-label {
+      font-weight: 600;
+    }
+
+    .summary-value {
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .summary-help {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .row-index {
+      text-align: left;
+      font-size: 13px;
+      color: var(--text-muted);
+      padding-left: 6px;
+    }
+
+    @media (max-width: 768px) {
+      .page {
+        padding: 24px 16px 40px;
+      }
+
+      h1 {
+        font-size: 24px;
+        margin-bottom: 24px;
+      }
+
+      .layout {
+        flex-direction: column;
+      }
+
+      .summary-panel {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="app">
+      <h1>Intervaller medeltempo</h1>
+      <div class="layout">
+        <section class="inputs-panel" aria-label="Intervallinmatning">
+          <div class="table-header">
+            <div></div>
+            <div>Sträcka (m)</div>
+            <div>Tid (sek)</div>
+            <div>Typ</div>
+            <div></div>
+          </div>
+          <div id="rows" class="table-body"></div>
+          <button id="add-row" class="add-row-btn" type="button">Ny rad</button>
+        </section>
+        <aside class="summary-panel" aria-label="Sammanfattning">
+          <div class="summary-card">
+            <div class="summary-title">Tider</div>
+            <div class="summary-row">
+              <div class="summary-label">Total löpning:</div>
+              <div id="total-running" class="summary-value">0:00:00</div>
+              <div class="summary-label">Total vila:</div>
+              <div id="total-rest" class="summary-value">0:00:00</div>
+              <div class="summary-label">Medeltempo:</div>
+              <div id="average-pace" class="summary-value">–</div>
+              <div class="summary-label">Högsta tempo:</div>
+              <div id="max-pace" class="summary-value">–</div>
+            </div>
+            <div class="summary-help">Endast rader med typ ”Löpning” används för tempo-beräkningar.</div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const rowsContainer = document.getElementById('rows');
+    const addRowBtn = document.getElementById('add-row');
+
+    const totalRunningEl = document.getElementById('total-running');
+    const totalRestEl = document.getElementById('total-rest');
+    const averagePaceEl = document.getElementById('average-pace');
+    const maxPaceEl = document.getElementById('max-pace');
+
+    let rows = [];
+    let idCounter = 0;
+
+    function createRowData(overrides = {}) {
+      return {
+        id: idCounter++,
+        distance: '',
+        time: '',
+        type: 'Löpning',
+        ...overrides,
+      };
+    }
+
+    function renderRows() {
+      rowsContainer.innerHTML = '';
+
+      rows.forEach((row, index) => {
+        const rowEl = document.createElement('div');
+        rowEl.className = 'row';
+
+        const indexLabel = document.createElement('div');
+        indexLabel.className = 'row-index';
+        indexLabel.textContent = index + 1;
+
+        const distanceInput = document.createElement('input');
+        distanceInput.type = 'number';
+        distanceInput.min = '0';
+        distanceInput.inputMode = 'numeric';
+        distanceInput.placeholder = '';
+        distanceInput.value = row.distance;
+        distanceInput.addEventListener('input', (e) => {
+          row.distance = e.target.value;
+          recalc();
+        });
+
+        const timeInput = document.createElement('input');
+        timeInput.type = 'number';
+        timeInput.min = '0';
+        timeInput.inputMode = 'numeric';
+        timeInput.placeholder = '';
+        timeInput.value = row.time;
+        timeInput.addEventListener('input', (e) => {
+          row.time = e.target.value;
+          recalc();
+        });
+
+        const typeSelect = document.createElement('select');
+        ['Löpning', 'Vila'].forEach((optionLabel) => {
+          const opt = document.createElement('option');
+          opt.value = optionLabel;
+          opt.textContent = optionLabel;
+          typeSelect.appendChild(opt);
+        });
+        typeSelect.value = row.type;
+        typeSelect.addEventListener('change', (e) => {
+          row.type = e.target.value;
+          recalc();
+        });
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.textContent = '×';
+        deleteBtn.disabled = index === 0; // första raden är alltid fast
+        deleteBtn.addEventListener('click', () => {
+          if (index === 0) return;
+          rows.splice(index, 1);
+          renderRows();
+          recalc();
+        });
+
+        rowEl.appendChild(indexLabel);
+        rowEl.appendChild(distanceInput);
+        rowEl.appendChild(timeInput);
+        rowEl.appendChild(typeSelect);
+        rowEl.appendChild(deleteBtn);
+
+        rowsContainer.appendChild(rowEl);
+      });
+    }
+
+    function formatSeconds(totalSeconds) {
+      const seconds = Math.max(0, Math.floor(totalSeconds || 0));
+      const hours = Math.floor(seconds / 3600);
+      const minutes = Math.floor((seconds % 3600) / 60);
+      const secs = seconds % 60;
+      const hStr = String(hours);
+      const mStr = String(minutes).padStart(2, '0');
+      const sStr = String(secs).padStart(2, '0');
+      return `${hStr}:${mStr}:${sStr}`;
+    }
+
+    function formatPace(minPerKm) {
+      if (!isFinite(minPerKm) || minPerKm <= 0) return '–';
+      const totalSeconds = Math.round(minPerKm * 60);
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      const mStr = String(minutes);
+      const sStr = String(seconds).padStart(2, '0');
+      return `${mStr}:${sStr} km/min`;
+    }
+
+    function recalc() {
+      let totalRunningTime = 0;
+      let totalRestTime = 0;
+      let totalRunningDistance = 0;
+
+      let fastestPace = Infinity;
+      let fastestDistance = 0;
+      let fastestRowIndex = -1;
+
+      rows.forEach((row, index) => {
+        const dist = row.distance === '' ? 0 : parseFloat(String(row.distance).replace(',', '.')) || 0;
+        const time = row.time === '' ? 0 : parseFloat(String(row.time).replace(',', '.')) || 0;
+
+        if (row.type === 'Löpning') {
+          totalRunningTime += time;
+          totalRunningDistance += dist;
+
+          if (dist > 0 && time > 0) {
+            const pace = (time / 60) / (dist / 1000); // min/km
+            if (pace > 0 && pace < fastestPace) {
+              fastestPace = pace;
+              fastestDistance = dist;
+              fastestRowIndex = index + 1; // 1-baserat radnummer
+            }
+          }
+        } else if (row.type === 'Vila') {
+          totalRestTime += time;
+        }
+      });
+
+      totalRunningEl.textContent = formatSeconds(totalRunningTime);
+      totalRestEl.textContent = formatSeconds(totalRestTime);
+
+      if (totalRunningDistance > 0 && totalRunningTime > 0) {
+        const totalPace = (totalRunningTime / 60) / (totalRunningDistance / 1000); // min/km
+        averagePaceEl.textContent = formatPace(totalPace);
+      } else {
+        averagePaceEl.textContent = '–';
+      }
+
+      if (fastestRowIndex !== -1) {
+        const paceStr = formatPace(fastestPace);
+        const distStr = `${Math.round(fastestDistance)} m`;
+        maxPaceEl.textContent = `${paceStr} – ${distStr} (rad ${fastestRowIndex})`;
+      } else {
+        maxPaceEl.textContent = '–';
+      }
+    }
+
+    addRowBtn.addEventListener('click', () => {
+      rows.push(createRowData());
+      renderRows();
+      recalc();
+    });
+
+    // init with one locked rad
+    rows = [createRowData()];
+    renderRows();
+    recalc();
+  </script>
+</body>
+</html>
