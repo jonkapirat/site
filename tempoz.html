@@ -73,7 +73,7 @@
 
     .table-header {
       display: grid;
-      grid-template-columns: 32px 1.1fr 1.1fr 1.1fr 40px;
+      grid-template-columns: 32px 1.1fr 1.1fr 1.1fr 1fr 40px;
       gap: 12px;
       margin-bottom: 8px;
       font-size: 13px;
@@ -90,7 +90,7 @@
 
     .row {
       display: grid;
-      grid-template-columns: 32px 1.1fr 1.1fr 1.1fr 40px;
+      grid-template-columns: 32px 1.1fr 1.1fr 1.1fr 1fr 40px;
       gap: 12px;
       align-items: center;
     }
@@ -138,11 +138,29 @@
       font-size: 14px;
       font-weight: 500;
       cursor: pointer;
-      margin-left: 44px;
+      margin-left: 0;
     }
 
     .add-row-btn:hover {
       background: var(--button-bg-hover);
+    }
+
+    .actions-row {
+      margin-top: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-left: 44px;
+    }
+
+    .clear-link {
+      border: none;
+      background: transparent;
+      padding: 0;
+      font-size: 13px;
+      color: var(--text-muted);
+      cursor: pointer;
+      text-decoration: underline;
     }
 
     .summary-card {
@@ -189,6 +207,13 @@
       padding-left: 6px;
     }
 
+    .tempo-cell {
+      font-size: 13px;
+      color: var(--text-muted);
+      text-align: right;
+      padding-right: 4px;
+    }
+
     @media (max-width: 768px) {
       .page {
         padding: 24px 16px 40px;
@@ -220,10 +245,14 @@
             <div>Sträcka (m)</div>
             <div>Tid (sek)</div>
             <div>Typ</div>
+            <div>Tempo</div>
             <div></div>
           </div>
           <div id="rows" class="table-body"></div>
-          <button id="add-row" class="add-row-btn" type="button">Ny rad</button>
+          <div class="actions-row">
+            <button id="add-row" class="add-row-btn" type="button">Ny rad</button>
+            <button id="clear-all" class="clear-link" type="button">Töm alla fält</button>
+          </div>
         </section>
         <aside class="summary-panel" aria-label="Sammanfattning">
           <div class="summary-card">
@@ -233,6 +262,8 @@
               <div id="total-running" class="summary-value">0:00:00</div>
               <div class="summary-label">Total vila:</div>
               <div id="total-rest" class="summary-value">0:00:00</div>
+              <div class="summary-label">Total distans:</div>
+              <div id="total-distance" class="summary-value">0 m</div>
               <div class="summary-label">Medeltempo:</div>
               <div id="average-pace" class="summary-value">–</div>
               <div class="summary-label">Högsta tempo:</div>
@@ -248,14 +279,46 @@
   <script>
     const rowsContainer = document.getElementById('rows');
     const addRowBtn = document.getElementById('add-row');
+    const clearAllBtn = document.getElementById('clear-all');
 
     const totalRunningEl = document.getElementById('total-running');
     const totalRestEl = document.getElementById('total-rest');
+    const totalDistanceEl = document.getElementById('total-distance');
     const averagePaceEl = document.getElementById('average-pace');
     const maxPaceEl = document.getElementById('max-pace');
 
     let rows = [];
     let idCounter = 0;
+
+    const STORAGE_KEY = 'medeltempo_rows_v1';
+
+    function saveState() {
+      try {
+        const data = {
+          rows,
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const parsed = JSON.parse(raw);
+        if (!parsed || !Array.isArray(parsed.rows)) return;
+        rows = parsed.rows.map((r) => ({
+          id: idCounter++,
+          distance: r.distance ?? '',
+          time: r.time ?? '',
+          type: r.type === 'Vila' ? 'Vila' : 'Löpning',
+        }));
+      } catch (e) {
+        // ignore
+      }
+    }
 
     function createRowData(overrides = {}) {
       return {
@@ -265,74 +328,6 @@
         type: 'Löpning',
         ...overrides,
       };
-    }
-
-    function renderRows() {
-      rowsContainer.innerHTML = '';
-
-      rows.forEach((row, index) => {
-        const rowEl = document.createElement('div');
-        rowEl.className = 'row';
-
-        const indexLabel = document.createElement('div');
-        indexLabel.className = 'row-index';
-        indexLabel.textContent = index + 1;
-
-        const distanceInput = document.createElement('input');
-        distanceInput.type = 'number';
-        distanceInput.min = '0';
-        distanceInput.inputMode = 'numeric';
-        distanceInput.placeholder = '';
-        distanceInput.value = row.distance;
-        distanceInput.addEventListener('input', (e) => {
-          row.distance = e.target.value;
-          recalc();
-        });
-
-        const timeInput = document.createElement('input');
-        timeInput.type = 'number';
-        timeInput.min = '0';
-        timeInput.inputMode = 'numeric';
-        timeInput.placeholder = '';
-        timeInput.value = row.time;
-        timeInput.addEventListener('input', (e) => {
-          row.time = e.target.value;
-          recalc();
-        });
-
-        const typeSelect = document.createElement('select');
-        ['Löpning', 'Vila'].forEach((optionLabel) => {
-          const opt = document.createElement('option');
-          opt.value = optionLabel;
-          opt.textContent = optionLabel;
-          typeSelect.appendChild(opt);
-        });
-        typeSelect.value = row.type;
-        typeSelect.addEventListener('change', (e) => {
-          row.type = e.target.value;
-          recalc();
-        });
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.type = 'button';
-        deleteBtn.className = 'delete-btn';
-        deleteBtn.textContent = '×';
-        deleteBtn.disabled = index === 0; // första raden är alltid fast
-        deleteBtn.addEventListener('click', () => {
-          if (index === 0) return;
-          rows.splice(index, 1);
-          renderRows();
-          recalc();
-        });
-
-        rowEl.appendChild(indexLabel);
-        rowEl.appendChild(distanceInput);
-        rowEl.appendChild(timeInput);
-        rowEl.appendChild(typeSelect);
-        rowEl.appendChild(deleteBtn);
-
-        rowsContainer.appendChild(rowEl);
-      });
     }
 
     function formatSeconds(totalSeconds) {
@@ -356,10 +351,105 @@
       return `${mStr}:${sStr} km/min`;
     }
 
+    function renderRows() {
+      rowsContainer.innerHTML = '';
+
+      rows.forEach((row, index) => {
+        const rowEl = document.createElement('div');
+        rowEl.className = 'row';
+
+        const indexLabel = document.createElement('div');
+        indexLabel.className = 'row-index';
+        indexLabel.textContent = index + 1;
+
+        const distanceInput = document.createElement('input');
+        distanceInput.type = 'number';
+        distanceInput.min = '0';
+        distanceInput.inputMode = 'numeric';
+        distanceInput.placeholder = '';
+        distanceInput.value = row.distance;
+
+        const timeInput = document.createElement('input');
+        timeInput.type = 'number';
+        timeInput.min = '0';
+        timeInput.inputMode = 'numeric';
+        timeInput.placeholder = '';
+        timeInput.value = row.time;
+
+        const typeSelect = document.createElement('select');
+        ['Löpning', 'Vila'].forEach((optionLabel) => {
+          const opt = document.createElement('option');
+          opt.value = optionLabel;
+          opt.textContent = optionLabel;
+          typeSelect.appendChild(opt);
+        });
+        typeSelect.value = row.type;
+
+        const tempoCell = document.createElement('div');
+        tempoCell.className = 'tempo-cell';
+
+        function updateTempoCell() {
+          const dist = row.distance === '' ? 0 : parseFloat(String(row.distance).replace(',', '.')) || 0;
+          const time = row.time === '' ? 0 : parseFloat(String(row.time).replace(',', '.')) || 0;
+
+          if (row.type === 'Löpning' && dist > 0 && time > 0) {
+            const pace = (time / 60) / (dist / 1000); // min/km
+            tempoCell.textContent = formatPace(pace);
+          } else {
+            tempoCell.textContent = '';
+          }
+        }
+
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.textContent = '×';
+        deleteBtn.disabled = index === 0; // första raden är alltid fast
+
+        distanceInput.addEventListener('input', (e) => {
+          row.distance = e.target.value;
+          updateTempoCell();
+          recalc();
+        });
+
+        timeInput.addEventListener('input', (e) => {
+          row.time = e.target.value;
+          updateTempoCell();
+          recalc();
+        });
+
+        typeSelect.addEventListener('change', (e) => {
+          row.type = e.target.value;
+          updateTempoCell();
+          recalc();
+        });
+
+        deleteBtn.addEventListener('click', () => {
+          if (index === 0) return;
+          rows.splice(index, 1);
+          renderRows();
+          recalc();
+        });
+
+        // initial tempo render
+        updateTempoCell();
+
+        rowEl.appendChild(indexLabel);
+        rowEl.appendChild(distanceInput);
+        rowEl.appendChild(timeInput);
+        rowEl.appendChild(typeSelect);
+        rowEl.appendChild(tempoCell);
+        rowEl.appendChild(deleteBtn);
+
+        rowsContainer.appendChild(rowEl);
+      });
+    }
+
     function recalc() {
       let totalRunningTime = 0;
       let totalRestTime = 0;
       let totalRunningDistance = 0;
+      let totalDistance = 0;
 
       let fastestPace = Infinity;
       let fastestDistance = 0;
@@ -372,6 +462,7 @@
         if (row.type === 'Löpning') {
           totalRunningTime += time;
           totalRunningDistance += dist;
+          totalDistance += dist;
 
           if (dist > 0 && time > 0) {
             const pace = (time / 60) / (dist / 1000); // min/km
@@ -383,11 +474,14 @@
           }
         } else if (row.type === 'Vila') {
           totalRestTime += time;
+          // vila påverkar inte distans
         }
       });
 
       totalRunningEl.textContent = formatSeconds(totalRunningTime);
       totalRestEl.textContent = formatSeconds(totalRestTime);
+
+      totalDistanceEl.textContent = Math.round(totalDistance) + ' m';
 
       if (totalRunningDistance > 0 && totalRunningTime > 0) {
         const totalPace = (totalRunningTime / 60) / (totalRunningDistance / 1000); // min/km
@@ -403,6 +497,8 @@
       } else {
         maxPaceEl.textContent = '–';
       }
+
+      saveState();
     }
 
     addRowBtn.addEventListener('click', () => {
@@ -411,8 +507,22 @@
       recalc();
     });
 
-    // init with one locked rad
-    rows = [createRowData()];
+    clearAllBtn.addEventListener('click', () => {
+      rows = [createRowData()];
+      renderRows();
+      recalc();
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch (e) {
+        // ignore
+      }
+    });
+
+    // init med en låst rad eller laddad state
+    loadState();
+    if (!rows || rows.length === 0) {
+      rows = [createRowData()];
+    }
     renderRows();
     recalc();
   </script>
