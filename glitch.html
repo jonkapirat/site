@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Webcam VHS Glitch</title>
+  <style>
+    :root{ --bg:#000; }
+    html,body{height:100%;margin:0;background:var(--bg);}
+    body{display:grid;place-items:center;overflow:hidden;}
+
+    .frame{position:relative;}
+    canvas{
+      width:min(1100px, 100vw);
+      height:min(650px, 75vh);
+      image-rendering:pixelated;
+      background:#000;
+    }
+
+    /* Vignette + lite CRT-glans */
+    .frame:before{
+      content:"";
+      position:absolute;inset:-2px;
+      pointer-events:none;
+      background:
+        radial-gradient(ellipse at center, rgba(255,255,255,0.06) 0%, rgba(0,0,0,0) 55%),
+        radial-gradient(ellipse at center, rgba(0,0,0,0) 35%, rgba(0,0,0,0.65) 100%);
+      mix-blend-mode:screen;
+      opacity:.75;
+    }
+
+    .ui{
+      position:fixed;left:12px;bottom:10px;
+      color:#bbb;font:12px/1.25 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      opacity:.85;max-width:min(520px, calc(100vw - 24px));
+    }
+    .ui b{color:#eee}
+    .ui code{color:#ddd}
+
+    .warn{
+      position:fixed;top:12px;left:12px;right:12px;
+      color:#ffd9d9;background:rgba(80,0,0,0.35);
+      border:1px solid rgba(255,120,120,0.35);
+      padding:10px 12px;border-radius:12px;
+      font:13px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Arial;
+      display:none;
+    }
+  </style>
+</head>
+<body>
+  <div class="warn" id="warn"></div>
+
+  <div class="frame">
+    <canvas id="c"></canvas>
+  </div>
+
+  <div class="ui">
+    <b>Webcam VHS glitch</b><br>
+    <b>Space</b> pausa • <b>R</b> ny seed • <b>↑/↓</b> intensitet • <b>G</b> toggle glitch • <b>S</b> toggle scanlines<br>
+    Om kameran inte startar: kör via <code>https://</code> eller <code>http://localhost</code>.
+  </div>
+
+  <!-- Dold video som får webcam-streamen -->
+  <video id="v" playsinline autoplay muted style="display:none"></video>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { alpha:false, desynchronized:true });
+  const video = document.getElementById('v');
+  const warn = document.getElementById('warn');
+
+  // ====== KONFIG ======
+  const INTERNAL_SCALE = 0.85; // <1 = mer "pixel-VHS"
+  let intensity = 0.65;        // 0..1
+  let glitchOn = true;
+  let scanOn = true;
+  let paused = false;
+  let seed = Math.random() * 9999;
+
+  const clamp01 = (x)=>Math.max(0, Math.min(1, x));
+  const rand = (a=1,b=0)=>Math.random()*(a-b)+b;
+
+  // Offscreen buffers
+  const off = document.createElement('canvas');
+  const offCtx = off.getContext('2d', { alpha:false });
+
+  function resize(){
+    const dpr = Math.max(1, Math.floor(window.devicePixelRatio || 1));
+    const rect = canvas.getBoundingClientRect();
+    canvas.width  = Math.floor(rect.width  * dpr * INTERNAL_SCALE);
+    canvas.height = Math.floor(rect.height * dpr * INTERNAL_SCALE);
+    ctx.imageSmoothingEnabled = false;
+
+    off.width = canvas.width;
+    off.height = canvas.height;
+    offCtx.imageSmoothingEnabled = false;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function showError(msg){
+    warn.style.display = 'block';
+    warn.textContent = msg;
+  }
+
+  // ====== WEBCAM ======
+  async function startCam(){
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user' },
+        audio: false
+      });
+      video.srcObject = stream;
+      await video.play();
+      warn.style.display = 'none';
+    } catch (e) {
+      showError(
+        'Kunde inte starta webbkamera. Tillåt kameran i webbläsaren och kör sidan via https eller http://localhost.
+' +
+        String(e && e.message ? e.message : e)
+      );
+    }
+  }
+
+  if (!navigator.mediaDevices?.getUserMedia) {
+    showError('Din webbläsare saknar stöd för getUserMedia (webbkamera). Prova en modern Chromium/Firefox.');
+  } else {
+    startCam();
+  }
+
+  // ====== EFFEKTER ======
+  function drawVideoCover(){
+    const w = canvas.width, h = canvas.height;
+    const vw = video.videoWidth || 1280;
+    const vh = video.videoHeight || 720;
+
+    // "cover" så det fyller canvas
+    const s = Math.max(w / vw, h / vh);
+    const dw = vw * s;
+    const dh = vh * s;
+    const dx = (w - dw) * 0.5;
+    const dy = (h - dh) * 0.5;
+
+    // Rita in i offscreen först
+    offCtx.drawImage(video, dx, dy, dw, dh);
+
+    // Bas till main
+    ctx.drawImage(off, 0, 0);
+  }
+
+  function rgbSplit(t, i){
+    // RGB-split via färgade kopior med screen
+    const w = canvas.width, h = canvas.height;
+    const rOff = Math.floor(rand(8,-8) * i);
+    const gOff = Math.floor(rand(6,-6) * i);
+    const bOff = Math.floor(rand(4,-4) * i);
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+
+    // R
+    ctx.globalAlpha = 0.35 + 0.25*i;
+    ctx.filter = 'none';
+    ctx.translate(rOff, 0);
+    ctx.drawImage(off, 0, 0);
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.globalCompositeOperation = 'source-in';
+    ctx.fillStyle = 'rgba(255,0,0,1)';
+    ctx.fillRect(0,0,w,h);
+
+    // G
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = 0.30 + 0.20*i;
+    ctx.translate(-gOff, 1);
+    ctx.drawImage(off, 0, 0);
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.globalCompositeOperation = 'source-in';
+    ctx.fillStyle = 'rgba(0,255,0,1)';
+    ctx.fillRect(0,0,w,h);
+
+    // B (lite cyan)
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = 0.25 + 0.18*i;
+    ctx.translate(0, -bOff);
+    ctx.drawImage(off, 0, 0);
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.globalCompositeOperation = 'source-in';
+    ctx.fillStyle = 'rgba(0,170,255,1)';
+    ctx.fillRect(0,0,w,h);
+
+    ctx.restore();
+  }
+
+  function scanlines(t, i){
+    if(!scanOn) return;
+    const w = canvas.width, h = canvas.height;
+
+    // Linjer
+    ctx.save();
+    ctx.globalCompositeOperation = 'multiply';
+    const spacing = 3;
+    const phase = (t*42) % spacing;
+    ctx.fillStyle = `rgba(0,0,0,${0.18 + 0.12*i})`;
+    for(let y=-spacing; y<h+spacing; y+=spacing){
+      ctx.fillRect(0, (y+phase)|0, w, 1);
+    }
+    ctx.restore();
+
+    // Rullband (luminans-banding)
+    ctx.save();
+    ctx.globalCompositeOperation = 'overlay';
+    const bandY = (t*95 + seed) % (h+140) - 70;
+    const g = ctx.createLinearGradient(0, bandY-50, 0, bandY+50);
+    g.addColorStop(0, 'rgba(255,255,255,0)');
+    g.addColorStop(0.5, `rgba(255,255,255,${0.10 + 0.10*i})`);
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,w,h);
+    ctx.restore();
+  }
+
+  function noise(i){
+    const w = canvas.width, h = canvas.height;
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+
+    // Små horisontella glints
+    const n = Math.floor(45 + 95*i);
+    for(let k=0;k<n;k++){
+      const x = (rand(w))|0;
+      const y = (rand(h))|0;
+      const ww = (rand(100, 6))|0;
+      ctx.globalAlpha = rand(0.18, 0.01);
+      ctx.fillStyle = 'white';
+      ctx.fillRect(x,y,ww,1);
+    }
+
+    // Dots
+    const dots = Math.floor(300 + 900*i);
+    ctx.globalAlpha = 0.05;
+    for(let k=0;k<dots;k++){
+      ctx.fillRect((Math.random()*w)|0, (Math.random()*h)|0, 1, 1);
+    }
+
+    ctx.restore();
+    ctx.globalAlpha = 1;
+  }
+
+  function glitchSlices(i){
+    if(!glitchOn) return;
+    const w = canvas.width, h = canvas.height;
+
+    const slices = Math.floor(4 + 14*i);
+    for(let s=0; s<slices; s++){
+      const y = (rand(h))|0;
+      const sliceH = (rand(28, 4))|0;
+      const xShift = (rand(90,-90) * i)|0;
+      const sh = Math.min(sliceH, h - y);
+      if(sh <= 0) continue;
+
+      const img = ctx.getImageData(0, y, w, sh);
+      ctx.putImageData(img, xShift, y);
+
+      // Ibland: hård "color tear"
+      if(Math.random() < 0.25*i){
+        ctx.save();
+        ctx.globalCompositeOperation = 'screen';
+        ctx.globalAlpha = 0.10 + 0.12*i;
+        ctx.fillStyle = 'rgba(255,0,0,1)';
+        ctx.fillRect(0, y, w, sh);
+        ctx.restore();
+      }
+    }
+
+    // "frame hop" ibland
+    if(Math.random() < 0.10*i){
+      const hop = (rand(18,-18))|0;
+      const img = ctx.getImageData(0, 0, w, h);
+      ctx.putImageData(img, 0, hop);
+    }
+  }
+
+  function wobble(t, i){
+    // Tracking-wobble: flytta små band i X
+    const w = canvas.width, h = canvas.height;
+    const bands = 22;
+    ctx.save();
+    for(let b=0;b<bands;b++){
+      const y0 = ((h/bands)*b)|0;
+      const y1 = ((h/bands)*(b+1))|0;
+      const bh = y1-y0;
+      const x = (Math.sin(t*3.2 + b*0.7 + seed) * (12*i))|0;
+      ctx.drawImage(canvas, 0, y0, w, bh, x, y0, w, bh);
+    }
+    ctx.restore();
+  }
+
+  function bloom(i){
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+    ctx.globalAlpha = 0.08 + 0.12*i;
+    ctx.filter = 'blur(1px)';
+    ctx.drawImage(canvas, 0, 0);
+    ctx.filter = 'none';
+    ctx.restore();
+  }
+
+  // ====== LOOP ======
+  function frame(ms){
+    requestAnimationFrame(frame);
+    if(paused) return;
+    if(video.readyState < 2) return; // vänta tills vi har bild
+
+    const t = ms/1000;
+    const pulse = 0.75 + 0.25*Math.sin(t*2.1 + seed);
+    const i = clamp01(intensity * pulse);
+
+    // Rita video
+    drawVideoCover();
+
+    // Effekter
+    if(glitchOn){
+      // RGB-split byggt på offscreen, så vi behåller originalet
+      rgbSplit(t, i);
+    }
+
+    wobble(t, i);
+    scanlines(t, i);
+    noise(i);
+
+    if(glitchOn && Math.random() < 0.70*i){
+      glitchSlices(i);
+    }
+
+    bloom(i);
+  }
+  requestAnimationFrame(frame);
+
+  // ====== INPUT ======
+  window.addEventListener('keydown', (e) => {
+    const k = e.key.toLowerCase();
+    if(e.code === 'Space') paused = !paused;
+    if(k === 'r') seed = Math.random()*9999;
+    if(e.key === 'ArrowUp') intensity = clamp01(intensity + 0.05);
+    if(e.key === 'ArrowDown') intensity = clamp01(intensity - 0.05);
+    if(k === 'g') glitchOn = !glitchOn;
+    if(k === 's') scanOn = !scanOn;
+  });
+})();
+</script>
+</body>
+</html>
