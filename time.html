@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>p5.js Klockcirklar</title>
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #ffffff;
+    }
+    canvas {
+      display: block;
+    }
+
+    /* Theme toggle (halv storlek, ingen skugga) */
+    .theme-toggle-wrap {
+      position: fixed;
+      left: 50%;
+      bottom: 20px;
+      transform: translateX(-50%);
+      z-index: 10;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .theme-toggle {
+      width: 52px;   /* 104 / 2 */
+      height: 28px;  /* 56 / 2 */
+      position: relative;
+    }
+    .theme-toggle input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+    .theme-toggle label {
+      display: block;
+      width: 52px;
+      height: 28px;
+      background: #ffffff;
+      border-radius: 14px;
+      cursor: pointer;
+      position: relative;
+    }
+    .theme-toggle label::after {
+      content: "";
+      position: absolute;
+      left: 4px;
+      top: 4px;
+      width: 20px;
+      height: 20px;
+      border-radius: 999px;
+      background: #132340;
+      transition: transform 180ms ease;
+    }
+    .theme-toggle input:checked + label::after {
+      transform: translateX(24px);
+    }
+  </style>
+</head>
+<body>
+  <!-- Toggle längst ner (vänster = Färgat, höger = Normal) -->
+  <div class="theme-toggle-wrap">
+    <div class="theme-toggle">
+      <input id="themeToggle" type="checkbox" aria-label="Byt färgtema" />
+      <label for="themeToggle"></label>
+    </div>
+  </div>
+  <!-- p5.js via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.4/lib/p5.min.js"></script>
+  <script>
+    // Tema
+    // - "color": originalet (färgat + bakgrund växlar varje sekund)
+    // - "normal": lugnt tema (fast bakgrund, vita cirklar, mörk text)
+    let theme = 'color';
+
+    // Färger vid uppstart (enligt spec) för "color"-tema
+    const COLOR_THEME = {
+      hourCircle:   '#72FFFF',
+      hourText:     '#FF0404',
+      minuteCircle: '#FF0404',
+      minuteText:   '#72FFFF',
+      secondCircle: '#000DFF',
+      secondText:   '#FF0404',
+      bg: null, // styrs av sekunder
+    };
+
+    // "normal"-tema (enligt din spec)
+    const NORMAL_THEME = {
+      hourCircle:   '#FFFFFF',
+      hourText:     '#132340',
+      minuteCircle: '#FFFFFF',
+      minuteText:   '#132340',
+      secondCircle: '#FFFFFF',
+      secondText:   '#132340',
+      bg:           '#FAFAFA',
+    };
+
+    function activeTheme() {
+      return theme === 'normal' ? NORMAL_THEME : COLOR_THEME;
+    }
+
+    // Förberett: bakgrund per sekund (börjar oförändrad)
+    function backgroundForSecond(sec) {
+      const t = activeTheme();
+      // Normal: ingen förändring per sekund
+      if (theme === 'normal') return t.bg;
+
+      // Color: alternera bakgrund mellan cirklarnas färger varje sekund
+      const bgColors = [
+        t.hourCircle,
+        t.minuteCircle,
+        t.secondCircle,
+      ];
+      return bgColors[sec % bgColors.length];
+    }
+
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      textAlign(CENTER, CENTER);
+      angleMode(DEGREES);
+      noStroke();
+
+      // Hooka upp toggle
+      const toggle = document.getElementById('themeToggle');
+      // default: färgat (unchecked)
+      toggle.checked = false;
+      toggle.addEventListener('change', () => {
+        theme = toggle.checked ? 'normal' : 'color';
+      });
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+    }
+
+    function pad2(n) {
+      return String(n).padStart(2, '0');
+    }
+
+    function draw() {
+      const now = new Date();
+      const h = now.getHours();      // 0-23
+      const m = now.getMinutes();    // 0-59
+      const s = now.getSeconds();    // 0-59
+
+      // Bakgrund (beror på tema)
+      background(backgroundForSecond(s));
+
+      // Layout: tre cirklar horisontellt centrerade
+      const gap = 20;      // exakt 20px mellan cirklarna
+      const margin = 20;   // exakt 20px mot ytterkanterna
+
+      // Max diameter baserat på bredd och höjd
+      const maxDByWidth = (width - margin * 2 - gap * 2) / 3;
+      const maxDByHeight = height - margin * 2;
+      const d = Math.max(40, Math.min(maxDByWidth, maxDByHeight));
+
+      const cy = height / 2;
+
+      const cx1 = margin + d / 2;
+      const cx2 = cx1 + d + gap;
+      const cx3 = cx2 + d + gap;
+
+      // Rotationer enligt spec:
+      // - Sekunder: 360/60 per tick
+      // - Minuter: 360/60 per tick
+      // - Timmar:  360/24 per tick (24h)
+      const rotHour   = (h % 24) * (360 / 24);
+      const rotMinute = m * (360 / 60);
+      const rotSecond = s * (360 / 60);
+
+      const t = activeTheme();
+
+      drawTimeCircle(cx1, cy, d, rotHour,   t.hourCircle,   t.hourText,   pad2(h));
+      drawTimeCircle(cx2, cy, d, rotMinute, t.minuteCircle, t.minuteText, pad2(m));
+      drawTimeCircle(cx3, cy, d, rotSecond, t.secondCircle, t.secondText, pad2(s));
+    }
+
+    function drawTimeCircle(cx, cy, d, rotationDeg, circleColor, textColor, label) {
+      push();
+      translate(cx, cy);
+      rotate(rotationDeg);
+
+      // Cirkel
+      fill(circleColor);
+      circle(0, 0, d);
+
+      // Text: centrerad och nästan fyller cirkeln
+      // Anpassa storlek efter diameter; tweak-faktor för att matcha referensbild
+      fill(textColor);
+      textStyle(NORMAL);
+      textSize(d * 0.62);
+      text(label, 0, d * 0.03);
+
+      pop();
+    }
+  </script>
+</body>
+</html>
