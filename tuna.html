@@ -5,19 +5,24 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <title>Guitar tuner</title>
   <style>
+    @import url("https://fonts.googleapis.com/css2?family=Inter:wght@500&display=swap");
+
     :root {
       --bg: #F5F5F2;
       --ink: #212325;
       --surface: #ffffff;
-      --stage-max-width: 380px;
-      --strings-width: min(76vw, 288px);
-      --ring-size: 40px;
+      --stage-width: 380px;
+      --ring-size: 48px;
+      --ring-gap: 8px;
+      --strings-width: 328px;
+      --string-width: 1px;
+      --border-width: 1px;
       --dot-size: 18px;
-      --string-width: 2px;
-      --ring-center-y: 50%;
+      --ring-center-y: clamp(340px, 51.1svh, 392px);
       --card-width: 124px;
-      --card-height: 82px;
-      --card-gap: 22px;
+      --card-height: 81px;
+      --card-gap: 8px;
+      --pill-height: 36px;
       --safe-top: max(env(safe-area-inset-top), 0px);
       --safe-bottom: max(env(safe-area-inset-bottom), 0px);
     }
@@ -40,64 +45,171 @@
       min-height: 100svh;
     }
 
-    button {
+    button,
+    summary {
       font: inherit;
     }
 
-    .app-shell {
-      position: relative;
+    .app {
       min-height: 100svh;
-      overflow: hidden;
       background: var(--bg);
     }
 
-    .tuner-stage {
+    .stage {
       position: relative;
+      width: min(100vw, var(--stage-width));
       min-height: 100svh;
-      max-width: var(--stage-max-width);
       margin: 0 auto;
+      overflow: hidden;
       background: var(--bg);
       isolation: isolate;
     }
 
-    .microphone-button {
+    .top-pill {
       position: absolute;
       top: calc(var(--safe-top) + 20px);
-      left: 10px;
-      z-index: 10;
-      min-width: 152px;
-      min-height: 36px;
-      padding: 0 22px;
+      z-index: 20;
+      height: var(--pill-height);
       border: 0;
       border-radius: 999px;
       background: var(--ink);
       color: #ffffff;
-      font-size: 17px;
+      font-size: 14px;
       font-weight: 500;
-      letter-spacing: -0.03em;
+      line-height: 1;
+      letter-spacing: -0.02em;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      touch-action: manipulation;
-      cursor: pointer;
-      transition: transform 140ms ease, opacity 140ms ease;
-      box-shadow: none;
       white-space: nowrap;
+      user-select: none;
+      box-shadow: none;
+      transition: transform 120ms ease;
     }
 
-    .microphone-button:active {
-      transform: scale(0.98);
+    .microphone-button {
+      left: 10px;
+      width: 151px;
+      min-width: 0;
+      padding: 0 16px;
+      cursor: pointer;
+    }
+
+    .microphone-button:active,
+    .tuning-dropdown summary:active,
+    .tuning-option:active {
+      transform: scale(0.985);
+    }
+
+    .tuning-dropdown {
+      position: absolute;
+      top: calc(var(--safe-top) + 20px);
+      right: 10px;
+      z-index: 25;
+      min-width: 154px;
+    }
+
+    .tuning-dropdown summary {
+      list-style: none;
+      cursor: pointer;
+      width: 154px;
+      min-width: 0;
+      padding: 0 34px 0 16px;
+      justify-content: flex-start;
+      outline: none;
+      position: relative;
+    }
+
+    .tuning-dropdown summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .tuning-label {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .tuning-caret {
+      position: absolute;
+      right: 15px;
+      top: 50%;
+      width: 10px;
+      height: 6px;
+      transform: translateY(-50%);
+      transition: transform 160ms ease;
+      pointer-events: none;
+    }
+
+    .tuning-caret::before,
+    .tuning-caret::after {
+      content: "";
+      position: absolute;
+      top: 1px;
+      width: 7px;
+      height: 1px;
+      background: #ffffff;
+    }
+
+    .tuning-caret::before {
+      left: -1px;
+      transform: rotate(45deg);
+      transform-origin: left center;
+    }
+
+    .tuning-caret::after {
+      right: -1px;
+      transform: rotate(-45deg);
+      transform-origin: right center;
+    }
+
+    .tuning-dropdown[open] .tuning-caret {
+      transform: translateY(-50%) rotate(180deg);
+    }
+
+    .tuning-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      width: min(272px, calc(100vw - 20px));
+      max-height: min(60svh, 430px);
+      overflow: auto;
+      padding: 8px;
+      border: var(--border-width) solid var(--ink);
+      border-radius: 18px;
+      background: var(--surface);
+      box-shadow: 0 10px 24px rgba(33, 35, 37, 0.08);
+    }
+
+    .tuning-option {
+      width: 100%;
+      border: 0;
+      border-radius: 12px;
+      background: transparent;
+      color: var(--ink);
+      text-align: left;
+      font-size: 13px;
+      font-weight: 500;
+      line-height: 1.3;
+      padding: 10px 12px;
+      cursor: pointer;
+      display: block;
+    }
+
+    .tuning-option[aria-current="true"] {
+      background: rgba(33, 35, 37, 0.08);
     }
 
     .strings-layer {
       position: absolute;
-      top: 0;
-      bottom: 0;
+      inset: 0;
       left: 50%;
       width: var(--strings-width);
       transform: translateX(-50%);
       display: grid;
-      grid-template-columns: repeat(6, 1fr);
+      grid-template-columns: repeat(6, var(--ring-size));
+      column-gap: var(--ring-gap);
+      z-index: 1;
     }
 
     .string-column {
@@ -105,18 +217,17 @@
       display: block;
       width: 100%;
       min-height: 100svh;
-      margin: 0;
       padding: 0;
       border: 0;
       background: transparent;
       color: inherit;
-      touch-action: manipulation;
       cursor: pointer;
+      touch-action: manipulation;
     }
 
     .string-column:focus-visible {
       outline: 2px solid var(--ink);
-      outline-offset: -2px;
+      outline-offset: 2px;
     }
 
     .string-line {
@@ -128,12 +239,12 @@
       background: var(--ink);
       transform: translateX(-50%);
       transform-origin: center center;
-      z-index: 0;
       will-change: transform;
+      z-index: 0;
     }
 
     .string-column.is-vibrating .string-line {
-      animation: string-vibrate 120ms linear infinite;
+      animation: string-vibrate 130ms linear infinite;
     }
 
     .ring {
@@ -143,18 +254,20 @@
       width: var(--ring-size);
       height: var(--ring-size);
       transform: translate(-50%, -50%);
+      border: var(--border-width) solid var(--ink);
       border-radius: 50%;
-      border: 2px solid var(--ink);
       background: var(--bg);
       color: var(--ink);
-      display: grid;
-      place-items: center;
-      font-size: 21px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
       font-weight: 500;
-      letter-spacing: -0.05em;
       line-height: 1;
+      letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
       z-index: 2;
-      transition: background 160ms ease, color 160ms ease, transform 160ms ease;
+      transition: background 120ms ease, color 120ms ease;
     }
 
     .string-column.is-selected .ring {
@@ -162,51 +275,51 @@
       color: #ffffff;
     }
 
-    .tuning-dot {
+    .tuning-indicator {
       position: absolute;
       left: 50%;
       width: var(--dot-size);
       height: var(--dot-size);
+      transform: translateX(-50%);
+      border: var(--border-width) solid var(--ink);
       border-radius: 50%;
-      border: 2px solid var(--ink);
       background: var(--bg);
-      transform: translate(-50%, 0);
-      z-index: 1;
       opacity: 0;
-      transition:
-        top 170ms ease,
-        transform 170ms ease,
-        background 170ms ease,
-        opacity 170ms ease;
+      z-index: 1;
+      transition: top 120ms ease, opacity 120ms ease, background 120ms ease, transform 120ms ease;
     }
 
-    .string-column.is-selected .tuning-dot {
+    .string-column.is-selected.show-indicator .tuning-indicator {
       opacity: 1;
     }
 
-    .string-column.dot-below .tuning-dot {
-      top: calc(var(--ring-center-y) + (var(--ring-size) * 0.5) + 7px);
+    .string-column.indicator-below .tuning-indicator {
+      top: calc(var(--ring-center-y) + 28px);
     }
 
-    .string-column.dot-above .tuning-dot {
-      top: calc(var(--ring-center-y) - (var(--ring-size) * 0.5) - var(--dot-size) - 7px);
+    .string-column.indicator-above .tuning-indicator {
+      top: calc(var(--ring-center-y) - 46px);
     }
 
-    .string-column.dot-center .tuning-dot {
-      top: calc(var(--ring-center-y) + (var(--ring-size) * 0.5) + 7px);
+    .string-column.indicator-neutral .tuning-indicator {
+      top: calc(var(--ring-center-y) + 28px);
+    }
+
+    .string-column.indicator-center .tuning-indicator {
+      top: calc(var(--ring-center-y) + 28px);
       background: var(--ink);
-      transform: translate(-50%, 0) scale(0.78);
+      transform: translateX(-50%) scale(0.78);
     }
 
     .readout-stack {
       position: absolute;
       left: 50%;
-      top: calc(var(--ring-center-y) + clamp(116px, 17.5svh, 132px));
+      top: calc(var(--ring-center-y) + 178px);
       transform: translateX(-50%);
-      z-index: 5;
+      width: var(--card-width);
       display: grid;
       gap: var(--card-gap);
-      width: var(--card-width);
+      z-index: 10;
       pointer-events: none;
     }
 
@@ -214,31 +327,34 @@
       width: 100%;
       min-height: var(--card-height);
       background: var(--surface);
-      border-radius: 28px;
-      padding: 14px 12px 12px;
-      display: grid;
-      place-items: center;
-      align-content: center;
-      box-shadow: 0 0 0 1px rgba(33, 35, 37, 0.02);
+      border-radius: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 10px;
+      text-align: center;
     }
 
-    .readout-label {
-      font-size: 13px;
+    .readout-card.secondary {
+      gap: 6px;
+    }
+
+    .readout-primary {
+      font-size: 24px;
       font-weight: 500;
+      line-height: 1;
       letter-spacing: -0.03em;
-      line-height: 1.1;
-      margin-bottom: 9px;
+      font-variant-numeric: tabular-nums;
     }
 
-    .readout-value {
-      font-size: 26px;
+    .readout-secondary {
+      font-size: 12px;
       font-weight: 500;
-      letter-spacing: -0.06em;
-      line-height: 0.95;
-    }
-
-    .readout-value.large {
-      font-size: 31px;
+      line-height: 1.1;
+      letter-spacing: -0.01em;
+      font-variant-numeric: tabular-nums;
     }
 
     .sr-only {
@@ -258,16 +374,13 @@
         transform: translateX(-50%);
       }
       20% {
-        transform: translateX(calc(-50% - 1.1px));
+        transform: translateX(calc(-50% - 1px));
       }
-      40% {
-        transform: translateX(calc(-50% + 1.6px));
-      }
-      60% {
-        transform: translateX(calc(-50% - 0.8px));
+      50% {
+        transform: translateX(calc(-50% + 1.5px));
       }
       80% {
-        transform: translateX(calc(-50% + 1.1px));
+        transform: translateX(calc(-50% - 0.75px));
       }
       100% {
         transform: translateX(-50%);
@@ -275,48 +388,19 @@
     }
 
     @media (max-width: 359px) {
-      :root {
-        --strings-width: min(78vw, 272px);
-        --ring-size: 38px;
-        --dot-size: 17px;
-        --card-width: 118px;
-        --card-height: 78px;
-      }
-
-      .microphone-button {
-        left: 10px;
-        min-width: 144px;
-        padding: 0 18px;
+      .top-pill {
         font-size: 16px;
       }
 
-      .ring {
-        font-size: 20px;
-      }
-
-      .readout-label {
-        font-size: 12px;
-      }
-
-      .readout-value {
-        font-size: 24px;
-      }
-
-      .readout-value.large {
-        font-size: 29px;
-      }
-    }
-
-    @media (min-width: 401px) {
-      .microphone-button {
-        left: 14px;
+      .microphone-button,
+      .tuning-dropdown summary {
+        min-width: 0;
+        padding-inline: 18px;
       }
     }
 
     @media (prefers-reduced-motion: reduce) {
-      *,
-      *::before,
-      *::after {
+      *, *::before, *::after {
         animation-duration: 0ms !important;
         transition-duration: 0ms !important;
       }
@@ -324,226 +408,222 @@
   </style>
 </head>
 <body>
-  <main class="app-shell">
-    <section class="tuner-stage" aria-label="Gitarrstämmare">
-      <button id="microphoneButton" class="microphone-button" type="button">Activate microphone</button>
+  <main class="app">
+    <section class="stage" aria-label="Gitarrstämmare">
+      <button id="microphoneButton" class="top-pill microphone-button" type="button">Activate microphone</button>
 
-      <div id="stringsLayer" class="strings-layer" aria-label="Sex gitarrsträngar">
-        <button class="string-column" type="button" data-string-id="E2" aria-label="Låg E-sträng">
-          <span class="string-line" aria-hidden="true"></span>
-          <span class="ring" aria-hidden="true">E</span>
-          <span class="tuning-dot" aria-hidden="true"></span>
-        </button>
-        <button class="string-column" type="button" data-string-id="A2" aria-label="A-sträng">
-          <span class="string-line" aria-hidden="true"></span>
-          <span class="ring" aria-hidden="true">A</span>
-          <span class="tuning-dot" aria-hidden="true"></span>
-        </button>
-        <button class="string-column" type="button" data-string-id="D3" aria-label="D-sträng">
-          <span class="string-line" aria-hidden="true"></span>
-          <span class="ring" aria-hidden="true">D</span>
-          <span class="tuning-dot" aria-hidden="true"></span>
-        </button>
-        <button class="string-column" type="button" data-string-id="G3" aria-label="G-sträng">
-          <span class="string-line" aria-hidden="true"></span>
-          <span class="ring" aria-hidden="true">G</span>
-          <span class="tuning-dot" aria-hidden="true"></span>
-        </button>
-        <button class="string-column" type="button" data-string-id="B3" aria-label="B-sträng">
-          <span class="string-line" aria-hidden="true"></span>
-          <span class="ring" aria-hidden="true">B</span>
-          <span class="tuning-dot" aria-hidden="true"></span>
-        </button>
-        <button class="string-column" type="button" data-string-id="E4" aria-label="Hög E-sträng">
-          <span class="string-line" aria-hidden="true"></span>
-          <span class="ring" aria-hidden="true">E</span>
-          <span class="tuning-dot" aria-hidden="true"></span>
-        </button>
-      </div>
+      <details id="tuningDropdown" class="tuning-dropdown">
+        <summary class="top-pill" aria-label="Välj tuning">
+          <span id="tuningLabel" class="tuning-label">Standard tuning</span>
+          <span class="tuning-caret" aria-hidden="true"></span>
+        </summary>
+        <div id="tuningMenu" class="tuning-menu" role="listbox" aria-label="Tillgängliga tunings"></div>
+      </details>
+
+      <section id="stringsLayer" class="strings-layer" aria-label="Gitarrens sex strängar"></section>
 
       <section class="readout-stack" aria-live="polite">
-        <div class="readout-card">
-          <div class="readout-label">Hz</div>
-          <div id="frequencyValue" class="readout-value large">0.0</div>
-        </div>
-        <div class="readout-card">
-          <div class="readout-label">Ton nu</div>
-          <div id="noteValue" class="readout-value large">—</div>
-        </div>
+        <article class="readout-card primary">
+          <div id="frequencyValue" class="readout-primary">0.0</div>
+          <div id="referenceValue" class="readout-secondary">E2 82.41 Hz</div>
+        </article>
+        <article class="readout-card secondary">
+          <div class="readout-secondary">Ton nu</div>
+          <div id="noteValue" class="readout-primary">—</div>
+        </article>
       </section>
 
-      <div id="statusText" class="sr-only" aria-live="polite">Mikrofonen är avstängd.</div>
+      <p id="liveStatus" class="sr-only" aria-live="polite">Välj en sträng och aktivera mikrofonen.</p>
     </section>
   </main>
 
   <script>
-    const STRINGS = [
-      { id: 'E2', label: 'E', display: 'Låg E', freq: 82.41, midi: 40 },
-      { id: 'A2', label: 'A', display: 'A', freq: 110.0, midi: 45 },
-      { id: 'D3', label: 'D', display: 'D', freq: 146.83, midi: 50 },
-      { id: 'G3', label: 'G', display: 'G', freq: 196.0, midi: 55 },
-      { id: 'B3', label: 'B', display: 'B', freq: 246.94, midi: 59 },
-      { id: 'E4', label: 'E', display: 'Hög E', freq: 329.63, midi: 64 },
+    const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    const TUNINGS = [
+      {
+        id: "standard",
+        buttonLabel: "Standard tuning",
+        menuLabel: "Standard tuning (EADGBE)",
+        notes: ["E2", "A2", "D3", "G3", "B3", "E4"],
+      },
+      {
+        id: "drop-d",
+        buttonLabel: "Drop D tuning",
+        menuLabel: "Drop D tuning (DADGBE)",
+        notes: ["D2", "A2", "D3", "G3", "B3", "E4"],
+      },
+      {
+        id: "drop-c",
+        buttonLabel: "Drop C tuning",
+        menuLabel: "Drop C tuning (CGCFAD)",
+        notes: ["C2", "G2", "C3", "F3", "A3", "D4"],
+      },
+      {
+        id: "double-drop-d",
+        buttonLabel: "Double Drop D",
+        menuLabel: "Double Drop D tuning (DADGBD)",
+        notes: ["D2", "A2", "D3", "G3", "B3", "D4"],
+      },
+      {
+        id: "dadgad",
+        buttonLabel: "DADGAD",
+        menuLabel: "DADGAD (Celtic) tuning",
+        notes: ["D2", "A2", "D3", "G3", "A3", "D4"],
+      },
+      {
+        id: "nashville",
+        buttonLabel: "Nashville tuning",
+        menuLabel: "Nashville tuning (E’A’D’G’BE)",
+        notes: ["E3", "A3", "D4", "G4", "B3", "E4"],
+      },
+      {
+        id: "open-e",
+        buttonLabel: "Open E tuning",
+        menuLabel: "Open E tuning (EBEG#BE)",
+        notes: ["E2", "B2", "E3", "G#3", "B3", "E4"],
+      },
+      {
+        id: "open-g",
+        buttonLabel: "Open G tuning",
+        menuLabel: "Open G tuning (DGDGBD)",
+        notes: ["D2", "G2", "D3", "G3", "B3", "D4"],
+      },
+      {
+        id: "cgcfce",
+        buttonLabel: "CGCFCE",
+        menuLabel: "CGCFCE (Nick Drake) tuning",
+        notes: ["C2", "G2", "C3", "F3", "C4", "E4"],
+      },
+      {
+        id: "dgcgcd",
+        buttonLabel: "DGCGCD",
+        menuLabel: "DGCGCD (Rain Song) tuning",
+        notes: ["D2", "G2", "C3", "G3", "C4", "D4"],
+      },
+      {
+        id: "gabdeg",
+        buttonLabel: "GABDEG",
+        menuLabel: "GABDEG tuning",
+        notes: ["G2", "A2", "B2", "D3", "E3", "G3"],
+      },
     ];
 
-    const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const microphoneButton = document.getElementById('microphoneButton');
-    const frequencyValue = document.getElementById('frequencyValue');
-    const noteValue = document.getElementById('noteValue');
-    const statusText = document.getElementById('statusText');
-    const stringButtons = Array.from(document.querySelectorAll('.string-column'));
+    const microphoneButton = document.getElementById("microphoneButton");
+    const tuningDropdown = document.getElementById("tuningDropdown");
+    const tuningMenu = document.getElementById("tuningMenu");
+    const tuningLabel = document.getElementById("tuningLabel");
+    const stringsLayer = document.getElementById("stringsLayer");
+    const frequencyValue = document.getElementById("frequencyValue");
+    const referenceValue = document.getElementById("referenceValue");
+    const noteValue = document.getElementById("noteValue");
+    const liveStatus = document.getElementById("liveStatus");
+
+    let currentTuningId = "standard";
+    let selectedStringIndex = 0;
+    let stringButtons = [];
 
     let audioContext = null;
     let analyser = null;
     let mediaStream = null;
-    let sourceNode = null;
-    let sampleBuffer = null;
-    let rafId = 0;
+    let source = null;
+    let buffer = null;
+    let animationFrameId = null;
     let isListening = false;
-    let selectedStringId = null;
-    let lastDetectedAt = 0;
-    let lastDisplayedNote = '—';
+    let pitchHistory = [];
+    let lastDetectedPitchAt = 0;
+    let lastPitch = null;
+    let indicatorState = "hidden";
+    let isStringVibrating = false;
 
     function setStatus(message) {
-      statusText.textContent = message;
+      liveStatus.textContent = message;
+    }
+
+    function noteToFrequency(note) {
+      const match = /^([A-G])(#?)(-?\d+)$/.exec(note);
+      if (!match) return 0;
+      const [, root, sharp, octaveText] = match;
+      const semitone = NOTE_NAMES.indexOf(`${root}${sharp}`);
+      const octave = Number(octaveText);
+      const midi = (octave + 1) * 12 + semitone;
+      return 440 * Math.pow(2, (midi - 69) / 12);
     }
 
     function frequencyToMidi(freq) {
-      return 69 + (12 * Math.log2(freq / 440));
+      return 69 + 12 * Math.log2(freq / 440);
     }
 
     function midiToNoteName(midi) {
       const rounded = Math.round(midi);
-      const name = NOTE_NAMES[((rounded % 12) + 12) % 12];
+      const noteName = NOTE_NAMES[(rounded + 1200) % 12];
       const octave = Math.floor(rounded / 12) - 1;
-      return `${name}${octave}`;
+      return `${noteName}${octave}`;
     }
 
     function centsOff(targetFreq, actualFreq) {
       return 1200 * Math.log2(actualFreq / targetFreq);
     }
 
-    function getSelectedString() {
-      return STRINGS.find((item) => item.id === selectedStringId) || null;
+    function median(values) {
+      if (!values.length) return null;
+      const sorted = [...values].sort((a, b) => a - b);
+      const middle = Math.floor(sorted.length / 2);
+      return sorted.length % 2 === 0
+        ? (sorted[middle - 1] + sorted[middle]) / 2
+        : sorted[middle];
     }
 
-    function updateSelectedString(nextId) {
-      selectedStringId = nextId;
-
-      stringButtons.forEach((button) => {
-        const isSelected = button.dataset.stringId === nextId;
-        button.classList.toggle('is-selected', isSelected);
-        button.classList.remove('is-vibrating', 'dot-above', 'dot-center');
-        button.classList.toggle('dot-below', isSelected);
-      });
-
-      if (nextId) {
-        const selected = getSelectedString();
-        setStatus(`${selected.display} vald.`);
-      } else {
-        setStatus('Ingen sträng vald.');
-      }
-    }
-
-    function resetReadout(keepLastNote = false) {
-      frequencyValue.textContent = '0.0';
-      noteValue.textContent = keepLastNote ? lastDisplayedNote : '—';
-      stringButtons.forEach((button) => {
-        button.classList.remove('is-vibrating', 'dot-above', 'dot-center');
-        button.classList.toggle('dot-below', button.dataset.stringId === selectedStringId);
-      });
-    }
-
-    function stopDetectLoop() {
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-        rafId = 0;
-      }
-    }
-
-    async function stopListening() {
-      stopDetectLoop();
-
-      if (sourceNode) {
-        try {
-          sourceNode.disconnect();
-        } catch (error) {
-          console.warn(error);
-        }
-      }
-
-      if (mediaStream) {
-        mediaStream.getTracks().forEach((track) => track.stop());
-      }
-
-      if (audioContext && audioContext.state !== 'closed') {
-        try {
-          await audioContext.close();
-        } catch (error) {
-          console.warn(error);
-        }
-      }
-
-      audioContext = null;
-      analyser = null;
-      mediaStream = null;
-      sourceNode = null;
-      sampleBuffer = null;
-      isListening = false;
-      microphoneButton.textContent = 'Activate microphone';
-      resetReadout(true);
-      setStatus('Mikrofonen är avstängd.');
-    }
-
-    function autoCorrelate(buffer, sampleRate) {
-      const size = buffer.length;
+    function autoCorrelate(buf, sampleRate) {
+      const size = buf.length;
       let rms = 0;
 
       for (let i = 0; i < size; i += 1) {
-        const value = buffer[i];
+        const value = buf[i];
         rms += value * value;
       }
+
       rms = Math.sqrt(rms / size);
       if (rms < 0.015) return -1;
 
-      let r1 = 0;
-      let r2 = size - 1;
+      let start = 0;
+      let end = size - 1;
       const threshold = 0.2;
 
       for (let i = 0; i < size / 2; i += 1) {
-        if (Math.abs(buffer[i]) < threshold) {
-          r1 = i;
+        if (Math.abs(buf[i]) < threshold) {
+          start = i;
           break;
         }
       }
 
       for (let i = 1; i < size / 2; i += 1) {
-        if (Math.abs(buffer[size - i]) < threshold) {
-          r2 = size - i;
+        if (Math.abs(buf[size - i]) < threshold) {
+          end = size - i;
           break;
         }
       }
 
-      const trimmed = buffer.slice(r1, r2);
-      const newSize = trimmed.length;
-      const correlations = new Array(newSize).fill(0);
+      const trimmed = buf.slice(start, end);
+      const trimmedSize = trimmed.length;
+      if (!trimmedSize) return -1;
 
-      for (let lag = 0; lag < newSize; lag += 1) {
+      const correlations = new Array(trimmedSize).fill(0);
+      for (let lag = 0; lag < trimmedSize; lag += 1) {
         let sum = 0;
-        for (let i = 0; i < newSize - lag; i += 1) {
+        for (let i = 0; i < trimmedSize - lag; i += 1) {
           sum += trimmed[i] * trimmed[i + lag];
         }
         correlations[lag] = sum;
       }
 
       let dip = 0;
-      while (dip + 1 < newSize && correlations[dip] >= correlations[dip + 1]) {
+      while (dip + 1 < trimmedSize && correlations[dip] >= correlations[dip + 1]) {
         dip += 1;
       }
 
       let maxPosition = -1;
       let maxValue = -1;
-      for (let i = dip; i < newSize; i += 1) {
+      for (let i = dip; i < trimmedSize; i += 1) {
         if (correlations[i] > maxValue) {
           maxValue = correlations[i];
           maxPosition = i;
@@ -555,81 +635,186 @@
       const x1 = correlations[maxPosition - 1] || correlations[maxPosition];
       const x2 = correlations[maxPosition];
       const x3 = correlations[maxPosition + 1] || correlations[maxPosition];
-      const a = (x1 + x3 - (2 * x2)) / 2;
+      const a = (x1 + x3 - 2 * x2) / 2;
       const b = (x3 - x1) / 2;
-      const shift = a ? (-b / (2 * a)) : 0;
+      const shift = a ? -b / (2 * a) : 0;
       const period = maxPosition + shift;
-
       if (!period || !Number.isFinite(period)) return -1;
 
       const frequency = sampleRate / period;
-      if (frequency < 70 || frequency > 370) return -1;
+      if (frequency < 55 || frequency > 450) return -1;
       return frequency;
     }
 
-    function updateSelectedStringFeedback(pitch) {
-      const selected = getSelectedString();
-      const targetButton = selectedStringId
-        ? stringButtons.find((button) => button.dataset.stringId === selectedStringId)
-        : null;
-
-      stringButtons.forEach((button) => {
-        if (button !== targetButton) {
-          button.classList.remove('is-vibrating', 'dot-above', 'dot-center');
-          button.classList.toggle('dot-below', button.dataset.stringId === selectedStringId);
-        }
-      });
-
-      if (!selected || !targetButton || !Number.isFinite(pitch)) return;
-
-      const midiDistance = Math.abs(frequencyToMidi(pitch) - selected.midi);
-      const cents = centsOff(selected.freq, pitch);
-      const shouldAnimate = midiDistance <= 2.5;
-
-      targetButton.classList.toggle('is-vibrating', shouldAnimate);
-      targetButton.classList.remove('dot-above', 'dot-center', 'dot-below');
-
-      if (Math.abs(cents) <= 4) {
-        targetButton.classList.add('dot-center');
-      } else if (cents > 0) {
-        targetButton.classList.add('dot-above');
-      } else {
-        targetButton.classList.add('dot-below');
-      }
+    function getCurrentTuning() {
+      return TUNINGS.find((tuning) => tuning.id === currentTuningId) || TUNINGS[0];
     }
 
-    function updateReadout(pitch) {
-      const midi = frequencyToMidi(pitch);
-      const noteName = midiToNoteName(midi);
-      lastDisplayedNote = noteName;
+    function getCurrentStrings() {
+      return getCurrentTuning().notes.map((note, index) => ({
+        index,
+        note,
+        frequency: noteToFrequency(note),
+      }));
+    }
+
+    function updateReferenceReadout() {
+      const currentString = getCurrentStrings()[selectedStringIndex];
+      if (!currentString) {
+        referenceValue.textContent = "Välj en sträng";
+        return;
+      }
+      referenceValue.textContent = `${currentString.note} ${currentString.frequency.toFixed(2)} Hz`;
+    }
+
+    function applyStringUI() {
+      stringButtons.forEach((button, index) => {
+        const isSelected = index === selectedStringIndex;
+        button.classList.toggle("is-selected", isSelected);
+        button.classList.toggle("is-vibrating", isSelected && isStringVibrating);
+        button.classList.remove("show-indicator", "indicator-above", "indicator-below", "indicator-center");
+        button.setAttribute("aria-pressed", String(isSelected));
+
+        if (isSelected) {
+          if (indicatorState === "hidden") {
+            button.classList.add("show-indicator", "indicator-neutral");
+          } else {
+            button.classList.add("show-indicator", `indicator-${indicatorState}`);
+          }
+        }
+      });
+    }
+
+    function renderStrings() {
+      const currentStrings = getCurrentStrings();
+      stringsLayer.innerHTML = currentStrings.map((stringData, index) => `
+        <button
+          class="string-column"
+          type="button"
+          data-string-index="${index}"
+          aria-label="Välj sträng ${stringData.note}"
+          aria-pressed="false"
+        >
+          <span class="string-line" aria-hidden="true"></span>
+          <span class="ring" aria-hidden="true">${stringData.note}</span>
+          <span class="tuning-indicator" aria-hidden="true"></span>
+        </button>
+      `).join("");
+
+      stringButtons = Array.from(stringsLayer.querySelectorAll(".string-column"));
+      stringButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          selectedStringIndex = Number(button.dataset.stringIndex);
+          updateReferenceReadout();
+          updateIndicatorForPitch(lastPitch);
+          applyStringUI();
+          const currentString = getCurrentStrings()[selectedStringIndex];
+          if (currentString) {
+            setStatus(`${currentString.note} vald.`);
+          }
+        });
+      });
+
+      applyStringUI();
+    }
+
+    function renderTuningMenu() {
+      tuningMenu.innerHTML = TUNINGS.map((tuning) => `
+        <button
+          class="tuning-option"
+          type="button"
+          data-tuning-id="${tuning.id}"
+          aria-current="${tuning.id === currentTuningId ? "true" : "false"}"
+          role="option"
+        >${tuning.menuLabel}</button>
+      `).join("");
+
+      tuningMenu.querySelectorAll(".tuning-option").forEach((button) => {
+        button.addEventListener("click", () => {
+          const nextTuningId = button.dataset.tuningId;
+          const tuning = TUNINGS.find((item) => item.id === nextTuningId);
+          if (!tuning) return;
+          currentTuningId = tuning.id;
+          tuningLabel.textContent = tuning.buttonLabel;
+          renderTuningMenu();
+          renderStrings();
+          updateReferenceReadout();
+          updateIndicatorForPitch(lastPitch);
+          applyStringUI();
+          tuningDropdown.removeAttribute("open");
+          setStatus(`${tuning.buttonLabel} vald.`);
+        });
+      });
+    }
+
+    function updateIndicatorForPitch(pitch) {
+      const currentString = getCurrentStrings()[selectedStringIndex];
+      if (!currentString || !Number.isFinite(pitch)) {
+        indicatorState = "hidden";
+        isStringVibrating = false;
+        return;
+      }
+
+      const cents = centsOff(currentString.frequency, pitch);
+      if (Math.abs(cents) <= 5) {
+        indicatorState = "center";
+      } else if (cents < 0) {
+        indicatorState = "below";
+      } else {
+        indicatorState = "above";
+      }
+
+      isStringVibrating = true;
+    }
+
+    function clearDetectedPitch() {
+      frequencyValue.textContent = "0.0";
+      noteValue.textContent = "—";
+      lastPitch = null;
+      pitchHistory = [];
+      indicatorState = "hidden";
+      isStringVibrating = false;
+      applyStringUI();
+    }
+
+    function updateDetectedPitch(pitch) {
+      lastPitch = pitch;
       frequencyValue.textContent = pitch.toFixed(1);
-      noteValue.textContent = noteName;
-      updateSelectedStringFeedback(pitch);
-      lastDetectedAt = performance.now();
-      setStatus('Lyssnar efter ton.');
+      noteValue.textContent = midiToNoteName(frequencyToMidi(pitch));
+      updateIndicatorForPitch(pitch);
+      applyStringUI();
+      lastDetectedPitchAt = performance.now();
     }
 
     function detectPitch() {
-      if (!analyser || !sampleBuffer || !audioContext || !isListening) return;
-
-      analyser.getFloatTimeDomainData(sampleBuffer);
-      const pitch = autoCorrelate(sampleBuffer, audioContext.sampleRate);
+      if (!analyser || !buffer || !audioContext || !isListening) return;
+      analyser.getFloatTimeDomainData(buffer);
+      const pitch = autoCorrelate(buffer, audioContext.sampleRate);
 
       if (pitch !== -1) {
-        updateReadout(pitch);
-      } else if (performance.now() - lastDetectedAt > 450) {
-        frequencyValue.textContent = '0.0';
-        updateSelectedStringFeedback(NaN);
+        pitchHistory.push(pitch);
+        if (pitchHistory.length > 5) {
+          pitchHistory.shift();
+        }
+        const stablePitch = median(pitchHistory);
+        if (stablePitch) {
+          updateDetectedPitch(stablePitch);
+          const currentString = getCurrentStrings()[selectedStringIndex];
+          setStatus(currentString ? `Lyssnar på ${currentString.note}.` : "Lyssnar.");
+        }
+      } else if (performance.now() - lastDetectedPitchAt > 500) {
+        clearDetectedPitch();
+        setStatus("Ingen tydlig ton just nu.");
       }
 
-      rafId = requestAnimationFrame(detectPitch);
+      animationFrameId = requestAnimationFrame(detectPitch);
     }
 
     async function startListening() {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        setStatus('Din webbläsare stödjer inte mikrofonåtkomst.');
-        return;
-      }
+      if (isListening) return;
+
+      microphoneButton.disabled = true;
+      setStatus("Ber om mikrofonåtkomst...");
 
       try {
         mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -641,29 +826,70 @@
         });
 
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioContext.state === 'suspended') {
+        if (audioContext.state === "suspended") {
           await audioContext.resume();
         }
 
         analyser = audioContext.createAnalyser();
         analyser.fftSize = 4096;
-        analyser.smoothingTimeConstant = 0.15;
-        sourceNode = audioContext.createMediaStreamSource(mediaStream);
-        sourceNode.connect(analyser);
-        sampleBuffer = new Float32Array(analyser.fftSize);
+        analyser.smoothingTimeConstant = 0.12;
+
+        source = audioContext.createMediaStreamSource(mediaStream);
+        source.connect(analyser);
+
+        buffer = new Float32Array(analyser.fftSize);
         isListening = true;
-        lastDetectedAt = 0;
-        microphoneButton.textContent = 'stop microphone';
-        setStatus('Mikrofonen är på.');
+        microphoneButton.textContent = "stop microphone";
+        microphoneButton.disabled = false;
+        lastDetectedPitchAt = 0;
+        pitchHistory = [];
+        clearDetectedPitch();
         detectPitch();
       } catch (error) {
         console.error(error);
-        await stopListening();
-        setStatus('Kunde inte starta mikrofonen. Kontrollera tillstånd i webbläsaren.');
+        microphoneButton.disabled = false;
+        setStatus("Kunde inte starta mikrofonen. Tillåt mikrofon i webbläsaren.");
       }
     }
 
-    microphoneButton.addEventListener('click', async () => {
+    async function stopListening() {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+      }
+
+      if (source) {
+        try {
+          source.disconnect();
+        } catch (error) {
+          console.error(error);
+        }
+      }
+
+      if (mediaStream) {
+        mediaStream.getTracks().forEach((track) => track.stop());
+      }
+
+      if (audioContext) {
+        try {
+          await audioContext.close();
+        } catch (error) {
+          console.error(error);
+        }
+      }
+
+      analyser = null;
+      buffer = null;
+      source = null;
+      mediaStream = null;
+      audioContext = null;
+      isListening = false;
+      microphoneButton.textContent = "Activate microphone";
+      clearDetectedPitch();
+      setStatus("Mikrofonen är stoppad.");
+    }
+
+    microphoneButton.addEventListener("click", async () => {
       if (isListening) {
         await stopListening();
       } else {
@@ -671,29 +897,37 @@
       }
     });
 
-    stringButtons.forEach((button) => {
-      button.addEventListener('click', () => {
-        updateSelectedString(button.dataset.stringId);
-        if (!isListening) {
-          resetReadout(true);
-        }
-      });
+    document.addEventListener("click", (event) => {
+      if (!tuningDropdown.contains(event.target)) {
+        tuningDropdown.removeAttribute("open");
+      }
     });
 
-    document.addEventListener('visibilitychange', async () => {
+    document.addEventListener("visibilitychange", async () => {
       if (!audioContext || !isListening) return;
       if (document.hidden) {
-        stopDetectLoop();
+        if (animationFrameId) {
+          cancelAnimationFrame(animationFrameId);
+          animationFrameId = null;
+        }
       } else {
-        if (audioContext.state === 'suspended') {
-          await audioContext.resume();
+        if (audioContext.state === "suspended") {
+          try {
+            await audioContext.resume();
+          } catch (error) {
+            console.error(error);
+          }
         }
         detectPitch();
       }
     });
 
-    updateSelectedString(null);
-    resetReadout(false);
+    tuningLabel.textContent = getCurrentTuning().buttonLabel;
+    renderTuningMenu();
+    renderStrings();
+    updateReferenceReadout();
+    applyStringUI();
+    setStatus("E2 vald. Aktivera mikrofonen för att börja lyssna.");
   </script>
 </body>
 </html>
