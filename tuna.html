@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Guitar tuner</title>
+  <title>Gitarrstämmare</title>
   <style>
     @import url("https://fonts.googleapis.com/css2?family=Inter:wght@500&display=swap");
 
@@ -11,23 +11,29 @@
       --bg: #F5F5F2;
       --ink: #212325;
       --surface: #FFFFFF;
-      --stage-width: 380px;
-      --strings-width: 328px;
+      --safe-top: max(env(safe-area-inset-top), 0px);
+      --safe-bottom: max(env(safe-area-inset-bottom), 0px);
       --ring-size: 48px;
       --ring-gap: 8px;
+      --strings-width: 328px;
       --line-width: 1px;
       --border-width: 1px;
       --dot-size: 18px;
+      --dot-gap: 8px;
       --pill-height: 36px;
-      --controls-top-offset: clamp(12px, 2.7svh, 20px);
-      --controls-inline: 20px;
-      --ring-center-y: clamp(272px, 50.3svh, 379px);
-      --readout-bottom: clamp(12px, 2.8svh, 21px);
+      --controls-side: 20px;
+      --controls-top: 20px;
+      --button-gap: 12px;
+      --microphone-width: 151px;
+      --tuning-width: 154px;
+      --ring-center: 50svh;
       --readout-width: 124px;
-      --readout-height: 81px;
-      --readout-gap: clamp(8px, 1.2svh, 12px);
-      --safe-top: max(env(safe-area-inset-top), 0px);
-      --safe-bottom: max(env(safe-area-inset-bottom), 0px);
+      --readout-height: 82px;
+      --readout-gap: 14px;
+      --readout-bottom: 20px;
+      --card-radius: 20px;
+      --compact-controls-gap: 48px;
+      --compact-readout-gap: 16px;
     }
 
     * {
@@ -46,6 +52,7 @@
 
     body {
       min-height: 100svh;
+      min-height: 100dvh;
     }
 
     button,
@@ -55,14 +62,15 @@
 
     .app {
       min-height: 100svh;
+      min-height: 100dvh;
       background: var(--bg);
     }
 
     .stage {
       position: relative;
-      width: min(100vw, var(--stage-width));
+      width: 100%;
       min-height: 100svh;
-      margin: 0 auto;
+      min-height: 100dvh;
       overflow: hidden;
       background: var(--bg);
       isolation: isolate;
@@ -70,14 +78,14 @@
 
     .top-controls {
       position: absolute;
-      top: calc(var(--safe-top) + var(--controls-top-offset));
-      left: var(--controls-inline);
-      right: var(--controls-inline);
-      z-index: 20;
+      top: calc(var(--safe-top) + var(--controls-top));
+      left: var(--controls-side);
+      right: var(--controls-side);
+      z-index: 30;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: var(--button-gap);
     }
 
     .pill,
@@ -90,14 +98,14 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      white-space: nowrap;
       font-size: 14px;
       font-weight: 500;
       line-height: 1;
       letter-spacing: -0.02em;
+      white-space: nowrap;
       user-select: none;
       box-shadow: none;
-      transition: transform 120ms ease;
+      transition: transform 120ms ease, opacity 120ms ease;
     }
 
     .pill:active,
@@ -107,21 +115,21 @@
     }
 
     .microphone-button {
-      width: 151px;
+      width: var(--microphone-width);
       padding: 0 16px;
       cursor: pointer;
       flex: 0 0 auto;
     }
 
     .microphone-button[disabled] {
-      opacity: 0.72;
+      opacity: 0.7;
       cursor: default;
     }
 
     .tuning-dropdown {
       position: relative;
+      width: var(--tuning-width);
       flex: 0 0 auto;
-      width: 154px;
     }
 
     .tuning-dropdown > summary {
@@ -187,14 +195,14 @@
       position: absolute;
       top: calc(100% + 8px);
       right: 0;
-      width: min(272px, calc(100vw - (var(--controls-inline) * 2)));
+      width: min(272px, calc(100vw - (var(--controls-side) * 2)));
       max-height: min(56svh, 420px);
       overflow: auto;
       padding: 8px;
       border: var(--border-width) solid var(--ink);
       border-radius: 18px;
       background: var(--surface);
-      box-shadow: 0 10px 24px rgba(33, 35, 37, 0.08);
+      box-shadow: 0 12px 28px rgba(33, 35, 37, 0.08);
     }
 
     .tuning-option {
@@ -225,14 +233,13 @@
       display: grid;
       grid-template-columns: repeat(6, var(--ring-size));
       column-gap: var(--ring-gap);
-      z-index: 1;
+      z-index: 2;
     }
 
-    .string-column {
+    .string-button {
       position: relative;
       display: block;
-      width: 100%;
-      min-height: 100svh;
+      min-height: 100%;
       padding: 0;
       border: 0;
       background: transparent;
@@ -241,32 +248,38 @@
       touch-action: manipulation;
     }
 
-    .string-column:focus-visible {
+    .string-button:focus-visible {
       outline: 2px solid var(--ink);
       outline-offset: 2px;
     }
 
-    .string-line {
+    .string-visual {
       position: absolute;
       left: 50%;
       top: 0;
       bottom: 0;
       width: var(--line-width);
-      background: var(--ink);
       transform: translateX(-50%);
       transform-origin: center center;
       will-change: transform;
       z-index: 0;
     }
 
-    .string-column.is-vibrating .string-line {
-      animation: string-vibrate 128ms linear infinite;
+    .string-button.is-vibrating .string-visual {
+      animation: string-vibrate 120ms ease-in-out infinite;
+    }
+
+    .string-line {
+      position: absolute;
+      inset: 0;
+      width: var(--line-width);
+      background: var(--ink);
     }
 
     .ring {
       position: absolute;
       left: 50%;
-      top: var(--ring-center-y);
+      top: var(--ring-center);
       width: var(--ring-size);
       height: var(--ring-size);
       transform: translate(-50%, -50%);
@@ -282,11 +295,12 @@
       font-weight: 500;
       line-height: 1;
       letter-spacing: -0.02em;
+      font-variant-numeric: tabular-nums;
       z-index: 2;
-      transition: background 180ms ease, color 180ms ease;
+      transition: background 120ms ease, color 120ms ease;
     }
 
-    .string-column.is-selected .ring {
+    .string-button.is-selected .ring {
       background: var(--ink);
       color: #FFFFFF;
     }
@@ -296,32 +310,32 @@
       left: 50%;
       width: var(--dot-size);
       height: var(--dot-size);
+      top: calc(var(--ring-center) + (var(--ring-size) * 0.5) + var(--dot-gap));
+      transform: translateX(-50%);
       border: var(--border-width) solid var(--ink);
       border-radius: 50%;
       background: var(--bg);
       opacity: 0;
-      z-index: 2;
-      transform: translateX(-50%);
-      top: calc(var(--ring-center-y) + (var(--ring-size) * 0.5) + 12px);
-      transition: top 160ms ease, opacity 160ms ease, background 160ms ease, transform 160ms ease;
+      z-index: 1;
+      transition: top 160ms ease, background 160ms ease, transform 160ms ease, opacity 160ms ease;
     }
 
-    .string-column.is-selected .tuning-dot {
+    .string-button.is-selected .tuning-dot {
       opacity: 1;
     }
 
-    .string-column.dot-below .tuning-dot {
-      top: calc(var(--ring-center-y) + (var(--ring-size) * 0.5) + 12px);
+    .string-button.dot-below .tuning-dot {
+      top: calc(var(--ring-center) + (var(--ring-size) * 0.5) + var(--dot-gap));
     }
 
-    .string-column.dot-center .tuning-dot {
-      top: calc(var(--ring-center-y) + (var(--ring-size) * 0.5) + 4px);
+    .string-button.dot-center .tuning-dot {
+      top: calc(var(--ring-center) + (var(--ring-size) * 0.5) + 4px);
       background: var(--ink);
-      transform: translateX(-50%) scale(0.86);
+      transform: translateX(-50%) scale(0.78);
     }
 
-    .string-column.dot-above .tuning-dot {
-      top: calc(var(--ring-center-y) - (var(--ring-size) * 0.5) - var(--dot-size) - 10px);
+    .string-button.dot-above .tuning-dot {
+      top: calc(var(--ring-center) - (var(--ring-size) * 0.5) - var(--dot-size) - var(--dot-gap));
     }
 
     .readout-stack {
@@ -329,41 +343,46 @@
       left: 50%;
       bottom: calc(var(--safe-bottom) + var(--readout-bottom));
       transform: translateX(-50%);
-      z-index: 10;
-      width: var(--readout-width);
       display: grid;
       gap: var(--readout-gap);
+      justify-items: center;
+      width: var(--readout-width);
+      z-index: 10;
       pointer-events: none;
     }
 
     .readout-card {
       width: 100%;
-      height: var(--readout-height);
-      border-radius: 24px;
+      min-height: var(--readout-height);
       background: var(--surface);
+      border-radius: var(--card-radius);
       display: grid;
       align-content: center;
       justify-items: center;
+      gap: 10px;
       padding: 12px 10px;
       text-align: center;
       box-shadow: 0 0 0 1px rgba(33, 35, 37, 0.02);
     }
 
-    .primary-value,
-    .secondary-value {
+    .readout-card.secondary {
+      gap: 8px;
+    }
+
+    .readout-primary {
       font-size: 24px;
       font-weight: 500;
       line-height: 1;
       letter-spacing: -0.03em;
+      font-variant-numeric: tabular-nums;
     }
 
-    .reference-line,
-    .card-label {
-      margin-top: 8px;
+    .readout-secondary {
       font-size: 12px;
       font-weight: 500;
-      line-height: 1;
+      line-height: 1.15;
       letter-spacing: -0.01em;
+      font-variant-numeric: tabular-nums;
     }
 
     .sr-only {
@@ -379,52 +398,62 @@
     }
 
     @keyframes string-vibrate {
-      0% { transform: translateX(-50%); }
-      20% { transform: translateX(calc(-50% - 1.1px)); }
-      40% { transform: translateX(calc(-50% + 1.6px)); }
-      60% { transform: translateX(calc(-50% - 0.8px)); }
-      80% { transform: translateX(calc(-50% + 1.1px)); }
-      100% { transform: translateX(-50%); }
-    }
-
-    @media (max-height: 760px) {
-      :root {
-        --controls-top-offset: clamp(10px, 2svh, 16px);
-        --ring-center-y: clamp(248px, 48.5svh, 348px);
-        --readout-bottom: clamp(10px, 2svh, 16px);
+      0% {
+        transform: translateX(-50%);
+      }
+      20% {
+        transform: translateX(calc(-50% - 1px));
+      }
+      50% {
+        transform: translateX(calc(-50% + 1.5px));
+      }
+      80% {
+        transform: translateX(calc(-50% - 0.75px));
+      }
+      100% {
+        transform: translateX(-50%);
       }
     }
 
-    @media (max-height: 680px) {
+    @media (max-width: 374px) {
       :root {
-        --ring-center-y: clamp(228px, 46svh, 316px);
-        --readout-bottom: 10px;
-        --readout-gap: 8px;
-      }
-    }
-
-    @media (max-width: 359px) {
-      :root {
-        --controls-inline: 12px;
-      }
-
-      .top-controls {
-        gap: 10px;
+        --controls-side: 12px;
+        --button-gap: 10px;
       }
 
       .microphone-button,
       .tuning-dropdown {
-        width: calc((100vw - (var(--controls-inline) * 2) - 10px) / 2);
+        width: calc((100vw - (var(--controls-side) * 2) - var(--button-gap)) / 2);
+      }
+    }
+
+    @media (orientation: landscape) and (max-height: 560px) {
+      :root {
+        --controls-top: 20px;
+        --readout-bottom: 20px;
+        --readout-gap: var(--compact-readout-gap);
       }
 
-      .pill,
-      .tuning-dropdown > summary {
-        font-size: 13px;
+      .top-controls {
+        left: 50%;
+        right: auto;
+        transform: translateX(-50%);
+        width: max-content;
+        justify-content: center;
+        gap: var(--compact-controls-gap);
+      }
+
+      .readout-stack {
+        width: auto;
+        grid-auto-flow: column;
+        grid-auto-columns: var(--readout-width);
       }
     }
 
     @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after {
+      *,
+      *::before,
+      *::after {
         animation-duration: 0ms !important;
         transition-duration: 0ms !important;
       }
@@ -434,7 +463,7 @@
 <body>
   <main class="app">
     <section class="stage" aria-label="Gitarrstämmare">
-      <div class="top-controls">
+      <section class="top-controls" aria-label="Kontroller">
         <button id="microphoneButton" class="pill microphone-button" type="button">Activate microphone</button>
 
         <details id="tuningDropdown" class="tuning-dropdown">
@@ -442,51 +471,20 @@
             <span id="tuningLabel" class="tuning-label">Standard tuning</span>
             <span class="tuning-caret" aria-hidden="true"></span>
           </summary>
-          <div id="tuningMenu" class="tuning-menu" role="listbox" aria-label="Tuningalternativ"></div>
+          <div id="tuningMenu" class="tuning-menu" role="listbox" aria-label="Tillgängliga tunings"></div>
         </details>
-      </div>
-
-      <section id="stringsLayer" class="strings-layer" aria-label="Sex gitarrsträngar">
-        <button class="string-column" type="button" data-index="0" aria-pressed="true" aria-label="Välj sträng E2">
-          <span class="string-line" aria-hidden="true"></span>
-          <span class="ring" aria-hidden="true">E2</span>
-          <span class="tuning-dot" aria-hidden="true"></span>
-        </button>
-        <button class="string-column" type="button" data-index="1" aria-pressed="false" aria-label="Välj sträng A2">
-          <span class="string-line" aria-hidden="true"></span>
-          <span class="ring" aria-hidden="true">A2</span>
-          <span class="tuning-dot" aria-hidden="true"></span>
-        </button>
-        <button class="string-column" type="button" data-index="2" aria-pressed="false" aria-label="Välj sträng D3">
-          <span class="string-line" aria-hidden="true"></span>
-          <span class="ring" aria-hidden="true">D3</span>
-          <span class="tuning-dot" aria-hidden="true"></span>
-        </button>
-        <button class="string-column" type="button" data-index="3" aria-pressed="false" aria-label="Välj sträng G3">
-          <span class="string-line" aria-hidden="true"></span>
-          <span class="ring" aria-hidden="true">G3</span>
-          <span class="tuning-dot" aria-hidden="true"></span>
-        </button>
-        <button class="string-column" type="button" data-index="4" aria-pressed="false" aria-label="Välj sträng B3">
-          <span class="string-line" aria-hidden="true"></span>
-          <span class="ring" aria-hidden="true">B3</span>
-          <span class="tuning-dot" aria-hidden="true"></span>
-        </button>
-        <button class="string-column" type="button" data-index="5" aria-pressed="false" aria-label="Välj sträng E4">
-          <span class="string-line" aria-hidden="true"></span>
-          <span class="ring" aria-hidden="true">E4</span>
-          <span class="tuning-dot" aria-hidden="true"></span>
-        </button>
       </section>
 
+      <section id="stringsLayer" class="strings-layer" aria-label="Gitarrens sex strängar"></section>
+
       <section class="readout-stack" aria-live="polite">
-        <article class="readout-card">
-          <div id="frequencyValue" class="primary-value">0.0</div>
-          <div id="referenceValue" class="reference-line">E2 82.41 Hz</div>
+        <article class="readout-card primary">
+          <div id="frequencyValue" class="readout-primary">0.0</div>
+          <div id="referenceValue" class="readout-secondary">E2 82.41 Hz</div>
         </article>
-        <article class="readout-card">
-          <div class="card-label">Ton nu</div>
-          <div id="noteValue" class="secondary-value">—</div>
+        <article class="readout-card secondary">
+          <div class="readout-secondary">Ton nu</div>
+          <div id="noteValue" class="readout-primary">—</div>
         </article>
       </section>
 
@@ -495,115 +493,100 @@
   </main>
 
   <script>
+    const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+    const SEMITONES = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+
     const TUNINGS = [
       {
-        id: 'standard',
-        label: 'Standard tuning',
-        menuLabel: 'Standard tuning (EADGBE)',
-        notes: ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'],
+        id: "standard",
+        buttonLabel: "Standard tuning",
+        menuLabel: "Standard tuning (EADGBE)",
+        notes: ["E2", "A2", "D3", "G3", "B3", "E4"],
       },
       {
-        id: 'drop-d',
-        label: 'Drop D tuning',
-        menuLabel: 'Drop D tuning (DADGBE)',
-        notes: ['D2', 'A2', 'D3', 'G3', 'B3', 'E4'],
+        id: "drop-d",
+        buttonLabel: "Drop D tuning",
+        menuLabel: "Drop D tuning (DADGBE)",
+        notes: ["D2", "A2", "D3", "G3", "B3", "E4"],
       },
       {
-        id: 'drop-c',
-        label: 'Drop C tuning',
-        menuLabel: 'Drop C tuning (CGCFAD)',
-        notes: ['C2', 'G2', 'C3', 'F3', 'A3', 'D4'],
+        id: "drop-c",
+        buttonLabel: "Drop C tuning",
+        menuLabel: "Drop C tuning (CGCFAD)",
+        notes: ["C2", "G2", "C3", "F3", "A3", "D4"],
       },
       {
-        id: 'double-drop-d',
-        label: 'Double Drop D tuning',
-        menuLabel: 'Double Drop D tuning (DADGBD)',
-        notes: ['D2', 'A2', 'D3', 'G3', 'B3', 'D4'],
+        id: "double-drop-d",
+        buttonLabel: "Double Drop D tuning",
+        menuLabel: "Double Drop D tuning (DADGBD)",
+        notes: ["D2", "A2", "D3", "G3", "B3", "D4"],
       },
       {
-        id: 'dadgad',
-        label: 'DADGAD (Celtic) tuning',
-        menuLabel: 'DADGAD (Celtic) tuning',
-        notes: ['D2', 'A2', 'D3', 'G3', 'A3', 'D4'],
+        id: "dadgad",
+        buttonLabel: "DADGAD",
+        menuLabel: "DADGAD (Celtic) tuning",
+        notes: ["D2", "A2", "D3", "G3", "A3", "D4"],
       },
       {
-        id: 'nashville',
-        label: 'Nashville tuning',
-        menuLabel: 'Nashville tuning (E’A’D’G’BE)',
-        notes: ['E3', 'A3', 'D4', 'G4', 'B3', 'E4'],
+        id: "nashville",
+        buttonLabel: "Nashville tuning",
+        menuLabel: "Nashville tuning (E’A’D’G’BE)",
+        notes: ["E3", "A3", "D4", "G4", "B3", "E4"],
       },
       {
-        id: 'open-e',
-        label: 'Open E tuning',
-        menuLabel: 'Open E tuning (EBEG#BE)',
-        notes: ['E2', 'B2', 'E3', 'G#3', 'B3', 'E4'],
+        id: "open-e",
+        buttonLabel: "Open E tuning",
+        menuLabel: "Open E tuning (EBEG#BE)",
+        notes: ["E2", "B2", "E3", "G#3", "B3", "E4"],
       },
       {
-        id: 'open-g',
-        label: 'Open G tuning',
-        menuLabel: 'Open G tuning (DGDGBD)',
-        notes: ['D2', 'G2', 'D3', 'G3', 'B3', 'D4'],
+        id: "open-g",
+        buttonLabel: "Open G tuning",
+        menuLabel: "Open G tuning (DGDGBD)",
+        notes: ["D2", "G2", "D3", "G3", "B3", "D4"],
       },
       {
-        id: 'cgcfce',
-        label: 'CGCFCE (Nick Drake) tuning',
-        menuLabel: 'CGCFCE (Nick Drake) tuning',
-        notes: ['C2', 'G2', 'C3', 'F3', 'C4', 'E4'],
+        id: "cgcfce",
+        buttonLabel: "CGCFCE",
+        menuLabel: "CGCFCE (Nick Drake) tuning",
+        notes: ["C2", "G2", "C3", "F3", "C4", "E4"],
       },
       {
-        id: 'dgcgcd',
-        label: 'DGCGCD (Rain Song) tuning',
-        menuLabel: 'DGCGCD (Rain Song) tuning',
-        notes: ['D2', 'G2', 'C3', 'G3', 'C4', 'D4'],
+        id: "dgcgcd",
+        buttonLabel: "DGCGCD",
+        menuLabel: "DGCGCD (Rain Song) tuning",
+        notes: ["D2", "G2", "C3", "G3", "C4", "D4"],
       },
       {
-        id: 'gabdeg',
-        label: 'GABDEG tuning',
-        menuLabel: 'GABDEG tuning',
-        notes: ['G2', 'A2', 'B2', 'D3', 'E3', 'G3'],
+        id: "gabdeg",
+        buttonLabel: "GABDEG",
+        menuLabel: "GABDEG tuning",
+        notes: ["G2", "A2", "B2", "D3", "E3", "G3"],
       },
     ];
 
-    const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const NOTE_TO_SEMITONE = {
-      C: 0,
-      'C#': 1,
-      D: 2,
-      'D#': 3,
-      E: 4,
-      F: 5,
-      'F#': 6,
-      G: 7,
-      'G#': 8,
-      A: 9,
-      'A#': 10,
-      B: 11,
-    };
-
-    const microphoneButton = document.getElementById('microphoneButton');
-    const tuningDropdown = document.getElementById('tuningDropdown');
-    const tuningLabel = document.getElementById('tuningLabel');
-    const tuningMenu = document.getElementById('tuningMenu');
-    const frequencyValue = document.getElementById('frequencyValue');
-    const referenceValue = document.getElementById('referenceValue');
-    const noteValue = document.getElementById('noteValue');
-    const liveStatus = document.getElementById('liveStatus');
-    const stringButtons = Array.from(document.querySelectorAll('.string-column'));
+    const microphoneButton = document.getElementById("microphoneButton");
+    const tuningDropdown = document.getElementById("tuningDropdown");
+    const tuningMenu = document.getElementById("tuningMenu");
+    const tuningLabel = document.getElementById("tuningLabel");
+    const stringsLayer = document.getElementById("stringsLayer");
+    const frequencyValue = document.getElementById("frequencyValue");
+    const referenceValue = document.getElementById("referenceValue");
+    const noteValue = document.getElementById("noteValue");
+    const liveStatus = document.getElementById("liveStatus");
 
     let currentTuning = TUNINGS[0];
-    let selectedStringIndex = 0;
+    let selectedIndex = 0;
+    let stringButtons = [];
     let audioContext = null;
     let analyser = null;
     let mediaStream = null;
     let sourceNode = null;
     let sampleBuffer = null;
-    let animationFrameId = 0;
+    let rafId = 0;
     let isListening = false;
-    let pitchHistory = [];
-    let lastDetectedPitchAt = 0;
-    let lastDisplayedNote = '—';
-    let indicatorState = 'below';
-    let shouldVibrate = false;
+    let lastDetectedAt = 0;
+    let lastDetectedNote = "—";
 
     function setStatus(message) {
       liveStatus.textContent = message;
@@ -613,14 +596,21 @@
       const match = /^([A-G])(#?)(-?\d+)$/.exec(note);
       if (!match) return null;
       const [, letter, sharp, octaveText] = match;
-      const pitchClass = `${letter}${sharp}`;
       const octave = Number(octaveText);
-      return (octave + 1) * 12 + NOTE_TO_SEMITONE[pitchClass];
+      const semitone = SEMITONES[letter] + (sharp ? 1 : 0);
+      return ((octave + 1) * 12) + semitone;
+    }
+
+    function midiToNoteName(midi) {
+      const rounded = Math.round(midi);
+      const noteName = NOTE_NAMES[(rounded % 12 + 12) % 12];
+      const octave = Math.floor(rounded / 12) - 1;
+      return `${noteName}${octave}`;
     }
 
     function noteToFrequency(note) {
       const midi = noteToMidi(note);
-      if (midi === null) return null;
+      if (!Number.isFinite(midi)) return NaN;
       return 440 * Math.pow(2, (midi - 69) / 12);
     }
 
@@ -628,38 +618,191 @@
       return 69 + (12 * Math.log2(freq / 440));
     }
 
-    function midiToNoteName(midi) {
-      const rounded = Math.round(midi);
-      const name = NOTE_NAMES[((rounded % 12) + 12) % 12];
-      const octave = Math.floor(rounded / 12) - 1;
-      return `${name}${octave}`;
-    }
-
     function centsOff(targetFreq, actualFreq) {
       return 1200 * Math.log2(actualFreq / targetFreq);
     }
 
-    function getSelectedNote() {
-      return currentTuning.notes[selectedStringIndex];
+    function formatFrequency(freq) {
+      return `${freq.toFixed(2)} Hz`;
     }
 
-    function getSelectedFrequency() {
-      return noteToFrequency(getSelectedNote());
+    function getSelectedString() {
+      const note = currentTuning.notes[selectedIndex];
+      return {
+        index: selectedIndex,
+        note,
+        midi: noteToMidi(note),
+        freq: noteToFrequency(note),
+      };
     }
 
-    function formatReference() {
-      const note = getSelectedNote();
-      const freq = getSelectedFrequency();
-      return `${note} ${freq.toFixed(2)} Hz`;
+    function buildStrings() {
+      stringsLayer.innerHTML = "";
+      stringButtons = currentTuning.notes.map((note, index) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "string-button";
+        button.dataset.index = String(index);
+        button.setAttribute("aria-pressed", index === selectedIndex ? "true" : "false");
+        button.setAttribute("aria-label", `Välj sträng ${note}`);
+
+        const visual = document.createElement("span");
+        visual.className = "string-visual";
+
+        const line = document.createElement("span");
+        line.className = "string-line";
+
+        const dot = document.createElement("span");
+        dot.className = "tuning-dot";
+        dot.setAttribute("aria-hidden", "true");
+
+        visual.append(line, dot);
+
+        const ring = document.createElement("span");
+        ring.className = "ring";
+        ring.textContent = note;
+        ring.setAttribute("aria-hidden", "true");
+
+        button.append(visual, ring);
+        button.addEventListener("click", () => {
+          updateSelectedString(index);
+        });
+
+        stringsLayer.appendChild(button);
+        return button;
+      });
+
+      applySelectionState();
+      updateReferenceReadout();
+      updateSelectedStringFeedback(NaN);
     }
 
-    function median(values) {
-      if (!values.length) return null;
-      const sorted = [...values].sort((a, b) => a - b);
-      const middle = Math.floor(sorted.length / 2);
-      return sorted.length % 2 === 0
-        ? (sorted[middle - 1] + sorted[middle]) / 2
-        : sorted[middle];
+    function applySelectionState() {
+      stringButtons.forEach((button, index) => {
+        const isSelected = index === selectedIndex;
+        button.classList.toggle("is-selected", isSelected);
+        button.classList.toggle("dot-below", isSelected);
+        button.classList.remove("dot-above", "dot-center", "is-vibrating");
+        button.setAttribute("aria-pressed", isSelected ? "true" : "false");
+      });
+    }
+
+    function updateSelectedString(index) {
+      selectedIndex = index;
+      applySelectionState();
+      updateReferenceReadout();
+      updateSelectedStringFeedback(NaN);
+      if (!isListening) {
+        frequencyValue.textContent = "0.0";
+        noteValue.textContent = "—";
+        lastDetectedNote = "—";
+      }
+      setStatus(`Vald sträng ${currentTuning.notes[selectedIndex]}.`);
+    }
+
+    function updateReferenceReadout() {
+      const selected = getSelectedString();
+      referenceValue.textContent = `${selected.note} ${formatFrequency(selected.freq)}`;
+    }
+
+    function renderTuningMenu() {
+      tuningMenu.innerHTML = "";
+      TUNINGS.forEach((tuning) => {
+        const option = document.createElement("button");
+        option.type = "button";
+        option.className = "tuning-option";
+        option.textContent = tuning.menuLabel;
+        option.setAttribute("role", "option");
+        option.setAttribute("aria-current", tuning.id === currentTuning.id ? "true" : "false");
+        option.addEventListener("click", () => {
+          currentTuning = tuning;
+          tuningLabel.textContent = tuning.buttonLabel;
+          renderTuningMenu();
+          buildStrings();
+          resetReadout(false);
+          tuningDropdown.open = false;
+          setStatus(`Vald tuning ${tuning.buttonLabel}.`);
+        });
+        tuningMenu.appendChild(option);
+      });
+    }
+
+    function updateSelectedStringFeedback(pitch) {
+      stringButtons.forEach((button, index) => {
+        const isSelected = index === selectedIndex;
+        button.classList.toggle("is-selected", isSelected);
+        button.classList.remove("dot-above", "dot-center", "dot-below", "is-vibrating");
+        if (isSelected) {
+          button.classList.add("dot-below");
+        }
+      });
+
+      const selectedButton = stringButtons[selectedIndex];
+      const selected = getSelectedString();
+      if (!selectedButton || !Number.isFinite(pitch)) return;
+
+      const midiDistance = Math.abs(frequencyToMidi(pitch) - selected.midi);
+      if (midiDistance > 2.5) {
+        return;
+      }
+
+      const cents = centsOff(selected.freq, pitch);
+      selectedButton.classList.toggle("is-vibrating", true);
+      selectedButton.classList.remove("dot-above", "dot-center", "dot-below");
+
+      if (Math.abs(cents) <= 4) {
+        selectedButton.classList.add("dot-center");
+      } else if (cents > 0) {
+        selectedButton.classList.add("dot-above");
+      } else {
+        selectedButton.classList.add("dot-below");
+      }
+    }
+
+    function resetReadout(clearNote = true) {
+      frequencyValue.textContent = "0.0";
+      if (clearNote) {
+        noteValue.textContent = "—";
+        lastDetectedNote = "—";
+      } else {
+        noteValue.textContent = lastDetectedNote;
+      }
+      updateReferenceReadout();
+      updateSelectedStringFeedback(NaN);
+    }
+
+    function stopDetectLoop() {
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+        rafId = 0;
+      }
+    }
+
+    async function stopListening() {
+      stopDetectLoop();
+      if (mediaStream) {
+        mediaStream.getTracks().forEach((track) => track.stop());
+      }
+      if (sourceNode) {
+        sourceNode.disconnect();
+      }
+      if (audioContext) {
+        try {
+          await audioContext.close();
+        } catch (error) {
+          console.error(error);
+        }
+      }
+      audioContext = null;
+      analyser = null;
+      mediaStream = null;
+      sourceNode = null;
+      sampleBuffer = null;
+      isListening = false;
+      lastDetectedAt = 0;
+      microphoneButton.textContent = "Activate microphone";
+      resetReadout(true);
+      setStatus("Mikrofonen är avstängd.");
     }
 
     function autoCorrelate(buffer, sampleRate) {
@@ -667,10 +810,8 @@
       let rms = 0;
 
       for (let i = 0; i < size; i += 1) {
-        const value = buffer[i];
-        rms += value * value;
+        rms += buffer[i] * buffer[i];
       }
-
       rms = Math.sqrt(rms / size);
       if (rms < 0.015) return -1;
 
@@ -693,235 +834,83 @@
       }
 
       const trimmed = buffer.slice(r1, r2);
-      const trimmedSize = trimmed.length;
-      const correlations = new Array(trimmedSize).fill(0);
+      const newSize = trimmed.length;
+      const correlations = new Array(newSize).fill(0);
 
-      for (let lag = 0; lag < trimmedSize; lag += 1) {
+      for (let lag = 0; lag < newSize; lag += 1) {
         let sum = 0;
-        for (let i = 0; i < trimmedSize - lag; i += 1) {
+        for (let i = 0; i < newSize - lag; i += 1) {
           sum += trimmed[i] * trimmed[i + lag];
         }
         correlations[lag] = sum;
       }
 
       let dip = 0;
-      while (dip + 1 < trimmedSize && correlations[dip] >= correlations[dip + 1]) {
+      while (dip + 1 < newSize && correlations[dip] >= correlations[dip + 1]) {
         dip += 1;
       }
 
-      let maxPos = -1;
-      let maxVal = -1;
-      for (let i = dip; i < trimmedSize; i += 1) {
-        if (correlations[i] > maxVal) {
-          maxVal = correlations[i];
-          maxPos = i;
+      let maxPosition = -1;
+      let maxValue = -1;
+      for (let i = dip; i < newSize; i += 1) {
+        if (correlations[i] > maxValue) {
+          maxValue = correlations[i];
+          maxPosition = i;
         }
       }
 
-      if (maxPos <= 0) return -1;
+      if (maxPosition <= 0) return -1;
 
-      const x1 = correlations[maxPos - 1] || correlations[maxPos];
-      const x2 = correlations[maxPos];
-      const x3 = correlations[maxPos + 1] || correlations[maxPos];
+      const x1 = correlations[maxPosition - 1] || correlations[maxPosition];
+      const x2 = correlations[maxPosition];
+      const x3 = correlations[maxPosition + 1] || correlations[maxPosition];
       const a = (x1 + x3 - (2 * x2)) / 2;
       const b = (x3 - x1) / 2;
-      const shift = a ? -b / (2 * a) : 0;
-      const period = maxPos + shift;
+      const shift = a ? (-b / (2 * a)) : 0;
+      const period = maxPosition + shift;
 
       if (!period || !Number.isFinite(period)) return -1;
 
       const frequency = sampleRate / period;
-      if (frequency < 60 || frequency > 700) return -1;
+      if (frequency < 55 || frequency > 450) return -1;
       return frequency;
     }
 
-    function getNearestStringIndex(pitch) {
-      let bestIndex = 0;
-      let bestDistance = Infinity;
+    function updateReadout(pitch) {
       const midi = frequencyToMidi(pitch);
-
-      currentTuning.notes.forEach((note, index) => {
-        const noteMidi = noteToMidi(note);
-        const distance = Math.abs(midi - noteMidi);
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          bestIndex = index;
-        }
-      });
-
-      return bestIndex;
-    }
-
-    function applyStringUI() {
-      stringButtons.forEach((button, index) => {
-        const isSelected = index === selectedStringIndex;
-        button.classList.toggle('is-selected', isSelected);
-        button.classList.toggle('is-vibrating', isSelected && shouldVibrate);
-        button.classList.remove('dot-above', 'dot-center', 'dot-below');
-        button.setAttribute('aria-pressed', String(isSelected));
-
-        if (isSelected) {
-          button.classList.add(`dot-${indicatorState}`);
-        }
-      });
-    }
-
-    function updateReferenceUI() {
-      referenceValue.textContent = formatReference();
-      stringButtons.forEach((button, index) => {
-        const note = currentTuning.notes[index];
-        const ring = button.querySelector('.ring');
-        ring.textContent = note;
-        button.setAttribute('aria-label', `Välj sträng ${note}`);
-      });
-      applyStringUI();
-    }
-
-    function selectString(index) {
-      selectedStringIndex = index;
-      indicatorState = 'below';
-      shouldVibrate = false;
-      updateReferenceUI();
-      const note = getSelectedNote();
-      setStatus(`${note} vald.`);
-    }
-
-    function renderTuningOptions() {
-      tuningMenu.innerHTML = '';
-      TUNINGS.forEach((tuning) => {
-        const option = document.createElement('button');
-        option.type = 'button';
-        option.className = 'tuning-option';
-        option.textContent = tuning.menuLabel;
-        option.setAttribute('role', 'option');
-        option.setAttribute('aria-current', String(tuning.id === currentTuning.id));
-        option.addEventListener('click', () => {
-          currentTuning = tuning;
-          tuningLabel.textContent = tuning.label;
-          tuningDropdown.open = false;
-          indicatorState = 'below';
-          shouldVibrate = false;
-          pitchHistory = [];
-          renderTuningOptions();
-          updateReferenceUI();
-          setStatus(`${tuning.label} vald.`);
-        });
-        tuningMenu.appendChild(option);
-      });
-    }
-
-    function clearDetectedPitch(keepNote = true) {
-      frequencyValue.textContent = '0.0';
-      noteValue.textContent = keepNote ? lastDisplayedNote : '—';
-      indicatorState = 'below';
-      shouldVibrate = false;
-      applyStringUI();
-    }
-
-    function updateIndicatorState(pitch) {
-      const cents = centsOff(getSelectedFrequency(), pitch);
-      if (Math.abs(cents) <= 4) {
-        indicatorState = 'center';
-      } else if (cents < 0) {
-        indicatorState = 'below';
-      } else {
-        indicatorState = 'above';
-      }
-    }
-
-    function updatePitchUI(pitch) {
-      const noteName = midiToNoteName(frequencyToMidi(pitch));
-      lastDisplayedNote = noteName;
+      const noteName = midiToNoteName(midi);
+      lastDetectedNote = noteName;
       frequencyValue.textContent = pitch.toFixed(1);
       noteValue.textContent = noteName;
-      updateIndicatorState(pitch);
-      shouldVibrate = getNearestStringIndex(pitch) === selectedStringIndex;
-      applyStringUI();
-      lastDetectedPitchAt = performance.now();
-
-      const direction = indicatorState === 'below'
-        ? 'för låg, stäm upp.'
-        : indicatorState === 'above'
-          ? 'för hög, stäm ner.'
-          : 'är i ton.';
-      setStatus(`${getSelectedNote()} vald, ${noteName} ${direction}`);
-    }
-
-    function cleanupAudio() {
-      if (animationFrameId) {
-        cancelAnimationFrame(animationFrameId);
-        animationFrameId = 0;
-      }
-
-      if (sourceNode) {
-        try {
-          sourceNode.disconnect();
-        } catch (error) {
-          console.warn(error);
-        }
-      }
-
-      if (mediaStream) {
-        mediaStream.getTracks().forEach((track) => track.stop());
-      }
-
-      sourceNode = null;
-      mediaStream = null;
-      analyser = null;
-      sampleBuffer = null;
-    }
-
-    async function stopListening() {
-      cleanupAudio();
-
-      if (audioContext && audioContext.state !== 'closed') {
-        try {
-          await audioContext.close();
-        } catch (error) {
-          console.warn(error);
-        }
-      }
-
-      audioContext = null;
-      isListening = false;
-      pitchHistory = [];
-      microphoneButton.textContent = 'Activate microphone';
-      clearDetectedPitch(true);
-      setStatus('Mikrofonen är avstängd.');
+      updateSelectedStringFeedback(pitch);
+      lastDetectedAt = performance.now();
+      setStatus("Lyssnar efter ton.");
     }
 
     function detectPitch() {
-      if (!isListening || !analyser || !sampleBuffer || !audioContext) return;
+      if (!analyser || !sampleBuffer || !audioContext || !isListening) return;
 
       analyser.getFloatTimeDomainData(sampleBuffer);
-      const rawPitch = autoCorrelate(sampleBuffer, audioContext.sampleRate);
+      const pitch = autoCorrelate(sampleBuffer, audioContext.sampleRate);
 
-      if (rawPitch !== -1) {
-        pitchHistory.push(rawPitch);
-        if (pitchHistory.length > 5) pitchHistory.shift();
-        const stablePitch = median(pitchHistory) || rawPitch;
-        updatePitchUI(stablePitch);
-      } else if (performance.now() - lastDetectedPitchAt > 350) {
-        pitchHistory = [];
-        clearDetectedPitch(true);
+      if (pitch !== -1) {
+        updateReadout(pitch);
+      } else if (performance.now() - lastDetectedAt > 450) {
+        frequencyValue.textContent = "0.0";
+        noteValue.textContent = lastDetectedNote;
+        updateSelectedStringFeedback(NaN);
       }
 
-      if (performance.now() - lastDetectedPitchAt > 120) {
-        shouldVibrate = false;
-        applyStringUI();
-      }
-
-      animationFrameId = requestAnimationFrame(detectPitch);
+      rafId = requestAnimationFrame(detectPitch);
     }
 
     async function startListening() {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setStatus('Den här webbläsaren stöder inte mikrofonåtkomst.');
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setStatus("Din webbläsare stödjer inte mikrofonåtkomst.");
         return;
       }
 
       microphoneButton.disabled = true;
-      setStatus('Ber om mikrofonåtkomst.');
 
       try {
         mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -933,84 +922,67 @@
         });
 
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioContext.state === 'suspended') {
+        if (audioContext.state === "suspended") {
           await audioContext.resume();
         }
 
         analyser = audioContext.createAnalyser();
         analyser.fftSize = 4096;
-        analyser.smoothingTimeConstant = 0.12;
-
+        analyser.smoothingTimeConstant = 0.15;
         sourceNode = audioContext.createMediaStreamSource(mediaStream);
         sourceNode.connect(analyser);
-
         sampleBuffer = new Float32Array(analyser.fftSize);
         isListening = true;
-        pitchHistory = [];
-        lastDetectedPitchAt = 0;
-        microphoneButton.textContent = 'stop microphone';
-        microphoneButton.disabled = false;
-        setStatus(`${getSelectedNote()} vald. Spela strängen nära mikrofonen.`);
+        lastDetectedAt = 0;
+        microphoneButton.textContent = "stop microphone";
+        setStatus("Mikrofonen är på.");
         detectPitch();
       } catch (error) {
         console.error(error);
-        cleanupAudio();
-
-        if (audioContext && audioContext.state !== 'closed') {
-          try {
-            await audioContext.close();
-          } catch (closeError) {
-            console.warn(closeError);
-          }
-        }
-
-        audioContext = null;
-        microphoneButton.textContent = 'Activate microphone';
+        await stopListening();
+        setStatus("Kunde inte starta mikrofonen. Kontrollera tillstånd i webbläsaren.");
+      } finally {
         microphoneButton.disabled = false;
-        setStatus('Kunde inte starta mikrofonen. Kontrollera mikrofonbehörigheten i webbläsaren.');
       }
     }
 
-    microphoneButton.addEventListener('click', () => {
+    microphoneButton.addEventListener("click", async () => {
       if (isListening) {
-        stopListening();
+        await stopListening();
       } else {
-        startListening();
+        await startListening();
       }
     });
 
-    stringButtons.forEach((button) => {
-      button.addEventListener('click', () => {
-        selectString(Number(button.dataset.index));
-      });
-    });
-
-    document.addEventListener('click', (event) => {
+    document.addEventListener("click", (event) => {
       if (!tuningDropdown.contains(event.target)) {
         tuningDropdown.open = false;
       }
     });
 
-    document.addEventListener('visibilitychange', async () => {
-      if (!audioContext || !isListening) return;
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") {
+        tuningDropdown.open = false;
+      }
+    });
 
+    document.addEventListener("visibilitychange", async () => {
+      if (!audioContext || !isListening) return;
       if (document.hidden) {
-        if (animationFrameId) {
-          cancelAnimationFrame(animationFrameId);
-          animationFrameId = 0;
-        }
+        stopDetectLoop();
       } else {
-        if (audioContext.state === 'suspended') {
+        if (audioContext.state === "suspended") {
           await audioContext.resume();
         }
         detectPitch();
       }
     });
 
-    tuningLabel.textContent = currentTuning.label;
-    renderTuningOptions();
-    updateReferenceUI();
-    setStatus('E2 vald. Aktivera mikrofonen.');
+    tuningLabel.textContent = currentTuning.buttonLabel;
+    renderTuningMenu();
+    buildStrings();
+    updateSelectedString(0);
+    resetReadout(true);
   </script>
 </body>
 </html>
