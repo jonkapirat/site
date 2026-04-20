@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Gitarrstämmare</title>
+  <style>
+    :root {
+      --bg: #f6f2ea;
+      --fg: #1e1b18;
+      --muted: #7a736b;
+      --line: rgba(30, 27, 24, 0.2);
+      --line-active: rgba(30, 27, 24, 0.9);
+      --ring-size: clamp(64px, 18vw, 88px);
+      --safe-top: max(env(safe-area-inset-top), 12px);
+      --safe-bottom: max(env(safe-area-inset-bottom), 16px);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      min-height: 100svh;
+    }
+
+    button,
+    input,
+    textarea,
+    select {
+      font: inherit;
+    }
+
+    .app {
+      min-height: 100svh;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      padding: calc(var(--safe-top) + 10px) 16px calc(var(--safe-bottom) + 12px);
+      gap: 18px;
+      max-width: 520px;
+      margin: 0 auto;
+    }
+
+    .topbar {
+      display: grid;
+      gap: 14px;
+    }
+
+    .headline {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .title-wrap {
+      display: grid;
+      gap: 4px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.5rem, 5vw, 2rem);
+      line-height: 1.05;
+      letter-spacing: -0.04em;
+    }
+
+    .subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .start-button {
+      appearance: none;
+      border: 1.5px solid var(--fg);
+      background: var(--fg);
+      color: var(--bg);
+      border-radius: 999px;
+      padding: 12px 16px;
+      min-height: 48px;
+      cursor: pointer;
+      white-space: nowrap;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      transition: transform 140ms ease, opacity 140ms ease;
+      box-shadow: 0 0 0 0 rgba(0,0,0,0);
+    }
+
+    .start-button:active {
+      transform: scale(0.98);
+    }
+
+    .start-button[disabled] {
+      opacity: 0.55;
+      cursor: default;
+    }
+
+    .meter {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.44);
+      border: 1.5px solid rgba(30, 27, 24, 0.12);
+      border-radius: 24px;
+      padding: 14px 16px;
+      backdrop-filter: blur(6px);
+    }
+
+    .meter-label {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .meter-note {
+      font-size: clamp(2rem, 10vw, 3.4rem);
+      line-height: 0.9;
+      letter-spacing: -0.06em;
+      font-weight: 800;
+    }
+
+    .meter-meta {
+      display: grid;
+      justify-items: end;
+      gap: 6px;
+      text-align: right;
+    }
+
+    .meta-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 34px;
+      border-radius: 999px;
+      padding: 0 12px;
+      border: 1.5px solid rgba(30, 27, 24, 0.16);
+      background: rgba(255, 255, 255, 0.7);
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .strings {
+      display: grid;
+      grid-template-rows: repeat(6, 1fr);
+      min-height: min(62svh, 620px);
+      gap: 8px;
+      align-content: stretch;
+      padding: 6px 2px;
+    }
+
+    .string-row {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 68px;
+      isolation: isolate;
+    }
+
+    .string-row::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      right: 0;
+      height: var(--string-thickness, 2px);
+      border-radius: 999px;
+      background: var(--line);
+      z-index: 0;
+      transition: background 160ms ease, transform 160ms ease;
+    }
+
+    .string-row.active::before {
+      background: var(--line-active);
+      transform: scaleX(1.015);
+    }
+
+    .ring {
+      position: relative;
+      z-index: 1;
+      width: var(--ring-size);
+      height: var(--ring-size);
+      border-radius: 999px;
+      border: 2px solid var(--fg);
+      background: #ffffff;
+      color: var(--fg);
+      display: grid;
+      place-items: center;
+      font-size: clamp(1.45rem, 6vw, 2rem);
+      font-weight: 800;
+      letter-spacing: -0.06em;
+      box-shadow: 0 8px 24px rgba(30, 27, 24, 0.05);
+      transition: background 180ms ease, color 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+    }
+
+    .string-row.active .ring {
+      background: var(--fg);
+      color: var(--bg);
+      transform: scale(1.03);
+      box-shadow: 0 14px 30px rgba(30, 27, 24, 0.14);
+    }
+
+    .ring-note {
+      transform: translateY(-1px);
+    }
+
+    .footer {
+      display: grid;
+      gap: 8px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.92rem;
+      padding-bottom: 4px;
+    }
+
+    .status {
+      min-height: 1.4em;
+    }
+
+    .hint {
+      font-size: 0.86rem;
+      line-height: 1.45;
+      max-width: 34ch;
+      margin: 0 auto;
+    }
+
+    .is-hidden {
+      display: none;
+    }
+
+    .active-caption {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.8rem;
+      color: var(--muted);
+      opacity: 0;
+      transition: opacity 160ms ease;
+      letter-spacing: -0.01em;
+    }
+
+    .string-row.active .active-caption {
+      opacity: 1;
+    }
+
+    @media (max-width: 390px) {
+      .app {
+        padding-left: 12px;
+        padding-right: 12px;
+      }
+
+      .meter {
+        padding: 12px 14px;
+      }
+
+      .meta-chip {
+        font-size: 0.88rem;
+        padding: 0 10px;
+      }
+
+      .active-caption {
+        right: 4px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        transition-duration: 0ms !important;
+        animation-duration: 0ms !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="topbar">
+      <div class="headline">
+        <div class="title-wrap">
+          <h1>Gitarrstämmare</h1>
+          <p class="subtitle">Lyssna och markera närmaste sträng.</p>
+        </div>
+        <button id="startButton" class="start-button" type="button">Starta mikrofon</button>
+      </div>
+
+      <section class="meter" aria-live="polite">
+        <div>
+          <div class="meter-label">Ton nu</div>
+          <div id="noteDisplay" class="meter-note">—</div>
+        </div>
+        <div class="meter-meta">
+          <div id="freqDisplay" class="meta-chip">0.0 Hz</div>
+          <div id="centsDisplay" class="meta-chip">Väntar</div>
+        </div>
+      </section>
+    </section>
+
+    <section id="strings" class="strings" aria-label="Gitarrens sex strängar">
+      <div class="string-row" data-string-id="E2" style="--string-thickness: 3.8px;">
+        <div class="ring" aria-label="Låg E-sträng"><span class="ring-note">E</span></div>
+        <div class="active-caption">Låg E</div>
+      </div>
+      <div class="string-row" data-string-id="A2" style="--string-thickness: 3.2px;">
+        <div class="ring" aria-label="A-sträng"><span class="ring-note">A</span></div>
+        <div class="active-caption">A</div>
+      </div>
+      <div class="string-row" data-string-id="D3" style="--string-thickness: 2.8px;">
+        <div class="ring" aria-label="D-sträng"><span class="ring-note">D</span></div>
+        <div class="active-caption">D</div>
+      </div>
+      <div class="string-row" data-string-id="G3" style="--string-thickness: 2.4px;">
+        <div class="ring" aria-label="G-sträng"><span class="ring-note">G</span></div>
+        <div class="active-caption">G</div>
+      </div>
+      <div class="string-row" data-string-id="B3" style="--string-thickness: 2px;">
+        <div class="ring" aria-label="B-sträng"><span class="ring-note">B</span></div>
+        <div class="active-caption">B</div>
+      </div>
+      <div class="string-row" data-string-id="E4" style="--string-thickness: 1.6px;">
+        <div class="ring" aria-label="Hög E-sträng"><span class="ring-note">E</span></div>
+        <div class="active-caption">Hög E</div>
+      </div>
+    </section>
+
+    <footer class="footer">
+      <div id="status" class="status" aria-live="polite">Tryck på “Starta mikrofon”.</div>
+      <div class="hint">Tips: spela en öppen sträng nära telefonens mikrofon för stabilare avläsning.</div>
+    </footer>
+  </main>
+
+  <script>
+    const STRINGS = [
+      { id: 'E2', label: 'E', display: 'Låg E', freq: 82.41, midi: 40 },
+      { id: 'A2', label: 'A', display: 'A', freq: 110.0, midi: 45 },
+      { id: 'D3', label: 'D', display: 'D', freq: 146.83, midi: 50 },
+      { id: 'G3', label: 'G', display: 'G', freq: 196.0, midi: 55 },
+      { id: 'B3', label: 'B', display: 'B', freq: 246.94, midi: 59 },
+      { id: 'E4', label: 'E', display: 'Hög E', freq: 329.63, midi: 64 },
+    ];
+
+    const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+    const startButton = document.getElementById('startButton');
+    const noteDisplay = document.getElementById('noteDisplay');
+    const freqDisplay = document.getElementById('freqDisplay');
+    const centsDisplay = document.getElementById('centsDisplay');
+    const statusEl = document.getElementById('status');
+    const stringRows = Array.from(document.querySelectorAll('.string-row'));
+
+    let audioContext;
+    let analyser;
+    let mediaStream;
+    let source;
+    let buffer;
+    let animationFrameId;
+    let lastPitchAt = 0;
+    let history = [];
+    let currentStringId = null;
+
+    function setStatus(message) {
+      statusEl.textContent = message;
+    }
+
+    function clearActiveString() {
+      currentStringId = null;
+      stringRows.forEach((row) => row.classList.remove('active'));
+    }
+
+    function setActiveString(stringId) {
+      if (!stringId || stringId === currentStringId) return;
+      currentStringId = stringId;
+      stringRows.forEach((row) => {
+        row.classList.toggle('active', row.dataset.stringId === stringId);
+      });
+    }
+
+    function frequencyToMidi(freq) {
+      return 69 + 12 * Math.log2(freq / 440);
+    }
+
+    function midiToNoteName(midi) {
+      const rounded = Math.round(midi);
+      const noteName = NOTE_NAMES[(rounded + 1200) % 12];
+      const octave = Math.floor(rounded / 12) - 1;
+      return `${noteName}${octave}`;
+    }
+
+    function centsOff(targetFreq, actualFreq) {
+      return 1200 * Math.log2(actualFreq / targetFreq);
+    }
+
+    function formatCents(value) {
+      if (!Number.isFinite(value)) return 'Väntar';
+      const rounded = Math.round(value);
+      if (Math.abs(rounded) <= 2) return 'Rätt ton';
+      return `${rounded > 0 ? '+' : ''}${rounded} cent`;
+    }
+
+    function getNearestString(freq) {
+      const midi = frequencyToMidi(freq);
+      return STRINGS.reduce((best, string) => {
+        const distance = Math.abs(midi - string.midi);
+        if (!best || distance < best.distance) {
+          return { ...string, distance };
+        }
+        return best;
+      }, null);
+    }
+
+    function pushHistory(stringId) {
+      history.push(stringId);
+      if (history.length > 6) history.shift();
+      const counts = history.reduce((acc, value) => {
+        acc[value] = (acc[value] || 0) + 1;
+        return acc;
+      }, {});
+      return Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || stringId;
+    }
+
+    function autoCorrelate(buf, sampleRate) {
+      const SIZE = buf.length;
+      let rms = 0;
+
+      for (let i = 0; i < SIZE; i += 1) {
+        const value = buf[i];
+        rms += value * value;
+      }
+      rms = Math.sqrt(rms / SIZE);
+      if (rms < 0.015) return -1;
+
+      let r1 = 0;
+      let r2 = SIZE - 1;
+      const threshold = 0.2;
+
+      for (let i = 0; i < SIZE / 2; i += 1) {
+        if (Math.abs(buf[i]) < threshold) {
+          r1 = i;
+          break;
+        }
+      }
+
+      for (let i = 1; i < SIZE / 2; i += 1) {
+        if (Math.abs(buf[SIZE - i]) < threshold) {
+          r2 = SIZE - i;
+          break;
+        }
+      }
+
+      const trimmed = buf.slice(r1, r2);
+      const newSize = trimmed.length;
+      const correlations = new Array(newSize).fill(0);
+
+      for (let lag = 0; lag < newSize; lag += 1) {
+        let sum = 0;
+        for (let i = 0; i < newSize - lag; i += 1) {
+          sum += trimmed[i] * trimmed[i + lag];
+        }
+        correlations[lag] = sum;
+      }
+
+      let dip = 0;
+      while (dip + 1 < newSize && correlations[dip] >= correlations[dip + 1]) {
+        dip += 1;
+      }
+
+      let maxPos = -1;
+      let maxVal = -1;
+      for (let i = dip; i < newSize; i += 1) {
+        if (correlations[i] > maxVal) {
+          maxVal = correlations[i];
+          maxPos = i;
+        }
+      }
+
+      if (maxPos <= 0) return -1;
+
+      const x1 = correlations[maxPos - 1] || correlations[maxPos];
+      const x2 = correlations[maxPos];
+      const x3 = correlations[maxPos + 1] || correlations[maxPos];
+      const a = (x1 + x3 - 2 * x2) / 2;
+      const b = (x3 - x1) / 2;
+      const shift = a ? -b / (2 * a) : 0;
+      const period = maxPos + shift;
+
+      if (!period || !Number.isFinite(period)) return -1;
+      const frequency = sampleRate / period;
+      if (frequency < 70 || frequency > 370) return -1;
+      return frequency;
+    }
+
+    function resetMeter() {
+      noteDisplay.textContent = '—';
+      freqDisplay.textContent = '0.0 Hz';
+      centsDisplay.textContent = 'Väntar';
+      clearActiveString();
+    }
+
+    function updateMeter(pitch) {
+      const midi = frequencyToMidi(pitch);
+      const nearestString = getNearestString(pitch);
+      if (!nearestString) return;
+
+      const stableStringId = pushHistory(nearestString.id);
+      const stableString = STRINGS.find((string) => string.id === stableStringId) || nearestString;
+      const cents = centsOff(stableString.freq, pitch);
+
+      noteDisplay.textContent = midiToNoteName(midi);
+      freqDisplay.textContent = `${pitch.toFixed(1)} Hz`;
+      centsDisplay.textContent = formatCents(cents);
+      setActiveString(stableString.id);
+      setStatus(`Lyssnar · närmast ${stableString.display}`);
+      lastPitchAt = performance.now();
+    }
+
+    function detectPitch() {
+      if (!analyser || !buffer || !audioContext) return;
+      analyser.getFloatTimeDomainData(buffer);
+      const pitch = autoCorrelate(buffer, audioContext.sampleRate);
+
+      if (pitch !== -1) {
+        updateMeter(pitch);
+      } else if (performance.now() - lastPitchAt > 600) {
+        history = [];
+        resetMeter();
+        setStatus('Ingen tydlig ton just nu.');
+      }
+
+      animationFrameId = requestAnimationFrame(detectPitch);
+    }
+
+    async function startListening() {
+      startButton.disabled = true;
+      setStatus('Ber om mikrofonåtkomst...');
+
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+          },
+        });
+
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === 'suspended') {
+          await audioContext.resume();
+        }
+
+        analyser = audioContext.createAnalyser();
+        analyser.fftSize = 4096;
+        analyser.smoothingTimeConstant = 0.15;
+
+        source = audioContext.createMediaStreamSource(mediaStream);
+        source.connect(analyser);
+
+        buffer = new Float32Array(analyser.fftSize);
+        resetMeter();
+        history = [];
+        lastPitchAt = 0;
+        setStatus('Lyssnar... spela en öppen sträng.');
+        startButton.textContent = 'Mikrofon aktiv';
+        startButton.disabled = true;
+        detectPitch();
+      } catch (error) {
+        console.error(error);
+        startButton.disabled = false;
+        setStatus('Kunde inte starta mikrofonen. Tillåt mikrofon i webbläsaren.');
+      }
+    }
+
+    startButton.addEventListener('click', startListening);
+
+    document.addEventListener('visibilitychange', async () => {
+      if (!audioContext) return;
+      if (document.hidden) {
+        cancelAnimationFrame(animationFrameId);
+      } else if (audioContext.state === 'suspended') {
+        await audioContext.resume();
+        detectPitch();
+      } else {
+        detectPitch();
+      }
+    });
+  </script>
+</body>
+</html>
